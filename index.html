@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Lý Trang Thiết Bị Y Tế (Full-Stack)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary-color: #007bff; --secondary-color: #5a9ced; --light-color: #f8f9fa; --dark-color: #343a40; --success-color: #28a745; --warning-color: #ffc107; --danger-color: #dc3545; --info-color: #17a2b8; --font-family: 'Roboto', sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: var(--font-family); }
+        body { background-color: var(--light-color); color: var(--dark-color); line-height: 1.6; }
+        
+        /* NEW: Login Container Styling */
+        #login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #e0eafc, #cfdef3);
+        }
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .login-box h1 {
+            margin-bottom: 25px;
+            color: var(--primary-color);
+        }
+        .login-input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .login-input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .login-input-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #login-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #login-btn:hover {
+            background-color: #0069d9;
+        }
+        #login-error {
+            color: var(--danger-color);
+            margin-top: 15px;
+            font-weight: 500;
+            min-height: 20px;
+        }
+
+        /* Hide main app by default */
+        #main-app-container {
+            display: none;
+        }
+        
+        /* Other CSS remains the same */
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 20px 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); margin-bottom: 30px; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; }
+        .header-left, .header-right { display: flex; align-items: center; gap: 20px; }
+        .logo { font-size: 24px; font-weight: 700; display: flex; align-items: center; }
+        .logo i { margin-right: 10px; color: #fff; }
+        .header-controls { display: flex; flex-direction: column; gap: 8px; background-color: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 8px; }
+        .department-search-wrapper { position: relative; }
+        .department-search-wrapper .fa-search { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.7); font-size: 14px; }
+        #departmentSearchInput { padding: 8px 12px 8px 35px; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 20px; background-color: rgba(255, 255, 255, 0.2); color: white; outline: none; width: 300px; }
+        #departmentSearchInput::placeholder { color: rgba(255, 255, 255, 0.8); }
+        .department-selector { display: flex; align-items: center; background-color: rgba(255, 255, 255, 0.15); padding: 8px 15px; border-radius: 20px; }
+        .department-selector i { margin-right: 10px; }
+        .department-selector select { background: transparent; border: none; color: white; font-weight: 500; outline: none; cursor: pointer; width: 270px; }
+        .department-selector select option { color: var(--dark-color); }
+        #logout-btn { background-color: var(--danger-color); color: white; border: none; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-weight: 500; transition: background-color 0.3s; }
+        #logout-btn:hover { background-color: #c82333; }
+        #logout-btn i { margin-right: 8px; }
+
+        /* Other CSS continues... */
+        .dashboard { display: grid; grid-template-columns: 260px 1fr; gap: 25px; }
+        .sidebar { background-color: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); height: fit-content; }
+        .sidebar h3 { margin-bottom: 20px; color: var(--primary-color); border-bottom: 2px solid var(--light-color); padding-bottom: 10px; font-size: 18px; }
+        .sidebar ul { list-style: none; } .sidebar ul li { margin-bottom: 10px; }
+        .sidebar ul li a { color: #555; text-decoration: none; display: flex; align-items: center; padding: 10px 12px; border-radius: 6px; transition: all 0.3s; font-weight: 500; }
+        .sidebar ul li a:hover, .sidebar ul li a.active { background-color: rgba(0, 123, 255, 0.1); color: var(--primary-color); }
+        .sidebar ul li a i { margin-right: 12px; width: 20px; text-align: center; }
+        .main-content { background-color: white; border-radius: 8px; padding: 25px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); }
+        .main-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid var(--light-color); }
+        .department-title { font-size: 26px; font-weight: 700; color: var(--primary-color); }
+        .header-actions { display: flex; gap: 10px; }
+        .action-button { background-color: var(--primary-color); color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; font-weight: 500; transition: background-color 0.3s, transform 0.2s; }
+        .action-button:hover { transform: translateY(-2px); }
+        #addEquipmentBtn { background-color: var(--primary-color); } #addEquipmentBtn:hover { background-color: #0069d9; } #exportExcelBtn { background-color: var(--success-color); } #exportExcelBtn:hover { background-color: #218838; }
+        .action-button i { margin-right: 8px; }
+        .search-bar { margin-bottom: 25px; position: relative; }
+        .search-bar input { width: 100%; padding: 12px 15px 12px 40px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; transition: border-color 0.3s, box-shadow 0.3s; }
+        .search-bar input:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2); outline: none; }
+        .search-bar i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #aaa; }
+        .stats-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: white; border-radius: 8px; padding: 20px; border: 1px solid #eee; border-left: 5px solid; transition: transform 0.3s, box-shadow 0.3s; }
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); }
+        .stat-card.total { border-color: var(--primary-color); } .stat-card.active { border-color: var(--success-color); } .stat-card.maintenance { border-color: var(--warning-color); } .stat-card.inactive { border-color: var(--danger-color); }
+        .stat-card h3 { font-size: 14px; color: #6c757d; margin-bottom: 10px; font-weight: 500; }
+        .stat-card .value { font-size: 28px; font-weight: 700; }
+        .stat-card.total .value { color: var(--primary-color); } .stat-card.active .value { color: var(--success-color); } .stat-card.maintenance .value { color: var(--warning-color); } .stat-card.inactive .value { color: var(--danger-color); }
+        .equipment-table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; }
+        .equipment-table th, .equipment-table td { padding: 15px; text-align: left; border-bottom: 1px solid #dee2e6; vertical-align: middle; word-wrap: break-word; }
+        .equipment-table th { background-color: var(--light-color); font-weight: 700; color: var(--dark-color); font-size: 14px; text-transform: uppercase; }
+        .equipment-table th:last-child, .equipment-table td:last-child { width: 80px; text-align: center; }
+        .equipment-table tr { transition: background-color 0.2s; border-left: 4px solid transparent; }
+        .equipment-table tr:hover { background-color: #f1faff; }
+        .equipment-table tr.status-active { border-left-color: var(--success-color); } .equipment-table tr.status-maintenance { border-left-color: var(--warning-color); } .equipment-table tr.status-inactive { border-left-color: var(--danger-color); }
+        .equipment-image { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; cursor: pointer; transition: transform 0.3s; }
+        .equipment-image:hover { transform: scale(1.5); z-index: 10; position: relative; }
+        .status { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; color: #fff; }
+        .status.active { background-color: var(--success-color); } .status.maintenance { background-color: var(--warning-color); } .status.inactive { background-color: var(--danger-color); }
+        .action-btn-group button { padding: 6px 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: all 0.3s; margin: 0 2px; }
+        .delete-btn { background-color: var(--danger-color); color: white; } .delete-btn:hover { background-color: #c82333; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 1000; justify-content: center; align-items: center; animation: fadeIn 0.3s; }
+        .modal-content { background-color: white; border-radius: 10px; width: 95%; max-width: 650px; padding: 30px; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2); animation: modalSlideIn 0.4s; max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+        .modal-header h2 { color: var(--primary-color); }
+        .close-btn { background: none; border: none; font-size: 28px; cursor: pointer; color: #888; transition: color 0.3s; }
+        .close-btn:hover { color: var(--dark-color); }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #555; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 15px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; transition: border-color 0.3s, box-shadow 0.3s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary-color); outline: none; box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .image-upload { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed #ddd; padding: 20px; border-radius: 6px; cursor: pointer; transition: all 0.3s; min-height: 150px; }
+        .image-upload:hover { border-color: var(--primary-color); background-color: #f1faff; }
+        .image-upload i { font-size: 40px; color: var(--primary-color); margin-bottom: 10px; }
+        .image-preview { width: 100%; max-height: 200px; object-fit: contain; border-radius: 5px; margin-top: 15px; display: none; }
+        .form-actions { display: flex; justify-content: flex-end; gap: 15px; margin-top: 30px; }
+        .form-actions button { padding: 12px 25px; border-radius: 6px; cursor: pointer; transition: all 0.3s; font-weight: 500; border: 1px solid transparent; }
+        .cancel-btn { background-color: #f8f9fa; color: var(--dark-color); border-color: #ddd; }
+        .cancel-btn:hover { background-color: #e2e6ea; }
+        .save-btn { background-color: var(--primary-color); color: white; }
+        .save-btn:hover { background-color: #0069d9; }
+        footer { text-align: center; margin-top: 50px; padding: 20px 0; color: #6c757d; font-size: 14px; }
+        @media (max-width: 992px) { .dashboard { grid-template-columns: 1fr; } .sidebar { margin-bottom: 20px; } .header-content { flex-direction: column; gap: 15px; } }
+        @media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } .main-header { flex-direction: column; gap: 15px; } }
+    </style>
+</head>
+<body>
+
+    <div id="login-container">
+        <div class="login-box">
+            <h1><i class="fas fa-hospital-user"></i> Đăng Nhập</h1>
+            <form id="login-form">
+                <div class="login-input-group">
+                    <label for="username">Tên đăng nhập</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="login-input-group">
+                    <label for="password">Mật khẩu</label>
+                    <input type="password" id="password" required>
+                </div>
+                <p id="login-error"></p>
+                <button type="submit" id="login-btn">Đăng Nhập</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="main-app-container">
+        <header>
+            <div class="container header-content">
+                <div class="header-left">
+                     <div class="logo">
+                        <i class="fas fa-hospital-user"></i>
+                        <span>Quản Lý Thiết Bị Y Tế</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="header-controls">
+                        <div class="department-search-wrapper">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="departmentSearchInput" placeholder="Tìm kiếm khoa...">
+                        </div>
+                        <div class="department-selector">
+                            <i class="fas fa-sitemap"></i>
+                            <select id="departmentSelect"></select>
+                        </div>
+                    </div>
+                    <button id="logout-btn"><i class="fas fa-sign-out-alt"></i> Đăng xuất</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="container">
+            <div class="dashboard">
+                <aside class="sidebar"><h3>Chức Năng</h3><ul id="sidebar-main"><li><a href="#" class="active" data-filter="all"><i class="fas fa-list-ul"></i> Danh Sách Thiết Bị</a></li><li><a href="#"><i class="fas fa-wrench"></i> Quản lý Bảo Trì</a></li><li><a href="#"><i class="fas fa-triangle-exclamation"></i> Báo Cáo Sự Cố</a></li></ul><h3 style="margin-top: 30px;">Bộ Lọc Nhanh</h3><ul id="sidebar-filters"><li><a href="#" data-filter="active"><i class="fas fa-check-circle" style="color: var(--success-color);"></i> Đang Hoạt Động</a></li><li><a href="#" data-filter="maintenance"><i class="fas fa-tools" style="color: var(--warning-color);"></i> Cần Bảo Trì</a></li><li><a href="#" data-filter="inactive"><i class="fas fa-times-circle" style="color: var(--danger-color);"></i> Ngừng Hoạt Động</a></li></ul></aside>
+                <main class="main-content">
+                    <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
+                    <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Tìm kiếm thiết bị trên toàn bộ các khoa (theo serial, tên, hãng)..."></div>
+                    <div class="stats-cards"><div class="stat-card total"><h3>Tổng Thiết Bị</h3><div class="value" id="totalEquipment">0</div></div><div class="stat-card active"><h3>Đang Hoạt Động</h3><div class="value" id="activeEquipment">0</div></div><div class="stat-card maintenance"><h3>Cần Bảo Trì</h3><div class="value" id="maintenanceEquipment">0</div></div><div class="stat-card inactive"><h3>Ngừng Hoạt Động</h3><div class="value" id="inactiveEquipment">0</div></div></div>
+                    <table class="equipment-table" id="equipmentTable"><thead><tr><th>Hình Ảnh</th><th>Tên Thiết Bị</th><th>Số Serial</th><th id="departmentColumnHeader" style="display:none;">Khoa/Phòng</th><th>Hãng SX</th><th>Năm SD</th><th>Tình Trạng</th><th>Hành Động</th></tr></thead><tbody id="equipmentTableBody"></tbody></table>
+                </main>
+            </div>
+        </div>
+        <div class="modal" id="addEquipmentModal"><div class="modal-content"><div class="modal-header"><h2 id="modalTitle">Thêm Thiết Bị Mới</h2><button class="close-btn" id="closeModalBtn">×</button></div><form id="equipmentForm"><div class="form-row"><div class="form-group"><label for="equipmentName">Tên Thiết Bị *</label><input type="text" id="equipmentName" placeholder="Ví dụ: Máy thở đa năng" required></div><div class="form-group"><label for="serialNumber">Số Serial *</label><input type="text" id="serialNumber" placeholder="Ví dụ: XYZ-12345" required></div></div><div class="form-row"><div class="form-group"><label for="manufacturer">Hãng Sản Xuất *</label><input type="text" id="manufacturer" placeholder="Ví dụ: Siemens" required></div><div class="form-group"><label for="purchaseDate">Năm Đưa Vào Sử Dụng *</label><input type="number" id="purchaseDate" min="1950" max="2099" placeholder="Ví dụ: 2023" required></div></div><div class="form-group"><label for="accessories">Phụ Kiện</label><input type="text" id="accessories" placeholder="Nhập phụ kiện kèm theo (cách nhau bởi dấu phẩy)"></div><div class="form-group"><label for="status">Tình Trạng *</label><select id="status" required><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Ngừng hoạt động</option></select></div><div class="form-group"><label for="description">Mô Tả / Ghi Chú</label><textarea id="description" rows="3" placeholder="Nhập mô tả hoặc ghi chú về thiết bị"></textarea></div><div class="form-group"><label>Hình Ảnh Thiết Bị</label><div class="image-upload" id="imageUpload"><i class="fas fa-cloud-upload-alt"></i><p>Nhấn để tải lên hoặc kéo thả ảnh vào đây</p><input type="file" id="imageInput" accept="image/*" style="display: none;"><img id="imagePreview" class="image-preview" src="#" alt="Xem trước hình ảnh"></div></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Thiết Bị</button></div></form></div></div>
+        <footer><div class="container"><p>© 2025 Hệ Thống Quản Lý Trang Thiết Bị Y Tế. Tối ưu hóa cho hoạt động bệnh viện.</p></div></footer>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // === CONFIG & STATE ===
+        const API_BASE_URL = 'https://quanlythietbi-anh.onrender.com';
+        let departments = {}; 
+        let currentEquipmentList = []; 
+        let currentStatusFilter = 'all'; 
+
+        // === DOM Elements ===
+        const loginContainer = document.getElementById('login-container');
+        const mainAppContainer = document.getElementById('main-app-container');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const logoutBtn = document.getElementById('logout-btn');
+        // ... (rest of the elements are the same)
+        const departmentSelect = document.getElementById('departmentSelect');
+        const departmentSearchInput = document.getElementById('departmentSearchInput');
+        const currentDepartment = document.getElementById('currentDepartment');
+        const equipmentTableBody = document.getElementById('equipmentTableBody');
+        const addEquipmentBtn = document.getElementById('addEquipmentBtn');
+        const addEquipmentModal = document.getElementById('addEquipmentModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const equipmentForm = document.getElementById('equipmentForm');
+        const searchInput = document.getElementById('searchInput');
+        const sidebarFilters = document.querySelectorAll('#sidebar-main a, #sidebar-filters a');
+        const exportExcelBtn = document.getElementById('exportExcelBtn');
+
+        // === AUTHENTICATION LOGIC ===
+        const saveToken = (token) => localStorage.setItem('authToken', token);
+        const getToken = () => localStorage.getItem('authToken');
+        const removeToken = () => localStorage.removeItem('authToken');
+
+        function logout() {
+            removeToken();
+            showLoginView();
+        }
+
+        function showLoginView() {
+            loginContainer.style.display = 'flex';
+            mainAppContainer.style.display = 'none';
+        }
+
+        function showMainAppView() {
+            loginContainer.style.display = 'none';
+            mainAppContainer.style.display = 'block';
+        }
+
+        async function checkAuth() {
+            const token = getToken();
+            if (!token) {
+                showLoginView();
+                return;
+            }
+            // If token exists, try to load initial data. If it fails (e.g., token expired), logout.
+            try {
+                await loadInitialData();
+                showMainAppView();
+            } catch (error) {
+                console.error("Authentication check failed:", error);
+                logout(); // Token is likely invalid or expired
+            }
+        }
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            loginError.textContent = '';
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Đăng nhập thất bại.');
+                }
+
+                saveToken(data.token);
+                showMainAppView();
+                await loadInitialData(); // Load data after successful login
+
+            } catch (error) {
+                loginError.textContent = error.message;
+            }
+        });
+        
+        logoutBtn.addEventListener('click', logout);
+
+
+        // === API HELPER ===
+        async function fetchWithAuth(url, options = {}) {
+            const token = getToken();
+            const headers = {
+                'Content-Type': 'application/json',
+                ...options.headers,
+            };
+
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const response = await fetch(url, { ...options, headers });
+
+            if (response.status === 401 || response.status === 403) {
+                // Unauthorized or Forbidden, likely an expired token
+                logout();
+                throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+            }
+            
+            return response;
+        }
+
+        // === CORE APP LOGIC (MODIFIED TO USE fetchWithAuth) ===
+        const handleApiError = (error, context = 'Thao tác') => {
+            console.error(`${context} thất bại:`, error);
+            alert(`${context} thất bại. Lỗi: ${error.message}`);
+        };
+        
+        async function loadInitialData() {
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/departments`);
+                if (!response.ok) throw new Error('Không thể tải danh sách khoa');
+                departments = await response.json();
+                populateDepartmentDropdown();
+                const firstDeptKey = Object.keys(departments)[0];
+                if (firstDeptKey) {
+                    departmentSelect.value = firstDeptKey;
+                    await fetchAndDisplayEquipment(firstDeptKey);
+                }
+            } catch (error) {
+                handleApiError(error, 'Tải dữ liệu ban đầu');
+                throw error; // Re-throw to be caught by checkAuth
+            }
+        }
+        
+        function populateDepartmentDropdown(filter = '') {
+            const currentVal = departmentSelect.value;
+            departmentSelect.innerHTML = '';
+            for (const key in departments) {
+                if (departments[key].toLowerCase().includes(filter.toLowerCase())) {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = departments[key];
+                    departmentSelect.appendChild(option);
+                }
+            }
+            if ([...departmentSelect.options].some(opt => opt.value === currentVal)) {
+                departmentSelect.value = currentVal;
+            }
+        }
+
+        async function fetchAndDisplayEquipment(deptKey) {
+            currentDepartment.textContent = `Đang tải...`;
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}`);
+                if (!response.ok) throw new Error(`Không thể tải dữ liệu`);
+                let equipmentFromServer = await response.json();
+                let fullListOfDept = equipmentFromServer;
+                
+                if (currentStatusFilter !== 'all') {
+                    currentEquipmentList = equipmentFromServer.filter(item => item.status === currentStatusFilter);
+                } else {
+                    currentEquipmentList = equipmentFromServer;
+                }
+                
+                updateDepartmentTitle(deptKey);
+                updateStats(fullListOfDept); 
+                updateEquipmentTable();
+            } catch (error) {
+                handleApiError(error, `Tải dữ liệu cho khoa ${departments[deptKey]}`);
+            }
+        }
+        
+        // ... Other functions (updateEquipmentTable, updateStats, etc.) are now modified to use fetchWithAuth indirectly
+        // The rest of the functions from the previous version can be pasted here, but they need to be adapted
+        // For simplicity, here are the full, correct versions.
+        function updateEquipmentTable(dataToDisplay = null, isGlobalSearch = false) {
+            equipmentTableBody.innerHTML = '';
+            const list = dataToDisplay || currentEquipmentList;
+            document.getElementById('departmentColumnHeader').style.display = isGlobalSearch ? '' : 'none';
+            if (list.length === 0) {
+                 equipmentTableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px;">Không có thiết bị nào phù hợp.</td></tr>`;
+                 return;
+            }
+            list.forEach(item => {
+                const row = document.createElement('tr');
+                const itemDept = item.department || departmentSelect.value;
+                row.className = `status-${item.status}`;
+                row.innerHTML = `
+                    <td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td>
+                    <td>${item.name}</td>
+                    <td>${item.serial}</td>
+                    ${isGlobalSearch ? `<td>${departments[itemDept] || 'N/A'}</td>` : ''}
+                    <td>${item.manufacturer || 'N/A'}</td>
+                    <td>${item.year}</td>
+                    <td><span class="status ${item.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span></td>
+                    <td class="action-btn-group">
+                        <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                equipmentTableBody.appendChild(row);
+            });
+        }
+        
+        function updateStats(fullListOfDept) {
+            document.getElementById('totalEquipment').textContent = fullListOfDept.length;
+            document.getElementById('activeEquipment').textContent = fullListOfDept.filter(item => item.status === 'active').length;
+            document.getElementById('maintenanceEquipment').textContent = fullListOfDept.filter(item => item.status === 'maintenance').length;
+            document.getElementById('inactiveEquipment').textContent = fullListOfDept.filter(item => item.status === 'inactive').length;
+        }
+
+        function updateDepartmentTitle(deptKey) {
+             currentDepartment.textContent = departments[deptKey];
+        }
+
+        departmentSelect.addEventListener('change', () => {
+            searchInput.value = '';
+            currentStatusFilter = 'all';
+            setActiveSidebarFilter('all');
+            fetchAndDisplayEquipment(departmentSelect.value);
+        });
+        
+        departmentSearchInput.addEventListener('input', (e) => {
+            populateDepartmentDropdown(e.target.value);
+        });
+        
+        searchInput.addEventListener('input', async (e) => {
+            const searchTerm = e.target.value.trim();
+            if (searchTerm.length > 1) {
+                try {
+                    currentDepartment.textContent = `Đang tìm kiếm...`;
+                    const response = await fetchWithAuth(`${API_BASE_URL}/api/search?q=${searchTerm}`);
+                    const results = await response.json();
+                    updateEquipmentTable(results, true);
+                } catch (error) {
+                    handleApiError(error, 'Tìm kiếm');
+                }
+            } else if (searchTerm.length === 0) {
+                fetchAndDisplayEquipment(departmentSelect.value);
+            }
+        });
+
+        sidebarFilters.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                searchInput.value = '';
+                currentStatusFilter = e.currentTarget.dataset.filter;
+                setActiveSidebarFilter(currentStatusFilter);
+                fetchAndDisplayEquipment(departmentSelect.value);
+            });
+        });
+
+        function setActiveSidebarFilter(activeFilter) {
+            sidebarFilters.forEach(link => {
+                link.classList.remove('active');
+                if(link.dataset.filter === activeFilter) link.classList.add('active');
+            });
+        }
+        
+        equipmentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const serialNumber = document.getElementById('serialNumber').value;
+            const targetDeptKey = departmentSelect.value;
+            const equipment = {
+                name: document.getElementById('equipmentName').value,
+                serial: serialNumber,
+                manufacturer: document.getElementById('manufacturer').value,
+                accessories: document.getElementById('accessories').value,
+                year: document.getElementById('purchaseDate').value,
+                status: document.getElementById('status').value,
+                description: document.getElementById('description').value,
+                image: document.getElementById('imagePreview').src.startsWith('data:image') ? document.getElementById('imagePreview').src : null
+            };
+            const url = `${API_BASE_URL}/api/equipment/${targetDeptKey}`;
+            try {
+                const response = await fetchWithAuth(url, {
+                    method: 'POST',
+                    body: JSON.stringify(equipment)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Thao tác thất bại.');
+                }
+                alert('Thao tác thành công!');
+                closeModal();
+                await fetchAndDisplayEquipment(targetDeptKey);
+            } catch (error) {
+                alert(`Lỗi: ${error.message}`);
+            }
+        });
+
+        equipmentTableBody.addEventListener('click', async (e) => {
+            const target = e.target.closest('button');
+            if (!target) return;
+            const serial = target.dataset.serial;
+            
+            if (target.classList.contains('delete-btn')) {
+                const deptKey = target.dataset.dept;
+                if (!deptKey) return;
+                if (confirm(`Bạn có chắc chắn muốn xóa thiết bị có serial "${serial}"?`)) {
+                    try {
+                        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${serial}`, { method: 'DELETE' });
+                        if (!response.ok) throw new Error('Xóa thất bại');
+                        alert('Xóa thành công!');
+                        await fetchAndDisplayEquipment(departmentSelect.value);
+                    } catch (error) {
+                        handleApiError(error, 'Xóa thiết bị');
+                    }
+                }
+            }
+        });
+        
+        exportExcelBtn.addEventListener('click', async () => {
+            const selectedDepartmentKey = departmentSelect.value;
+            const departmentName = departments[selectedDepartmentKey];
+            alert(`Đang chuẩn bị file Excel cho "${departmentName}"...`);
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${selectedDepartmentKey}`);
+                const dataToExport = await response.json();
+                if (dataToExport.length === 0) {
+                    alert(`Không có dữ liệu để xuất cho ${departmentName}.`); return;
+                }
+                const statusMap = { active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng hoạt động' };
+                const formattedData = dataToExport.map(item => ({
+                    'Tên Thiết Bị': item.name, 'Số Serial': item.serial, 'Hãng Sản Xuất': item.manufacturer,
+                    'Phụ Kiện': item.accessories || '', 'Năm Sử Dụng': item.year,
+                    'Tình Trạng': statusMap[item.status] || 'Không rõ', 'Mô Tả': item.description || ''
+                }));
+                const worksheet = XLSX.utils.json_to_sheet(formattedData);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách thiết bị');
+                const headers = Object.keys(formattedData[0]);
+                const colWidths = headers.map(header => ({ wch: Math.max(header.length, ...formattedData.map(row => (row[header] || '').toString().length)) + 2 }));
+                worksheet["!cols"] = colWidths;
+                const fileName = `DS-Thiet-bi_${departmentName.replace(/[^\w]/g, '')}_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.xlsx`;
+                XLSX.writeFile(workbook, fileName);
+            } catch(error) {
+                handleApiError(error, "Xuất file Excel");
+            }
+        });
+
+        // Modal handling functions (simplified as Edit is removed)
+        function openModal() {
+            equipmentForm.reset();
+            document.getElementById('imagePreview').src = "#";
+            document.getElementById('imagePreview').style.display = 'none';
+            document.getElementById('modalTitle').textContent = 'Thêm Thiết Bị Mới';
+            addEquipmentModal.style.display = 'flex';
+        }
+        function closeModal() { addEquipmentModal.style.display = 'none'; }
+        addEquipmentBtn.addEventListener('click', openModal);
+        closeModalBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        window.addEventListener('click', (e) => e.target === addEquipmentModal && closeModal());
+        document.getElementById('imageUpload').addEventListener('click', () => document.getElementById('imageInput').click());
+        document.getElementById('imageInput').addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('imagePreview').src = e.target.result;
+                    document.getElementById('imagePreview').style.display = 'block';
+                };
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+
+        // Initial entry point
+        checkAuth();
+    });
+    </script>
+</body>
+</html>
