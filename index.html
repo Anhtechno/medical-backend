@@ -11,7 +11,6 @@
         :root { --primary-color: #007bff; --secondary-color: #5a9ced; --light-color: #f8f9fa; --dark-color: #343a40; --success-color: #28a745; --warning-color: #ffc107; --danger-color: #dc3545; --info-color: #17a2b8; --font-family: 'Roboto', sans-serif; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: var(--font-family); }
         body { background-color: var(--light-color); color: var(--dark-color); line-height: 1.6; }
-        
         #login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #e0eafc, #cfdef3); }
         .login-box { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); width: 100%; max-width: 400px; text-align: center; }
         .login-box h1 { margin-bottom: 25px; color: var(--primary-color); }
@@ -22,7 +21,6 @@
         #login-btn:hover { background-color: #0069d9; }
         #login-error { color: var(--danger-color); margin-top: 15px; font-weight: 500; min-height: 20px; }
         #main-app-container { display: none; }
-        
         .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
         header { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; padding: 20px 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); margin-bottom: 30px; }
         .header-content { display: flex; justify-content: space-between; align-items: center; }
@@ -43,7 +41,6 @@
         #logout-btn { background-color: var(--danger-color); color: white; border: none; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-weight: 500; transition: background-color 0.3s; }
         #logout-btn:hover { background-color: #c82333; }
         #logout-btn i { margin-right: 8px; }
-
         .dashboard { display: grid; grid-template-columns: 260px 1fr; gap: 25px; }
         .sidebar { background-color: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); height: fit-content; }
         .sidebar h3 { margin-bottom: 20px; color: var(--primary-color); border-bottom: 2px solid var(--light-color); padding-bottom: 10px; font-size: 18px; }
@@ -125,15 +122,12 @@
     
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // === CONFIG & STATE ===
         const API_BASE_URL = 'https://quanlythietbi-anh.onrender.com';
         let departments = {}; 
-        let currentEquipmentList = [];
         let currentFullDeptList = [];
         let currentStatusFilter = 'all';
         let userProfile = {};
 
-        // === DOM Elements ===
         const loginContainer = document.getElementById('login-container');
         const mainAppContainer = document.getElementById('main-app-container');
         const loginForm = document.getElementById('login-form');
@@ -150,7 +144,6 @@
         const sidebarFilters = document.querySelectorAll('#sidebar-main a, #sidebar-filters a');
         const exportExcelBtn = document.getElementById('exportExcelBtn');
         
-        // === AUTHENTICATION & USER PROFILE LOGIC ===
         const saveToken = (token) => localStorage.setItem('authToken', token);
         const getToken = () => localStorage.getItem('authToken');
         const removeToken = () => { localStorage.removeItem('authToken'); localStorage.removeItem('userProfile'); };
@@ -207,7 +200,6 @@
         
         logoutBtn.addEventListener('click', logout);
 
-        // === API HELPER ===
         async function fetchWithAuth(url, options = {}) {
             const token = getToken();
             const headers = { 'Content-Type': 'application/json', ...options.headers };
@@ -225,7 +217,6 @@
             alert(`${context} thất bại. Lỗi: ${error.message}`);
         };
         
-        // === CORE APP LOGIC ===
         async function loadInitialData() {
             try {
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/departments`);
@@ -270,7 +261,7 @@
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}`);
                 if (!response.ok) throw new Error(`Không thể tải dữ liệu`);
                 currentFullDeptList = await response.json();
-                applyFilterAndRender(currentFullDeptList);
+                applyFilterAndRender();
                 updateDepartmentTitle(deptKey);
                 updateStats(currentFullDeptList); 
             } catch (error) {
@@ -278,12 +269,12 @@
             }
         }
         
-        function applyFilterAndRender(sourceList) {
+        function applyFilterAndRender() {
             let listToRender;
             if (currentStatusFilter !== 'all') {
-                listToRender = sourceList.filter(item => item.status === currentStatusFilter);
+                listToRender = currentFullDeptList.filter(item => item.status === currentStatusFilter);
             } else {
-                listToRender = sourceList;
+                listToRender = currentFullDeptList;
             }
             updateEquipmentTable(listToRender, searchInput.value.trim().length > 0);
         }
@@ -306,6 +297,8 @@
                         <button class="edit-btn" data-serial="${item.serial}"><i class="fas fa-edit"></i></button>
                         <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>
                     `;
+                } else {
+                    // User thường có thể có các action khác ở đây trong tương lai, vd: xem chi tiết
                 }
 
                 row.innerHTML = `
@@ -364,7 +357,8 @@
                 searchInput.value = '';
                 currentStatusFilter = e.currentTarget.dataset.filter;
                 setActiveSidebarFilter(currentStatusFilter);
-                fetchAndDisplayEquipment(departmentSelect.value);
+                // Lọc trên dữ liệu đã có thay vì gọi API lại
+                applyFilterAndRender();
             });
         });
 
@@ -500,7 +494,7 @@
             } else {
                 document.getElementById('modalTitle').textContent = 'Thêm Thiết Bị Mới';
             }
-            addEquipmentModal.style.display = 'flex';
+            document.getElementById('addEquipmentModal').style.display = 'flex';
         }
         function closeModal() { document.getElementById('addEquipmentModal').style.display = 'none'; }
         addEquipmentBtn.addEventListener('click', () => openModal('add'));
