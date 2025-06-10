@@ -142,7 +142,6 @@
         const equipmentForm = document.getElementById('equipmentForm');
         const searchInput = document.getElementById('searchInput');
         const sidebarFilters = document.querySelectorAll('#sidebar-main a, #sidebar-filters a');
-        const exportExcelBtn = document.getElementById('exportExcelBtn');
         
         const saveToken = (token) => localStorage.setItem('authToken', token);
         const getToken = () => localStorage.getItem('authToken');
@@ -169,7 +168,7 @@
             const token = getToken();
             if (!token) { showLoginView(); return; }
             userProfile = getUserProfile();
-            if(!userProfile.role) { logout(); return; }
+            if(!userProfile || !userProfile.role) { logout(); return; }
             try {
                 await loadInitialData();
                 showMainAppView();
@@ -265,17 +264,14 @@
                 updateDepartmentTitle(deptKey);
                 updateStats(currentFullDeptList); 
             } catch (error) {
-                handleApiError(error, `Tải dữ liệu cho khoa ${departments[deptKey]}`);
+                handleApiError(error, `Tải dữ liệu cho khoa ${departments[deptKey] || deptKey}`);
             }
         }
         
         function applyFilterAndRender() {
-            let listToRender;
-            if (currentStatusFilter !== 'all') {
-                listToRender = currentFullDeptList.filter(item => item.status === currentStatusFilter);
-            } else {
-                listToRender = currentFullDeptList;
-            }
+            let listToRender = (currentStatusFilter !== 'all')
+                ? currentFullDeptList.filter(item => item.status === currentStatusFilter)
+                : currentFullDeptList;
             updateEquipmentTable(listToRender, searchInput.value.trim().length > 0);
         }
 
@@ -290,17 +286,13 @@
                 const row = document.createElement('tr');
                 const itemDept = item.department || departmentSelect.value;
                 row.className = `status-${item.status}`;
-                
                 let actionButtons = '';
                 if (userProfile.role === 'admin') {
                     actionButtons = `
                         <button class="edit-btn" data-serial="${item.serial}"><i class="fas fa-edit"></i></button>
                         <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>
                     `;
-                } else {
-                    // User thường có thể có các action khác ở đây trong tương lai, vd: xem chi tiết
                 }
-
                 row.innerHTML = `
                     <td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td>
                     <td>${item.name}</td><td>${item.serial}</td>
@@ -343,9 +335,7 @@
                     const response = await fetchWithAuth(`${API_BASE_URL}/api/search?q=${searchTerm}`);
                     const results = await response.json();
                     updateEquipmentTable(results, true);
-                } catch (error) {
-                    handleApiError(error, 'Tìm kiếm');
-                }
+                } catch (error) { handleApiError(error, 'Tìm kiếm'); }
             } else if (searchTerm.length === 0) {
                 fetchAndDisplayEquipment(departmentSelect.value);
             }
@@ -357,7 +347,6 @@
                 searchInput.value = '';
                 currentStatusFilter = e.currentTarget.dataset.filter;
                 setActiveSidebarFilter(currentStatusFilter);
-                // Lọc trên dữ liệu đã có thay vì gọi API lại
                 applyFilterAndRender();
             });
         });
@@ -375,16 +364,13 @@
             const isEditing = !!editSerial;
             const serialNumber = document.getElementById('serialNumber').value.trim();
             if (!serialNumber) { alert("Số serial là bắt buộc."); return; }
-
             const payload = {
                 name: document.getElementById('equipmentName').value, serial: serialNumber, manufacturer: document.getElementById('manufacturer').value,
                 accessories: document.getElementById('accessories').value, year: document.getElementById('purchaseDate').value,
                 status: document.getElementById('status').value, description: document.getElementById('description').value,
                 image: document.getElementById('imagePreview').src.startsWith('data:image') ? document.getElementById('imagePreview').src : null
             };
-
             let url, method, targetDeptKey;
-
             if (isEditing) {
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${editSerial}`);
                 if (!response.ok) { alert('Lỗi: Không tìm thấy thiết bị gốc để cập nhật.'); return; }
@@ -399,7 +385,6 @@
                 url = `${API_BASE_URL}/api/equipment/${targetDeptKey}`;
                 method = 'POST';
             }
-
             try {
                 const response = await fetchWithAuth(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message || 'Thao tác thất bại.'); }
@@ -415,16 +400,13 @@
             const target = e.target.closest('button');
             if (!target) return;
             const serial = target.dataset.serial;
-
             if (target.classList.contains('edit-btn')) {
                 try {
                     const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${serial}`);
                     if (!response.ok) throw new Error("Không tìm thấy thông tin thiết bị để sửa.");
                     const itemData = await response.json();
                     if (itemData) openModal('edit', itemData);
-                } catch(error) {
-                    handleApiError(error, 'Lấy thông tin sửa');
-                }
+                } catch(error) { handleApiError(error, 'Lấy thông tin sửa'); }
             } else if (target.classList.contains('delete-btn')) {
                 const deptKey = target.dataset.dept;
                 if (!deptKey) return;
@@ -434,9 +416,7 @@
                         if (!response.ok) throw new Error('Xóa thất bại');
                         alert('Xóa thành công!');
                         await fetchAndDisplayEquipment(departmentSelect.value);
-                    } catch (error) {
-                        handleApiError(error, 'Xóa thiết bị');
-                    }
+                    } catch (error) { handleApiError(error, 'Xóa thiết bị'); }
                 }
             }
         });
@@ -464,9 +444,7 @@
                 worksheet["!cols"] = colWidths;
                 const fileName = `DS-Thiet-bi_${departmentName.replace(/[^\w]/g, '')}_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.xlsx`;
                 XLSX.writeFile(workbook, fileName);
-            } catch(error) {
-                handleApiError(error, "Xuất file Excel");
-            }
+            } catch(error) { handleApiError(error, "Xuất file Excel"); }
         });
 
         function openModal(mode = 'add', itemData = null) {
@@ -497,9 +475,11 @@
             document.getElementById('addEquipmentModal').style.display = 'flex';
         }
         function closeModal() { document.getElementById('addEquipmentModal').style.display = 'none'; }
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
         addEquipmentBtn.addEventListener('click', () => openModal('add'));
-        document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-        document.getElementById('cancelBtn').addEventListener('click', closeModal);
+        closeModalBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
         window.addEventListener('click', (e) => { if (e.target === addEquipmentModal) closeModal(); });
         document.getElementById('imageUpload').addEventListener('click', () => document.getElementById('imageInput').click());
         document.getElementById('imageInput').addEventListener('change', function() {

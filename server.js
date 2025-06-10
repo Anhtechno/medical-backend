@@ -1,5 +1,5 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN CÓ ĐĂNG NHẬP & PHÂN QUYỀN
+// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH CUỐI CÙNG
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
@@ -36,7 +36,7 @@ const equipmentSchema = new mongoose.Schema({
 });
 const Equipment = mongoose.models.Equipment || mongoose.model('Equipment', equipmentSchema);
 
-// Schema cho Người Dùng (CÓ CẬP NHẬT)
+// Schema cho Người Dùng
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
@@ -45,8 +45,42 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// Dữ liệu tĩnh về các khoa
-const departments = { 'bvsk_tw_2b': 'Phòng Bảo vệ sức khỏe Trung ương 2B', 'cap_cuu': 'Khoa Cấp cứu', 'kham_benh': 'Khoa Khám bệnh', 'kham_benh_yc': 'Khoa Khám bệnh theo yêu cầu', 'noi_than_loc_mau': 'Khoa Nội thận – Lọc máu', 'dinh_duong_ls': 'Khoa Dinh dưỡng lâm sàng', 'phuc_hoi_cn': 'Khoa Phục hồi chức năng', 'hoi_suc_tc_cd': 'Khoa Hồi sức tích cực – Chống độc', 'phau_thuat_gmhs': 'Khoa Phẫu thuật – Gây mê hồi sức', 'ngoai_ctch': 'Khoa Ngoại chấn thương chỉnh hình', 'ngoai_tieu_hoa': 'Khoa Ngoại tiêu hoá', 'ngoai_gan_mat': 'Khoa Ngoại gan mật', 'noi_tiet': 'Khoa Nội tiết', 'ngoai_tim_mach_ln': 'Khoa Ngoại tim mạch – Lồng ngực', 'noi_tim_mach': 'Khoa Nội tim mạch', 'tim_mach_cc_ct': 'Khoa Tim mạch cấp cứu và can thiệp', 'noi_than_kinh': 'Khoa Nội thần kinh', 'loan_nhip_tim': 'Khoa Loạn nhịp tim', 'ngoai_than_kinh': 'Khoa Ngoại thần kinh', 'ngoai_than_tn': 'Khoa Ngoại thận – Tiết niệu', 'dieu_tri_cbcc': 'Khoa Điều trị Cán bộ cao cấp', 'noi_cxk': 'Khoa Nội cơ xương khớp', 'noi_dieu_tri_yc': 'Khoa Nội điều trị theo yêu cầu', 'noi_tieu_hoa': 'Khoa Nội tiêu hoá', 'noi_ho_hap': 'Khoa Nội hô hấp', 'mat': 'Khoa Mắt', 'tai_mui_hong': 'Khoa Tai mũi họng', 'pt_hm_thtm': 'Khoa Phẫu thuật hàm mặt – Tạo hình thẩm mỹ', 'ung_buou': 'Khoa Ung bướu', 'noi_nhiem': 'Khoa Nội nhiễm', 'y_hoc_co_truyen': 'Khoa Y học cổ truyền', 'ngoai_dieu_tri_yc': 'Khoa Ngoại điều trị theo yêu cầu', 'da_lieu_md_du': 'Khoa Da liễu – Miễn dịch – Dị ứng' };
+// Dữ liệu tĩnh về 33 khoa (đã cập nhật)
+const departments = {
+    'phong_bvsk_tw_2b': 'Phòng Bảo vệ sức khỏe Trung ương 2B',
+    'cap_cuu': 'Khoa Cấp cứu',
+    'kham_benh': 'Khoa Khám bệnh',
+    'kham_benh_yc': 'Khoa Khám bệnh theo yêu cầu',
+    'noi_than_loc_mau': 'Khoa Nội thận – Lọc máu',
+    'dinh_duong_ls': 'Khoa Dinh dưỡng lâm sàng',
+    'phuc_hoi_cn': 'Khoa Phục hồi chức năng',
+    'icu': 'Khoa Hồi sức tích cực – Chống độc',
+    'phau_thuat_gmhs': 'Khoa Phẫu thuật – Gây mê hồi sức',
+    'ngoai_ctch': 'Khoa Ngoại chấn thương chỉnh hình',
+    'ngoai_tieu_hoa': 'Khoa Ngoại tiêu hoá',
+    'ngoai_gan_mat': 'Khoa Ngoại gan mật',
+    'noi_tiet': 'Khoa Nội tiết',
+    'ngoai_tim_mach_ln': 'Khoa Ngoại tim mạch – Lồng ngực',
+    'noi_tim_mach': 'Khoa Nội tim mạch',
+    'tim_mach_cc_ct': 'Khoa Tim mạch cấp cứu và can thiệp',
+    'noi_than_kinh': 'Khoa Nội thần kinh',
+    'loan_nhip_tim': 'Khoa Loạn nhịp tim',
+    'ngoai_than_kinh': 'Khoa Ngoại thần kinh',
+    'ngoai_than_tn': 'Khoa Ngoại thận – Tiết niệu',
+    'dieu_tri_cbcc': 'Khoa Điều trị Cán bộ cao cấp',
+    'noi_cxk': 'Khoa Nội cơ xương khớp',
+    'noi_dieu_tri_yc': 'Khoa Nội điều trị theo yêu cầu',
+    'noi_tieu_hoa_2': 'Khoa Nội tiêu hoá', // Note: Duplicate name, key made unique
+    'noi_ho_hap': 'Khoa Nội hô hấp',
+    'mat': 'Khoa Mắt',
+    'tai_mui_hong': 'Khoa Tai mũi họng',
+    'pt_hm_thtm': 'Khoa Phẫu thuật hàm mặt – Tạo hình thẩm mỹ',
+    'ung_buou': 'Khoa Ung bướu',
+    'noi_nhiem': 'Khoa Nội nhiễm',
+    'y_hoc_co_truyen': 'Khoa Y học cổ truyền',
+    'ngoai_dieu_tri_yc': 'Khoa Ngoại điều trị theo yêu cầu',
+    'da_lieu_md_du': 'Khoa Da liễu – Miễn dịch – Dị ứng'
+};
 
 
 // 6. API CHO VIỆC XÁC THỰC (ĐĂNG KÝ, ĐĂNG NHẬP)
@@ -76,7 +110,6 @@ app.post('/api/auth/login', async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ message: "Tên đăng nhập hoặc mật khẩu không đúng." });
 
-        // Gửi thêm role và departmentKey trong token
         const token = jwt.sign(
             { userId: user._id, username: user.username, role: user.role, departmentKey: user.departmentKey },
             JWT_SECRET,
@@ -96,7 +129,7 @@ const authenticateToken = (req, res, next) => {
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) return res.sendStatus(403);
-        req.user = user; // Gắn thông tin người dùng (gồm cả role) vào request
+        req.user = user;
         next();
     });
 };
@@ -111,18 +144,18 @@ const isAdmin = (req, res, next) => {
 // 8. API QUẢN LÝ THIẾT BỊ (ĐÃ ĐƯỢC BẢO VỆ VÀ PHÂN QUYỀN)
 app.get('/api/departments', authenticateToken, (req, res) => {
     if (req.user.role === 'admin') {
-        return res.json(departments); // Admin thấy tất cả
+        return res.json(departments);
     }
-    // User thường chỉ thấy khoa của mình
     const userDept = {};
-    userDept[req.user.departmentKey] = departments[req.user.departmentKey];
+    if (req.user.departmentKey && departments[req.user.departmentKey]) {
+        userDept[req.user.departmentKey] = departments[req.user.departmentKey];
+    }
     res.json(userDept);
 });
 
 app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
     try {
         const { deptKey } = req.params;
-        // Kiểm tra quyền
         if (req.user.role === 'user' && req.user.departmentKey !== deptKey) {
             return res.status(403).json({ message: "Không có quyền xem dữ liệu của khoa này." });
         }
@@ -150,7 +183,18 @@ app.post('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
     }
 });
 
-// Chỉ Admin mới được xóa
+app.put('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { serial } = req.params;
+        const updatedData = req.body;
+        const updatedEquipment = await Equipment.findOneAndUpdate({ serial: serial }, updatedData, { new: true });
+        if (!updatedEquipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+        res.json(updatedEquipment);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi cập nhật', error: error.message });
+    }
+});
+
 app.delete('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (req, res) => {
     try {
         const { serial } = req.params;
@@ -175,8 +219,6 @@ app.get('/api/search', authenticateToken, async (req, res) => {
                 { manufacturer: { $regex: searchTerm, $options: 'i' } }
             ]
         };
-
-        // Nếu là user thường, chỉ tìm trong khoa của họ
         if (req.user.role === 'user') {
             query.department = req.user.departmentKey;
         }
@@ -185,6 +227,17 @@ app.get('/api/search', authenticateToken, async (req, res) => {
         res.json(results);
     } catch (error) {
         res.status(500).json({ message: 'Lỗi server khi tìm kiếm', error: error.message });
+    }
+});
+
+app.get('/api/equipment/item/:serial', authenticateToken, async (req, res) => {
+    try {
+        const serialToFind = req.params.serial.trim(); 
+        const equipment = await Equipment.findOne({ serial: new RegExp('^' + serialToFind + '$', 'i') });
+        if (!equipment) return res.status(404).json({ message: "Không tìm thấy thiết bị với số serial này." });
+        res.json(equipment);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi lấy chi tiết thiết bị', error: error.message });
     }
 });
 
