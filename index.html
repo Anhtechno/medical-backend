@@ -150,9 +150,9 @@
                         <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
                         <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Tìm kiếm thiết bị trên toàn bộ các khoa (theo serial, tên, hãng)..."></div>
                         <div class="stats-cards"><div class="stat-card total"><h3>Tổng Thiết Bị</h3><div class="value" id="totalEquipment">0</div></div><div class="stat-card active"><h3>Đang Hoạt Động</h3><div class="value" id="activeEquipment">0</div></div><div class="stat-card maintenance"><h3>Cần Bảo Trì</h3><div class="value" id="maintenanceEquipment">0</div></div><div class="stat-card inactive"><h3>Ngừng Hoạt Động</h3><div class="value" id="inactiveEquipment">0</div></div></div>
-                        <table class="generic-table" id="equipmentTable"><thead><tr><th>Hình Ảnh</th><th>Tên Thiết Bị</th><th>Số Serial</th><th id="departmentColumnHeader" style="display:none;">Khoa/Phòng</th><th>Hãng SX</th><th>Năm SD</th><th>Tình Trạng</th><th>Hành Động</th></tr></thead><tbody id="equipmentTableBody"></tbody></table>
+                        <table class="generic-table equipment-table" id="equipmentTable"><thead><tr><th>Hình Ảnh</th><th>Tên Thiết Bị</th><th>Số Serial</th><th id="departmentColumnHeader" style="display:none;">Khoa/Phòng</th><th>Hãng SX</th><th>Năm SD</th><th>Tình Trạng</th><th>Hành Động</th></tr></thead><tbody id="equipmentTableBody"></tbody></table>
                     </div>
-                    <div id="incident-view-container" class="view-container">
+                    <div id="incidents-view-container" class="view-container">
                         <div class="main-header"><h1 class="view-title">Báo Cáo Sự Cố</h1></div>
                         <div id="admin-incident-list" style="display: none;"><table class="generic-table" id="incident-table"><thead><tr><th>Ngày Báo Cáo</th><th>Khoa</th><th>Thiết Bị</th><th>Số Serial</th><th>Mô Tả Sự Cố</th><th>Trạng Thái</th><th>Hành Động</th></tr></thead><tbody id="incident-table-body"></tbody></table></div>
                         <div id="user-incident-form-wrapper" style="display: none;"><form id="incident-form"><div class="form-group"><label for="incident-equipment-select">Chọn Thiết Bị Gặp Sự Cố *</label><select id="incident-equipment-select" required></select></div><div class="form-group"><label for="problem-description">Mô Tả Chi Tiết Sự Cố *</label><textarea id="problem-description" rows="5" placeholder="Ví dụ: Máy không lên nguồn, màn hình hiển thị sọc..." required></textarea></div><div class="form-actions"><button type="submit" class="save-btn">Gửi Báo Cáo</button></div></form></div>
@@ -160,7 +160,9 @@
                 </main>
             </div>
         </div>
+        
         <div class="modal" id="addEquipmentModal"><div class="modal-content"><div class="modal-header"><h2 id="modalTitle">Thêm Thiết Bị Mới</h2><button class="close-btn" id="closeModalBtn">×</button></div><form id="equipmentForm"><input type="hidden" id="edit-serial"><div class="form-row"><div class="form-group"><label for="equipmentName">Tên Thiết Bị *</label><input type="text" id="equipmentName" placeholder="Ví dụ: Máy thở đa năng" required></div><div class="form-group"><label for="serialNumber">Số Serial *</label><input type="text" id="serialNumber" placeholder="Ví dụ: XYZ-12345" required></div></div><div class="form-row"><div class="form-group"><label for="manufacturer">Hãng Sản Xuất *</label><input type="text" id="manufacturer" placeholder="Ví dụ: Siemens" required></div><div class="form-group"><label for="purchaseDate">Năm Đưa Vào Sử Dụng *</label><input type="number" id="purchaseDate" min="1950" max="2099" placeholder="Ví dụ: 2023" required></div></div><div class="form-group"><label for="accessories">Phụ Kiện</label><input type="text" id="accessories" placeholder="Nhập phụ kiện kèm theo (cách nhau bởi dấu phẩy)"></div><div class="form-group"><label for="status">Tình Trạng *</label><select id="status" required><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Ngừng hoạt động</option></select></div><div class="form-group"><label for="description">Mô Tả / Ghi Chú</label><textarea id="description" rows="3" placeholder="Nhập mô tả hoặc ghi chú về thiết bị"></textarea></div><div class="form-group"><label>Hình Ảnh Thiết Bị</label><div class="image-upload" id="imageUpload"><i class="fas fa-cloud-upload-alt"></i><p>Nhấn để tải lên hoặc kéo thả ảnh vào đây</p><input type="file" id="imageInput" accept="image/*" style="display: none;"><img id="imagePreview" class="image-preview" src="#" alt="Xem trước hình ảnh"></div></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Thiết Bị</button></div></form></div></div>
+        
         <footer><div class="container"><p>© 2025 Hệ Thống Quản Lý Trang Thiết Bị Y Tế. Tối ưu hóa cho hoạt động bệnh viện.</p></div></footer>
     </div>
     
@@ -192,7 +194,7 @@
             exportExcelBtn: document.getElementById('exportExcelBtn'),
             viewContainers: document.querySelectorAll('.view-container'),
             equipmentView: document.getElementById('equipment-view-container'),
-            incidentView: document.getElementById('incident-view-container'),
+            incidentView: document.getElementById('incidents-view-container'), // FIXED: Plural 'incidents'
             sidebarNavLinks: document.querySelectorAll('#sidebar-main a'),
             adminIncidentList: document.getElementById('admin-incident-list'),
             userIncidentFormWrapper: document.getElementById('user-incident-form-wrapper'),
@@ -262,7 +264,6 @@
         
         dom.logoutBtn.addEventListener('click', logout);
 
-        // === API HELPER ===
         async function fetchWithAuth(url, options = {}) {
             const token = getToken();
             const headers = { 'Content-Type': 'application/json', ...options.headers };
@@ -280,7 +281,6 @@
             alert(`${context} thất bại. Lỗi: ${error.message}`);
         };
         
-        // === CORE APP LOGIC ===
         async function loadInitialData() {
             try {
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/departments`);
@@ -352,7 +352,6 @@
                 const itemDept = item.department || dom.departmentSelect.value;
                 row.className = `status-${item.status}`;
                 let actionButtons = '';
-                // CHỈ ADMIN MỚI CÓ CÁC NÚT HÀNH ĐỘNG SỬA/XÓA
                 if (userProfile.role === 'admin') {
                     actionButtons = `
                         <button class="edit-btn" data-serial="${item.serial}"><i class="fas fa-edit"></i></button>
@@ -438,7 +437,6 @@
             };
             let url, method, targetDeptKey;
             if (isEditing) {
-                // Lấy thông tin khoa từ API để đảm bảo chính xác khi submit
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${editSerial}`);
                 if (!response.ok) { alert('Lỗi: Không tìm thấy thiết bị gốc để cập nhật.'); return; }
                 const originalItem = await response.json();
@@ -551,7 +549,7 @@
             }
         });
 
-        // === INCIDENT REPORTING LOGIC ===
+        // Incident Reporting Logic
         dom.sidebarNavLinks.forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -562,7 +560,7 @@
         function switchView(viewName) {
             dom.sidebarNavLinks.forEach(link => link.classList.toggle('active', link.dataset.view === viewName));
             dom.viewContainers.forEach(container => container.style.display = 'none');
-            const viewToShow = document.getElementById(`${viewName}-view-container`);
+            const viewToShow = dom[viewName + 'View'];
             if(viewToShow) {
                 viewToShow.style.display = 'block';
                 document.getElementById('equipment-filters').style.display = viewName === 'equipment' ? 'block' : 'none';
@@ -603,7 +601,12 @@
             incidents.forEach(inc => {
                 const row = document.createElement('tr');
                 const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
-                const actionButton = inc.status !== 'resolved' ? `<button class="resolve-btn" data-id="${inc._id}">Xử lý</button>` : 'Hoàn thành';
+                let actionButton = 'Hoàn thành';
+                if (inc.status === 'new') {
+                    actionButton = `<button class="resolve-btn" data-id="${inc._id}" data-new-status="in_progress">Bắt đầu xử lý</button>`;
+                } else if (inc.status === 'in_progress') {
+                    actionButton = `<button class="resolve-btn" data-id="${inc._id}" data-new-status="resolved">Hoàn thành</button>`;
+                }
                 row.innerHTML = `<td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${departments[inc.departmentKey] || 'Không rõ'}</td><td>${inc.equipmentName}</td><td>${inc.serial}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td><td class="action-btn-group">${actionButton}</td>`;
                 dom.incidentTableBody.appendChild(row);
             });
@@ -621,8 +624,14 @@
         dom.incidentTableBody.addEventListener('click', async (e) => {
             if (e.target.classList.contains('resolve-btn')) {
                 const incidentId = e.target.dataset.id;
-                const notes = prompt("Nhập ghi chú xử lý (nếu có):");
-                const newStatus = confirm("Đánh dấu sự cố này là 'Đã giải quyết'?") ? 'resolved' : 'in_progress';
+                const newStatus = e.target.dataset.newStatus;
+                let notes = '';
+                if(newStatus === 'in_progress'){
+                    notes = prompt("Nhập ghi chú xử lý (vd: Đã cử kỹ sư A, dự kiến xem lúc 14h):");
+                } else if(newStatus === 'resolved'){
+                     notes = prompt("Nhập ghi chú hoàn thành (vd: Đã thay thế linh kiện X, máy hoạt động bình thường):");
+                }
+                
                 try {
                     await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'PUT', body: JSON.stringify({ status: newStatus, notes: notes }) });
                     renderIncidentView();
