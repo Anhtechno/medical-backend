@@ -1,9 +1,9 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH CUỐI CÙNG
+// FILE: server.js - PHIÊN BẢN CÓ BÁO CÁO SỰ CỐ (ĐÃ SỬA LỖI)
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
-require('dotenv').config(); // Nạp các biến môi trường từ file .env
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -27,7 +27,6 @@ mongoose.connect(MONGODB_URI)
     .catch(err => console.error('!!! LỖI KẾT NỐI MONGODB:', err));
 
 // 5. ĐỊNH NGHĨA SCHEMAS & MODELS
-// Schema cho Thiết Bị
 const equipmentSchema = new mongoose.Schema({
     name: { type: String, required: true },
     serial: { type: String, required: true, unique: true },
@@ -36,7 +35,6 @@ const equipmentSchema = new mongoose.Schema({
 });
 const Equipment = mongoose.models.Equipment || mongoose.model('Equipment', equipmentSchema);
 
-// Schema cho Người Dùng
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
@@ -45,60 +43,34 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// Dữ liệu tĩnh về 33 khoa (đã cập nhật)
-const departments = {
-    'phong_bvsk_tw_2b': 'Phòng Bảo vệ sức khỏe Trung ương 2B',
-    'cap_cuu': 'Khoa Cấp cứu',
-    'kham_benh': 'Khoa Khám bệnh',
-    'kham_benh_yc': 'Khoa Khám bệnh theo yêu cầu',
-    'noi_than_loc_mau': 'Khoa Nội thận – Lọc máu',
-    'dinh_duong_ls': 'Khoa Dinh dưỡng lâm sàng',
-    'phuc_hoi_cn': 'Khoa Phục hồi chức năng',
-    'icu': 'Khoa Hồi sức tích cực – Chống độc',
-    'phau_thuat_gmhs': 'Khoa Phẫu thuật – Gây mê hồi sức',
-    'ngoai_ctch': 'Khoa Ngoại chấn thương chỉnh hình',
-    'ngoai_tieu_hoa': 'Khoa Ngoại tiêu hoá',
-    'ngoai_gan_mat': 'Khoa Ngoại gan mật',
-    'noi_tiet': 'Khoa Nội tiết',
-    'ngoai_tim_mach_ln': 'Khoa Ngoại tim mạch – Lồng ngực',
-    'noi_tim_mach': 'Khoa Nội tim mạch',
-    'tim_mach_cc_ct': 'Khoa Tim mạch cấp cứu và can thiệp',
-    'noi_than_kinh': 'Khoa Nội thần kinh',
-    'loan_nhip_tim': 'Khoa Loạn nhịp tim',
-    'ngoai_than_kinh': 'Khoa Ngoại thần kinh',
-    'ngoai_than_tn': 'Khoa Ngoại thận – Tiết niệu',
-    'dieu_tri_cbcc': 'Khoa Điều trị Cán bộ cao cấp',
-    'noi_cxk': 'Khoa Nội cơ xương khớp',
-    'noi_dieu_tri_yc': 'Khoa Nội điều trị theo yêu cầu',
-    'noi_tieu_hoa_2': 'Khoa Nội tiêu hoá', // Note: Duplicate name, key made unique
-    'noi_ho_hap': 'Khoa Nội hô hấp',
-    'mat': 'Khoa Mắt',
-    'tai_mui_hong': 'Khoa Tai mũi họng',
-    'pt_hm_thtm': 'Khoa Phẫu thuật hàm mặt – Tạo hình thẩm mỹ',
-    'ung_buou': 'Khoa Ung bướu',
-    'noi_nhiem': 'Khoa Nội nhiễm',
-    'y_hoc_co_truyen': 'Khoa Y học cổ truyền',
-    'ngoai_dieu_tri_yc': 'Khoa Ngoại điều trị theo yêu cầu',
-    'da_lieu_md_du': 'Khoa Da liễu – Miễn dịch – Dị ứng'
-};
+const incidentSchema = new mongoose.Schema({
+    equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment', required: true },
+    equipmentName: { type: String, required: true },
+    serial: { type: String, required: true },
+    departmentKey: { type: String, required: true },
+    reportedBy: { type: String, required: true },
+    problemDescription: { type: String, required: true },
+    status: { type: String, enum: ['new', 'in_progress', 'resolved'], default: 'new' },
+    notes: String,
+    resolvedAt: Date
+}, { timestamps: true });
+const Incident = mongoose.models.Incident || mongoose.model('Incident', incidentSchema);
+
+const departments = { 'bvsk_tw_2b': 'Phòng Bảo vệ sức khỏe Trung ương 2B', 'cap_cuu': 'Khoa Cấp cứu', 'kham_benh': 'Khoa Khám bệnh', 'kham_benh_yc': 'Khoa Khám bệnh theo yêu cầu', 'noi_than_loc_mau': 'Khoa Nội thận – Lọc máu', 'dinh_duong_ls': 'Khoa Dinh dưỡng lâm sàng', 'phuc_hoi_cn': 'Khoa Phục hồi chức năng', 'icu': 'Khoa Hồi sức tích cực – Chống độc', 'phau_thuat_gmhs': 'Khoa Phẫu thuật – Gây mê hồi sức', 'ngoai_ctch': 'Khoa Ngoại chấn thương chỉnh hình', 'ngoai_tieu_hoa': 'Khoa Ngoại tiêu hoá', 'ngoai_gan_mat': 'Khoa Ngoại gan mật', 'noi_tiet': 'Khoa Nội tiết', 'ngoai_tim_mach_ln': 'Khoa Ngoại tim mạch – Lồng ngực', 'noi_tim_mach': 'Khoa Nội tim mạch', 'tim_mach_cc_ct': 'Khoa Tim mạch cấp cứu và can thiệp', 'noi_than_kinh': 'Khoa Nội thần kinh', 'loan_nhip_tim': 'Khoa Loạn nhịp tim', 'ngoai_than_kinh': 'Khoa Ngoại thần kinh', 'ngoai_than_tn': 'Khoa Ngoại thận – Tiết niệu', 'dieu_tri_cbcc': 'Khoa Điều trị Cán bộ cao cấp', 'noi_cxk': 'Khoa Nội cơ xương khớp', 'noi_dieu_tri_yc': 'Khoa Nội điều trị theo yêu cầu', 'noi_tieu_hoa_2': 'Khoa Nội tiêu hoá', 'noi_ho_hap': 'Khoa Nội hô hấp', 'mat': 'Khoa Mắt', 'tai_mui_hong': 'Khoa Tai mũi họng', 'pt_hm_thtm': 'Khoa Phẫu thuật hàm mặt – Tạo hình thẩm mỹ', 'ung_buou': 'Khoa Ung bướu', 'noi_nhiem': 'Khoa Nội nhiễm', 'y_hoc_co_truyen': 'Khoa Y học cổ truyền', 'ngoai_dieu_tri_yc': 'Khoa Ngoại điều trị theo yêu cầu', 'da_lieu_md_du': 'Khoa Da liễu – Miễn dịch – Dị ứng' };
 
 
-// 6. API CHO VIỆC XÁC THỰC (ĐĂNG KÝ, ĐĂNG NHẬP)
+// 6. API XÁC THỰC
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password, role, departmentKey } = req.body;
         if (!username || !password) return res.status(400).json({ message: "Vui lòng nhập đủ tên đăng nhập và mật khẩu." });
-
         const existingUser = await User.findOne({ username });
         if (existingUser) return res.status(400).json({ message: "Tên đăng nhập đã tồn tại." });
-
         const hashedPassword = await bcrypt.hash(password, 12);
         const newUser = new User({ username, password: hashedPassword, role, departmentKey });
         await newUser.save();
         res.status(201).json({ message: "Đăng ký tài khoản thành công!" });
-    } catch (error) {
-        res.status(500).json({ message: "Lỗi server khi đăng ký.", error: error.message });
-    }
+    } catch (error) { res.status(500).json({ message: "Lỗi server khi đăng ký.", error: error.message }); }
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -106,19 +78,11 @@ app.post('/api/auth/login', async (req, res) => {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
         if (!user) return res.status(401).json({ message: "Tên đăng nhập hoặc mật khẩu không đúng." });
-
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ message: "Tên đăng nhập hoặc mật khẩu không đúng." });
-
-        const token = jwt.sign(
-            { userId: user._id, username: user.username, role: user.role, departmentKey: user.departmentKey },
-            JWT_SECRET,
-            { expiresIn: '8h' }
-        );
+        const token = jwt.sign({ userId: user._id, username: user.username, role: user.role, departmentKey: user.departmentKey }, JWT_SECRET, { expiresIn: '8h' });
         res.json({ message: "Đăng nhập thành công!", token });
-    } catch (error) {
-        res.status(500).json({ message: "Lỗi server khi đăng nhập.", error: error.message });
-    }
+    } catch (error) { res.status(500).json({ message: "Lỗi server khi đăng nhập.", error: error.message }); }
 });
 
 // 7. MIDDLEWARE "BẢO VỆ"
@@ -126,7 +90,6 @@ const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     if (token == null) return res.sendStatus(401);
-
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) return res.sendStatus(403);
         req.user = user;
@@ -135,54 +98,66 @@ const authenticateToken = (req, res, next) => {
 };
 
 const isAdmin = (req, res, next) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: "Không có quyền thực hiện hành động này." });
-    }
+    if (req.user.role !== 'admin') return res.status(403).json({ message: "Không có quyền thực hiện hành động này." });
     next();
 };
 
-// 8. API QUẢN LÝ THIẾT BỊ (ĐÃ ĐƯỢC BẢO VỆ VÀ PHÂN QUYỀN)
+// 8. API QUẢN LÝ THIẾT BỊ
 app.get('/api/departments', authenticateToken, (req, res) => {
-    if (req.user.role === 'admin') {
-        return res.json(departments);
-    }
+    if (req.user.role === 'admin') return res.json(departments);
     const userDept = {};
     if (req.user.departmentKey && departments[req.user.departmentKey]) {
         userDept[req.user.departmentKey] = departments[req.user.departmentKey];
     }
     res.json(userDept);
 });
-
 app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
     try {
         const { deptKey } = req.params;
-        if (req.user.role === 'user' && req.user.departmentKey !== deptKey) {
-            return res.status(403).json({ message: "Không có quyền xem dữ liệu của khoa này." });
-        }
+        if (req.user.role === 'user' && req.user.departmentKey !== deptKey) return res.status(403).json({ message: "Không có quyền xem dữ liệu của khoa này." });
         const equipments = await Equipment.find({ department: deptKey });
         res.json(equipments);
-    } catch (error) {
-        res.status(500).json({ message: 'Lỗi server khi lấy dữ liệu', error: error.message });
-    }
+    } catch (error) { res.status(500).json({ message: 'Lỗi server khi lấy dữ liệu', error: error.message }); }
 });
-
 app.post('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
     try {
         const { deptKey } = req.params;
-        if (req.user.role === 'user' && req.user.departmentKey !== deptKey) {
-            return res.status(403).json({ message: "Không có quyền thêm thiết bị cho khoa này." });
-        }
+        if (req.user.role === 'user' && req.user.departmentKey !== deptKey) return res.status(403).json({ message: "Không có quyền thêm thiết bị cho khoa này." });
         const newEquipmentData = { ...req.body, department: deptKey };
         const existing = await Equipment.findOne({ serial: newEquipmentData.serial });
         if (existing) return res.status(400).json({ message: `Số serial "${newEquipmentData.serial}" đã tồn tại.` });
         const equipment = new Equipment(newEquipmentData);
         await equipment.save();
         res.status(201).json(equipment);
-    } catch (error) {
-        res.status(500).json({ message: 'Lỗi server khi thêm thiết bị', error: error.message });
-    }
+    } catch (error) { res.status(500).json({ message: 'Lỗi server khi thêm thiết bị', error: error.message }); }
 });
-
+app.delete('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { serial } = req.params;
+        const deletedEquipment = await Equipment.findOneAndDelete({ serial: serial });
+        if (!deletedEquipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+        res.json({ message: "Xóa thành công." });
+    } catch (error) { res.status(500).json({ message: 'Lỗi server khi xóa', error: error.message }); }
+});
+app.get('/api/search', authenticateToken, async (req, res) => {
+    try {
+        const { q } = req.query;
+        if (!q) return res.status(400).json({ message: "Cần có từ khóa tìm kiếm." });
+        const searchTerm = q.toLowerCase();
+        let query = { $or: [ { name: { $regex: searchTerm, $options: 'i' } },{ serial: { $regex: searchTerm, $options: 'i' } },{ manufacturer: { $regex: searchTerm, $options: 'i' } }] };
+        if (req.user.role === 'user') { query.department = req.user.departmentKey; }
+        const results = await Equipment.find(query);
+        res.json(results);
+    } catch (error) { res.status(500).json({ message: 'Lỗi server khi tìm kiếm', error: error.message }); }
+});
+app.get('/api/equipment/item/:serial', authenticateToken, async (req, res) => {
+    try {
+        const serialToFind = req.params.serial.trim();
+        const equipment = await Equipment.findOne({ serial: new RegExp('^' + serialToFind + '$', 'i') });
+        if (!equipment) return res.status(404).json({ message: "Không tìm thấy thiết bị với số serial này." });
+        res.json(equipment);
+    } catch (error) { res.status(500).json({ message: 'Lỗi server khi lấy chi tiết thiết bị', error: error.message }); }
+});
 app.put('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (req, res) => {
     try {
         const { serial } = req.params;
@@ -190,58 +165,71 @@ app.put('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (re
         const updatedEquipment = await Equipment.findOneAndUpdate({ serial: serial }, updatedData, { new: true });
         if (!updatedEquipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
         res.json(updatedEquipment);
-    } catch (error) {
-        res.status(500).json({ message: 'Lỗi server khi cập nhật', error: error.message });
-    }
+    } catch (error) { res.status(500).json({ message: 'Lỗi server khi cập nhật', error: error.message }); }
 });
 
-app.delete('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (req, res) => {
+// 9. API CHO BÁO CÁO SỰ CỐ
+app.post('/api/incidents', authenticateToken, async (req, res) => {
     try {
-        const { serial } = req.params;
-        const deletedEquipment = await Equipment.findOneAndDelete({ serial: serial });
-        if (!deletedEquipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
-        res.json({ message: "Xóa thành công." });
-    } catch (error) {
-        res.status(500).json({ message: 'Lỗi server khi xóa', error: error.message });
-    }
-});
-
-app.get('/api/search', authenticateToken, async (req, res) => {
-    try {
-        const { q } = req.query;
-        if (!q) return res.status(400).json({ message: "Cần có từ khóa tìm kiếm." });
-        const searchTerm = q.toLowerCase();
-        
-        let query = {
-            $or: [
-                { name: { $regex: searchTerm, $options: 'i' } },
-                { serial: { $regex: searchTerm, $options: 'i' } },
-                { manufacturer: { $regex: searchTerm, $options: 'i' } }
-            ]
-        };
-        if (req.user.role === 'user') {
-            query.department = req.user.departmentKey;
+        const { equipmentSerial, problemDescription } = req.body;
+        if (!equipmentSerial || !problemDescription) {
+            return res.status(400).json({ message: "Vui lòng cung cấp đủ thông tin sự cố." });
         }
-        
-        const results = await Equipment.find(query);
-        res.json(results);
+        const equipment = await Equipment.findOne({ serial: equipmentSerial });
+        if (!equipment) {
+            return res.status(404).json({ message: "Không tìm thấy thiết bị được báo cáo." });
+        }
+        if(req.user.role === 'user' && req.user.departmentKey !== equipment.department) {
+            return res.status(403).json({ message: "Không có quyền báo cáo cho thiết bị này." });
+        }
+        const newIncident = new Incident({
+            equipmentId: equipment._id,
+            equipmentName: equipment.name,
+            serial: equipment.serial,
+            departmentKey: equipment.department,
+            problemDescription: problemDescription,
+            reportedBy: req.user.username
+        });
+        await newIncident.save();
+        res.status(201).json(newIncident);
     } catch (error) {
-        res.status(500).json({ message: 'Lỗi server khi tìm kiếm', error: error.message });
+        console.error("Lỗi khi tạo báo cáo sự cố:", error);
+        res.status(500).json({ message: 'Lỗi server khi tạo báo cáo sự cố', error: error.message });
     }
 });
 
-app.get('/api/equipment/item/:serial', authenticateToken, async (req, res) => {
+app.get('/api/incidents', authenticateToken, async (req, res) => {
     try {
-        const serialToFind = req.params.serial.trim(); 
-        const equipment = await Equipment.findOne({ serial: new RegExp('^' + serialToFind + '$', 'i') });
-        if (!equipment) return res.status(404).json({ message: "Không tìm thấy thiết bị với số serial này." });
-        res.json(equipment);
+        let query = {};
+        if (req.user.role === 'user') {
+            query.departmentKey = req.user.departmentKey;
+        }
+        const incidents = await Incident.find(query).sort({ createdAt: -1 });
+        res.json(incidents);
     } catch (error) {
-        res.status(500).json({ message: 'Lỗi server khi lấy chi tiết thiết bị', error: error.message });
+        console.error("Lỗi khi lấy danh sách sự cố:", error);
+        res.status(500).json({ message: 'Lỗi server khi lấy danh sách sự cố', error: error.message });
     }
 });
 
-// 9. KHỞI ĐỘNG SERVER
+app.put('/api/incidents/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, notes } = req.body;
+        const updateData = { status, notes };
+        if (status === 'resolved') {
+            updateData.resolvedAt = new Date();
+        }
+        const updatedIncident = await Incident.findByIdAndUpdate(id, updateData, { new: true });
+        if (!updatedIncident) return res.status(404).json({ message: "Không tìm thấy báo cáo sự cố." });
+        res.json(updatedIncident);
+    } catch (error) {
+        console.error("Lỗi khi cập nhật sự cố:", error);
+        res.status(500).json({ message: 'Lỗi server khi cập nhật sự cố', error: error.message });
+    }
+});
+
+// 10. KHỞI ĐỘNG SERVER
 app.listen(PORT, () => {
     console.log(`Backend đang chạy tại địa chỉ: http://localhost:${PORT}`);
 });
