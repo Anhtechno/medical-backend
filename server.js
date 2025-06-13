@@ -1,5 +1,5 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN CÓ BÁO CÁO SỰ CỐ (ĐÃ SỬA LỖI)
+// FILE: server.js - PHIÊN BẢN CÓ PHÂN TRANG VÀ BÁO CÁO SỰ CỐ
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
@@ -111,14 +111,47 @@ app.get('/api/departments', authenticateToken, (req, res) => {
     }
     res.json(userDept);
 });
+
+// === API ĐÃ ĐƯỢC CẬP NHẬT CHO PHÂN TRANG ===
 app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
     try {
         const { deptKey } = req.params;
-        if (req.user.role === 'user' && req.user.departmentKey !== deptKey) return res.status(403).json({ message: "Không có quyền xem dữ liệu của khoa này." });
-        const equipments = await Equipment.find({ department: deptKey });
-        res.json(equipments);
-    } catch (error) { res.status(500).json({ message: 'Lỗi server khi lấy dữ liệu', error: error.message }); }
+        
+        if (req.user.role === 'user' && req.user.departmentKey !== deptKey) {
+            return res.status(403).json({ message: "Không có quyền xem dữ liệu của khoa này." });
+        }
+
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const status = req.query.status;
+        const skip = (page - 1) * limit;
+
+        // Xây dựng query động
+        const query = { department: deptKey };
+        if (status && status !== 'all') {
+            query.status = status;
+        }
+
+        const [equipments, totalItems] = await Promise.all([
+            Equipment.find(query).sort({ name: 1 }).skip(skip).limit(limit),
+            Equipment.countDocuments(query)
+        ]);
+
+        const totalPages = Math.ceil(totalItems / limit);
+
+        res.json({
+            equipments,
+            totalPages,
+            currentPage: page,
+            totalItems
+        });
+        
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi lấy dữ liệu', error: error.message });
+    }
 });
+// ===============================================
+
 app.post('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
     try {
         const { deptKey } = req.params;
@@ -131,6 +164,7 @@ app.post('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
         res.status(201).json(equipment);
     } catch (error) { res.status(500).json({ message: 'Lỗi server khi thêm thiết bị', error: error.message }); }
 });
+
 app.delete('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (req, res) => {
     try {
         const { serial } = req.params;
@@ -139,6 +173,7 @@ app.delete('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async 
         res.json({ message: "Xóa thành công." });
     } catch (error) { res.status(500).json({ message: 'Lỗi server khi xóa', error: error.message }); }
 });
+
 app.get('/api/search', authenticateToken, async (req, res) => {
     try {
         const { q } = req.query;
@@ -150,6 +185,7 @@ app.get('/api/search', authenticateToken, async (req, res) => {
         res.json(results);
     } catch (error) { res.status(500).json({ message: 'Lỗi server khi tìm kiếm', error: error.message }); }
 });
+
 app.get('/api/equipment/item/:serial', authenticateToken, async (req, res) => {
     try {
         const serialToFind = req.params.serial.trim();
@@ -158,6 +194,7 @@ app.get('/api/equipment/item/:serial', authenticateToken, async (req, res) => {
         res.json(equipment);
     } catch (error) { res.status(500).json({ message: 'Lỗi server khi lấy chi tiết thiết bị', error: error.message }); }
 });
+
 app.put('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (req, res) => {
     try {
         const { serial } = req.params;
