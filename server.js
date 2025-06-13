@@ -1,5 +1,5 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN CÓ PHÂN TRANG VÀ BÁO CÁO SỰ CỐ
+// FILE: server.js - PHIÊN BẢN CÓ PHÂN TRANG VÀ STATS CHÍNH XÁC
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
@@ -112,7 +112,7 @@ app.get('/api/departments', authenticateToken, (req, res) => {
     res.json(userDept);
 });
 
-// === API ĐÃ ĐƯỢC CẬP NHẬT CHO PHÂN TRANG ===
+// === API ĐÃ ĐƯỢC CẬP NHẬT ĐỂ TÍNH STATS ===
 app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
     try {
         const { deptKey } = req.params;
@@ -126,16 +126,39 @@ app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
         const status = req.query.status;
         const skip = (page - 1) * limit;
 
-        // Xây dựng query động
-        const query = { department: deptKey };
+        const queryForPagination = { department: deptKey };
         if (status && status !== 'all') {
-            query.status = status;
+            queryForPagination.status = status;
         }
 
-        const [equipments, totalItems] = await Promise.all([
-            Equipment.find(query).sort({ name: 1 }).skip(skip).limit(limit),
-            Equipment.countDocuments(query)
+        // --- Bắt đầu phần logic mới ---
+        
+        // 1. Lấy dữ liệu cho trang hiện tại (đã lọc và phân trang)
+        const equipmentsPromise = Equipment.find(queryForPagination).sort({ name: 1 }).skip(skip).limit(limit);
+        
+        // 2. Đếm tổng số thiết bị (đã lọc) cho phân trang
+        const totalItemsPromise = Equipment.countDocuments(queryForPagination);
+
+        // 3. TÍNH TOÁN STATS BẰNG AGGREGATION (tính trên toàn bộ khoa, không bị ảnh hưởng bởi filter)
+        const statsPromise = Equipment.aggregate([
+            { $match: { department: deptKey } }, 
+            { $group: { _id: '$status', count: { $sum: 1 } } } 
         ]);
+        
+        // Thực thi tất cả các truy vấn song song
+        const [equipments, totalItems, statsResult] = await Promise.all([
+            equipmentsPromise,
+            totalItemsPromise,
+            statsPromise
+        ]);
+
+        // Xử lý kết quả stats thành object { active: X, maintenance: Y, ... }
+        const stats = statsResult.reduce((acc, curr) => {
+            if (curr._id) { // Đảm bảo status không phải là null hoặc undefined
+                acc[curr._id] = curr.count;
+            }
+            return acc;
+        }, {});
 
         const totalPages = Math.ceil(totalItems / limit);
 
@@ -143,10 +166,12 @@ app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
             equipments,
             totalPages,
             currentPage: page,
-            totalItems
+            totalItems,
+            stats 
         });
         
     } catch (error) {
+        console.error("Lỗi khi lấy dữ liệu equipment:", error);
         res.status(500).json({ message: 'Lỗi server khi lấy dữ liệu', error: error.message });
     }
 });

@@ -105,7 +105,6 @@
         .save-btn { background-color: var(--primary-color); color: white; }
         .save-btn:hover { background-color: #0069d9; }
         footer { text-align: center; margin-top: 50px; padding: 20px 0; color: #6c757d; font-size: 14px; }
-        /* CSS CHO PHÂN TRANG */
         #pagination-controls { display: flex; justify-content: center; align-items: center; margin-top: 25px; gap: 8px; }
         #pagination-controls button { padding: 8px 14px; border: 1px solid #ddd; background-color: white; cursor: pointer; border-radius: 5px; transition: background-color 0.3s, color 0.3s; }
         #pagination-controls button:hover { background-color: #f1faff; }
@@ -174,7 +173,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         const API_BASE_URL = 'https://quanlythietbi-anh.onrender.com';
         let departments = {}; 
-        let currentFullDeptList = []; // This now only holds one page of data
+        let currentFullDeptList = []; 
         let currentStatusFilter = 'all';
         let userProfile = {};
         
@@ -338,7 +337,7 @@
                 
                 updateEquipmentTable(currentFullDeptList); 
                 updateDepartmentTitle(deptKey);
-                updateStats(data.totalItems, data.equipments); // Pass totalItems to update stats correctly
+                updateStats(data.stats);
                 renderPaginationControls(data.totalPages, data.currentPage);
             } catch (error) {
                 handleApiError(error, `Tải dữ liệu cho khoa ${departments[deptKey] || deptKey}`);
@@ -366,15 +365,12 @@
             });
         }
         
-        function updateStats(totalItems) {
-            // Note: This function now might not be fully accurate for individual status counts
-            // without fetching all data. We'll update total and leave others for a future enhancement.
-            document.getElementById('totalEquipment').textContent = totalItems;
-            // The following stats would require more complex backend logic to be accurate with pagination
-            // For now, we leave them blank or hide them to avoid showing incorrect data.
-            document.getElementById('activeEquipment').textContent = 'N/A';
-            document.getElementById('maintenanceEquipment').textContent = 'N/A';
-            document.getElementById('inactiveEquipment').textContent = 'N/A';
+        function updateStats(stats = {}) {
+            const totalInDept = (stats.active || 0) + (stats.maintenance || 0) + (stats.inactive || 0);
+            document.getElementById('totalEquipment').textContent = totalInDept;
+            document.getElementById('activeEquipment').textContent = stats.active || 0;
+            document.getElementById('maintenanceEquipment').textContent = stats.maintenance || 0;
+            document.getElementById('inactiveEquipment').textContent = stats.inactive || 0;
         }
 
         function renderPaginationControls(totalPages, currentPage) {
@@ -409,10 +405,11 @@
         
         dom.searchInput.addEventListener('input', async (e) => {
             const searchTerm = e.target.value.trim();
-            document.getElementById('pagination-controls').innerHTML = ''; // Hide pagination during search
+            document.getElementById('pagination-controls').innerHTML = ''; 
             if (searchTerm.length > 1) {
                 try {
                     dom.currentDepartment.textContent = `Kết quả tìm kiếm cho "${searchTerm}"`;
+                    updateStats(); // Clear stats during global search
                     const response = await fetchWithAuth(`${API_BASE_URL}/api/search?q=${searchTerm}`);
                     const results = await response.json();
                     updateEquipmentTable(results, true);
@@ -428,7 +425,6 @@
                 dom.searchInput.value = '';
                 currentStatusFilter = e.currentTarget.dataset.filter;
                 setActiveSidebarFilter(currentStatusFilter);
-                // Fetch from server with the new filter
                 fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
             });
         });
@@ -517,7 +513,7 @@
                             const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${serial}`, { method: 'DELETE' });
                             if (!response.ok) throw new Error('Xóa thất bại');
                             Swal.fire('Đã xóa!', 'Thiết bị đã được xóa thành công.', 'success');
-                            await fetchAndDisplayEquipment(dom.departmentSelect.value, 1); // Refresh the current page
+                            await fetchAndDisplayEquipment(dom.departmentSelect.value, 1); 
                         } catch (error) { 
                             handleApiError(error, 'Xóa thiết bị'); 
                         }
@@ -536,8 +532,7 @@
             Swal.fire('Đang xử lý', `Đang chuẩn bị file Excel cho "${departmentName}"...`, 'info');
             
             try {
-                // To export all data, we need to make a request without pagination
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${selectedDepartmentKey}?limit=10000`); // Fetch a large number
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${selectedDepartmentKey}?limit=10000`); 
                 const data = await response.json();
                 const dataToExport = data.equipments;
 
