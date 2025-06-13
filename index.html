@@ -116,6 +116,7 @@
         @media (max-width: 992px) { .dashboard { grid-template-columns: 1fr; } .sidebar { margin-bottom: 20px; } .header-content { flex-direction: column; gap: 15px; } }
         @media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } .main-header { flex-direction: column; gap: 15px; } }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 
@@ -278,9 +279,14 @@
             return response;
         }
         
+        // THAY THẾ ALERT BẰNG SWEETALERT2
         const handleApiError = (error, context = 'Thao tác') => {
             console.error(`${context} thất bại:`, error);
-            alert(`${context} thất bại. Lỗi: ${error.message}`);
+            Swal.fire({
+                icon: 'error',
+                title: `${context} thất bại`,
+                text: `Lỗi: ${error.message}`,
+            });
         };
         
         async function loadInitialData() {
@@ -346,8 +352,8 @@
             dom.equipmentTableBody.innerHTML = '';
             document.getElementById('departmentColumnHeader').style.display = isGlobalSearch ? '' : 'none';
             if (list.length === 0) {
-                 dom.equipmentTableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px;">Không có thiết bị nào phù hợp.</td></tr>`;
-                 return;
+                dom.equipmentTableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px;">Không có thiết bị nào phù hợp.</td></tr>`;
+                return;
             }
             list.forEach(item => {
                 const row = document.createElement('tr');
@@ -380,7 +386,7 @@
         }
 
         function updateDepartmentTitle(deptKey) {
-             dom.currentDepartment.textContent = departments[deptKey];
+            dom.currentDepartment.textContent = departments[deptKey];
         }
 
         dom.departmentSelect.addEventListener('change', () => {
@@ -430,7 +436,10 @@
             const editSerial = document.getElementById('edit-serial').value;
             const isEditing = !!editSerial;
             const serialNumber = document.getElementById('serialNumber').value.trim();
-            if (!serialNumber) { alert("Số serial là bắt buộc."); return; }
+            if (!serialNumber) { 
+                Swal.fire('Lỗi', 'Số serial là bắt buộc.', 'error');
+                return; 
+            }
             const payload = {
                 name: document.getElementById('equipmentName').value, serial: serialNumber, manufacturer: document.getElementById('manufacturer').value,
                 accessories: document.getElementById('accessories').value, year: document.getElementById('purchaseDate').value,
@@ -440,14 +449,20 @@
             let url, method, targetDeptKey;
             if (isEditing) {
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${editSerial}`);
-                if (!response.ok) { alert('Lỗi: Không tìm thấy thiết bị gốc để cập nhật.'); return; }
+                if (!response.ok) { 
+                    handleApiError({ message: 'Không tìm thấy thiết bị gốc để cập nhật.'}, 'Cập nhật');
+                    return; 
+                }
                 const originalItem = await response.json();
                 targetDeptKey = originalItem.department;
                 url = `${API_BASE_URL}/api/equipment/${targetDeptKey}/${editSerial}`;
                 method = 'PUT';
             } else {
                 targetDeptKey = dom.departmentSelect.value;
-                if (!targetDeptKey) { alert('Vui lòng chọn một khoa trước khi thêm.'); return; }
+                if (!targetDeptKey) { 
+                    Swal.fire('Lỗi', 'Vui lòng chọn một khoa trước khi thêm.', 'warning');
+                    return; 
+                }
                 payload.department = targetDeptKey;
                 url = `${API_BASE_URL}/api/equipment/${targetDeptKey}`;
                 method = 'POST';
@@ -455,11 +470,17 @@
             try {
                 const response = await fetchWithAuth(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message || 'Thao tác thất bại.'); }
-                alert('Thao tác thành công!');
+                Swal.fire({
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Thao tác thành công!',
+                    showConfirmButton: false,
+                    timer: 1500
+                });
                 closeModal();
                 await fetchAndDisplayEquipment(targetDeptKey);
             } catch (error) {
-                alert(`Lỗi: ${error.message}`);
+                handleApiError(error, isEditing ? 'Cập nhật' : 'Thêm mới');
             }
         });
 
@@ -477,26 +498,52 @@
             } else if (target.classList.contains('delete-btn')) {
                 const deptKey = target.dataset.dept;
                 if (!deptKey) return;
-                if (confirm(`Bạn có chắc chắn muốn xóa thiết bị có serial "${serial}"?`)) {
-                    try {
-                        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${serial}`, { method: 'DELETE' });
-                        if (!response.ok) throw new Error('Xóa thất bại');
-                        alert('Xóa thành công!');
-                        await fetchAndDisplayEquipment(dom.departmentSelect.value);
-                    } catch (error) { handleApiError(error, 'Xóa thiết bị'); }
-                }
+                
+                // THAY THẾ CONFIRM BẰNG SWEETALERT2
+                Swal.fire({
+                    title: 'Bạn chắc chắn không?',
+                    text: `Bạn sẽ không thể hoàn tác hành động xóa thiết bị có serial "${serial}"!`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Vâng, xóa nó!',
+                    cancelButtonText: 'Hủy bỏ'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${serial}`, { method: 'DELETE' });
+                            if (!response.ok) throw new Error('Xóa thất bại');
+                            Swal.fire(
+                                'Đã xóa!',
+                                'Thiết bị đã được xóa thành công.',
+                                'success'
+                            );
+                            await fetchAndDisplayEquipment(dom.departmentSelect.value);
+                        } catch (error) { 
+                            handleApiError(error, 'Xóa thiết bị'); 
+                        }
+                    }
+                });
             }
         });
         
         dom.exportExcelBtn.addEventListener('click', async () => {
             const selectedDepartmentKey = dom.departmentSelect.value;
-            if (!selectedDepartmentKey) { alert("Vui lòng chọn khoa để xuất file."); return; }
+            if (!selectedDepartmentKey) { 
+                Swal.fire('Thông báo', 'Vui lòng chọn khoa để xuất file.', 'info');
+                return; 
+            }
             const departmentName = departments[selectedDepartmentKey];
-            alert(`Đang chuẩn bị file Excel cho "${departmentName}"...`);
+            Swal.fire('Đang xử lý', `Đang chuẩn bị file Excel cho "${departmentName}"...`, 'info');
+            
             try {
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${selectedDepartmentKey}`);
                 const dataToExport = await response.json();
-                if (dataToExport.length === 0) { alert(`Không có dữ liệu để xuất cho ${departmentName}.`); return; }
+                if (dataToExport.length === 0) { 
+                    Swal.fire('Thông báo', `Không có dữ liệu để xuất cho ${departmentName}.`, 'warning');
+                    return; 
+                }
                 const statusMap = { active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng hoạt động' };
                 const formattedData = dataToExport.map(item => ({
                     'Tên Thiết Bị': item.name, 'Số Serial': item.serial, 'Hãng Sản Xuất': item.manufacturer,
@@ -642,10 +689,13 @@
         dom.incidentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const payload = { equipmentSerial: dom.incidentEquipmentSelect.value, problemDescription: document.getElementById('problem-description').value };
-            if(!payload.equipmentSerial || !payload.problemDescription) { alert("Vui lòng điền đầy đủ thông tin."); return; }
+            if(!payload.equipmentSerial || !payload.problemDescription) { 
+                Swal.fire('Lỗi', 'Vui lòng điền đầy đủ thông tin.', 'warning');
+                return; 
+            }
             try {
                 await fetchWithAuth(`${API_BASE_URL}/api/incidents`, { method: 'POST', body: JSON.stringify(payload) });
-                alert("Gửi báo cáo sự cố thành công!");
+                Swal.fire('Thành công', 'Gửi báo cáo sự cố thành công!', 'success');
                 dom.incidentForm.reset();
                 renderIncidentView(); // Refresh the user's incident list
             } catch (error) { handleApiError(error, "Gửi báo cáo"); }
@@ -656,18 +706,27 @@
                 const incidentId = e.target.dataset.id;
                 const newStatus = e.target.dataset.newStatus;
                 let notes = '';
-                if(newStatus === 'in_progress'){
-                    notes = prompt("Nhập ghi chú xử lý (vd: Đã cử kỹ sư A, dự kiến xem lúc 14h):", "");
-                } else if(newStatus === 'resolved'){
-                     notes = prompt("Nhập ghi chú hoàn thành (vd: Đã thay thế linh kiện X, máy hoạt động bình thường):", "");
-                }
                 
-                if (notes === null) return; // User cancelled prompt
+                // Sử dụng SweetAlert2 để nhập ghi chú
+                const { value: text } = await Swal.fire({
+                    input: 'textarea',
+                    inputLabel: 'Ghi chú',
+                    inputPlaceholder: (newStatus === 'in_progress') 
+                        ? 'Ví dụ: Đã cử kỹ sư A, dự kiến xem lúc 14h...'
+                        : 'Ví dụ: Đã thay thế linh kiện X, máy hoạt động bình thường...',
+                    inputAttributes: {
+                        'aria-label': 'Type your message here'
+                    },
+                    showCancelButton: true,
+                    cancelButtonText: 'Hủy bỏ'
+                });
 
-                try {
-                    await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'PUT', body: JSON.stringify({ status: newStatus, notes: notes }) });
-                    renderIncidentView();
-                } catch(error) { handleApiError(error, "Cập nhật sự cố"); }
+                if (text) { // Nếu người dùng nhập ghi chú và bấm OK
+                    try {
+                        await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'PUT', body: JSON.stringify({ status: newStatus, notes: text }) });
+                        renderIncidentView();
+                    } catch(error) { handleApiError(error, "Cập nhật sự cố"); }
+                }
             }
         });
         
