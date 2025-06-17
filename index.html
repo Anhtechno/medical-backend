@@ -797,7 +797,7 @@
                 serial: equipmentSerial,
                 problem: document.getElementById('problem-description').value
             };
-            
+
             const printContent = `
                 <!DOCTYPE html>
                 <html lang="vi">
@@ -805,7 +805,7 @@
                     <title>Phiếu Báo Hỏng Thiết Bị Y Tế</title>
                     <style>
                         body { font-family: 'Times New Roman', Times, serif; font-size: 13pt; margin: 40px; color: black; }
-                        .header { text-align: center; }
+                        .header { text-align: center; margin-bottom: 20px; }
                         .header h2 { font-size: 14pt; font-weight: bold; text-transform: uppercase; margin: 0; }
                         .section { margin-top: 15px; }
                         .section-title { font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
@@ -813,10 +813,11 @@
                         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12pt; }
                         th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; }
                         th { font-weight: bold; text-align: center; }
-                        .signatures { display: flex; justify-content: space-between; margin-top: 25px; }
+                        .signatures { display: flex; justify-content: space-evenly; margin-top: 25px; } /* ĐÃ SỬA THÀNH SPACE-EVENLY */
                         .signature-block { width: 30%; text-align: center; }
                         .signature-block .role { font-weight: bold; }
                         .signature-block .signature-space { margin-top: 60px; font-style: italic; }
+                        .page-break { page-break-before: always; }
                     </style>
                 </head>
                 <body>
@@ -857,7 +858,7 @@
                         </div>
                     </div>
 
-                    <div class="section">
+                    <div class="section page-break">
                         <p class="section-title">B. Phần thực hiện sửa chữa</p>
                         <table>
                             <thead>
