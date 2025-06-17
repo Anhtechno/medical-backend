@@ -154,13 +154,56 @@
                     <div id="incidents-view-container" class="view-container">
                         <div class="main-header"><h1 class="view-title">Báo Cáo Sự Cố</h1></div>
                         <div id="admin-incident-view" style="display: none;"><table class="generic-table" id="incident-table-admin"><thead><tr><th>Ngày Báo Cáo</th><th>Khoa</th><th>Thiết Bị</th><th>Số Serial</th><th>Mô Tả Sự Cố</th><th>Trạng Thái</th><th>Hành Động</th></tr></thead><tbody id="incident-table-body-admin"></tbody></table></div>
+                        
                         <div id="user-incident-view" style="display: none;">
-                            <h3 style="margin-bottom: 20px;">Tạo Báo Cáo Mới</h3>
-                            <form id="incident-form"><div class="form-group"><label for="incident-equipment-select">Chọn Thiết Bị Gặp Sự Cố *</label><select id="incident-equipment-select" required></select></div><div class="form-group"><label for="problem-description">Mô Tả Chi Tiết Sự Cố *</label><textarea id="problem-description" rows="5" placeholder="Ví dụ: Máy không lên nguồn, màn hình hiển thị sọc..." required></textarea></div><div class="form-actions"><button type="submit" class="save-btn">Gửi Báo Cáo</button></div></form>
+                            <h3 style="margin-bottom: 20px;">Tạo Phiếu Báo Hỏng Thiết Bị</h3>
+                            <form id="incident-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="incident-department">Khoa Báo Hỏng</label>
+                                        <input type="text" id="incident-department" readonly>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="incident-phone">Số Điện Thoại Khoa</label>
+                                        <input type="text" id="incident-phone" placeholder="Nhập SĐT của khoa...">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="incident-date">Ngày Báo Hỏng</label>
+                                    <input type="text" id="incident-date" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label for="incident-equipment-select">Chọn Thiết Bị Gặp Sự Cố *</label>
+                                    <select id="incident-equipment-select" required>
+                                        <option value="">-- Chọn thiết bị --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="problem-description">Mô Tả Tình Trạng/Nguyên Nhân Hỏng *</label>
+                                    <textarea id="problem-description" rows="4" placeholder="Ví dụ: Máy không lên nguồn, màn hình hiển thị sọc..." required></textarea>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="save-btn"><i class="fas fa-paper-plane"></i> Gửi Báo Cáo Lên Hệ Thống</button>
+                                    <button type="button" class="action-button" id="print-report-btn" style="background-color: var(--info-color);"><i class="fas fa-print"></i> In Phiếu Báo Hỏng</button>
+                                </div>
+                            </form>
+                            
                             <hr style="margin: 40px 0;">
                             <h3 style="margin-bottom: 20px;">Lịch Sử Báo Cáo Của Khoa</h3>
-                            <table class="generic-table" id="incident-table-user"><thead><tr><th>Ngày Báo Cáo</th><th>Thiết Bị</th><th>Mô Tả Sự Cố</th><th>Trạng Thái</th><th>Ghi Chú Kỹ Sư</th></tr></thead><tbody id="incident-table-body-user"></tbody></table>
+                            <table class="generic-table" id="incident-table-user">
+                                <thead>
+                                    <tr>
+                                        <th>Ngày Báo Cáo</th>
+                                        <th>Thiết Bị</th>
+                                        <th>Mô Tả Sự Cố</th>
+                                        <th>Trạng Thái</th>
+                                        <th>Ghi Chú Kỹ Sư</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="incident-table-body-user"></tbody>
+                            </table>
                         </div>
+
                     </div>
                 </main>
             </div>
@@ -409,7 +452,7 @@
             if (searchTerm.length > 1) {
                 try {
                     dom.currentDepartment.textContent = `Kết quả tìm kiếm cho "${searchTerm}"`;
-                    updateStats(); // Clear stats during global search
+                    updateStats();
                     const response = await fetchWithAuth(`${API_BASE_URL}/api/search?q=${searchTerm}`);
                     const results = await response.json();
                     updateEquipmentTable(results, true);
@@ -628,6 +671,12 @@
                     dom.userIncidentView.style.display = 'block';
                     await populateIncidentFormEquipmentSelect();
                     renderIncidentTableUser(incidents);
+                    
+                    // TỰ ĐỘNG ĐIỀN FORM BÁO HỎNG
+                    const userDeptName = departments[userProfile.departmentKey];
+                    document.getElementById('incident-department').value = userDeptName;
+                    const today = new Date();
+                    document.getElementById('incident-date').value = today.toLocaleDateString('vi-VN');
                 }
             } catch (error) {
                 handleApiError(error, "Tải dữ liệu sự cố");
@@ -722,6 +771,54 @@
                     } catch(error) { handleApiError(error, "Cập nhật sự cố"); }
                 }
             }
+        });
+        
+        // LOGIC TẠO CỬA SỔ POP-UP ĐỂ IN PHIẾU BÁO HỎNG
+        document.getElementById('print-report-btn').addEventListener('click', () => {
+            const selectedEquipmentOption = dom.incidentEquipmentSelect.options[dom.incidentEquipmentSelect.selectedIndex];
+            const equipmentText = selectedEquipmentOption.value ? selectedEquipmentOption.text : '';
+            const equipmentSerial = selectedEquipmentOption.value || '';
+            let equipmentName = equipmentText;
+            if (equipmentText.includes('(Serial:')) {
+                equipmentName = equipmentText.split('(Serial:')[0].trim();
+            }
+
+            const reportData = {
+                department: document.getElementById('incident-department').value,
+                phone: document.getElementById('incident-phone').value,
+                reportDate: document.getElementById('incident-date').value,
+                equipmentName: equipmentName,
+                serial: equipmentSerial,
+                problem: document.getElementById('problem-description').value
+            };
+
+            const printWindow = window.open('', '', 'height=800,width=800');
+            const printContent = `
+                <!DOCTYPE html><html lang="vi"><head><title>Phiếu Báo Hỏng Thiết Bị Y Tế</title>
+                <style>
+                    body { font-family: 'Times New Roman', Times, serif; font-size: 13pt; margin: 40px; } .header { text-align: center; }
+                    .header h2 { font-size: 14pt; font-weight: bold; text-transform: uppercase; margin: 0; } .header p { margin: 5px 0; }
+                    .section-title { font-weight: bold; margin-top: 20px; margin-bottom: 10px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                    th, td { border: 1px solid black; padding: 8px; text-align: left; } th { font-weight: bold; }
+                    .signature-section { margin-top: 40px; text-align: right; } .signature-section .date-info { font-style: italic; }
+                    .signature-section .role { font-weight: bold; margin-top: 5px; } .signature-section .signature-space { margin-top: 60px; }
+                </style></head><body>
+                <div class="header"><h2>PHIẾU BÁO HỎNG THIẾT BỊ Y TẾ</h2><p>----------------</p></div>
+                <p class="section-title">A. THÔNG TIN CHUNG</p>
+                <p><strong>Khoa báo hỏng:</strong> ${reportData.department}</p><p><strong>Số điện thoại:</strong> ${reportData.phone}</p><p><strong>Ngày báo hỏng:</strong> ${reportData.reportDate}</p>
+                <p class="section-title">B. THÔNG TIN BÁO HỎNG</p>
+                <table><thead><tr><th>Tên thiết bị</th><th>Số serial</th><th>Nguyên nhân hỏng</th></tr></thead>
+                <tbody><tr><td>${reportData.equipmentName}</td><td>${reportData.serial}</td><td>${reportData.problem}</td></tr>
+                <tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>
+                <div class="signature-section"><p class="date-info">Ngày ...... Tháng ...... Năm ........</p><p class="role">Trưởng Khoa, Phòng</p><p class="signature-space">(Ký, Họ tên)</p></div>
+                </body></html>`;
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+            }, 250);
         });
         
         checkAuth();
