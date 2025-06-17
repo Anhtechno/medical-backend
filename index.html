@@ -672,7 +672,6 @@
                     await populateIncidentFormEquipmentSelect();
                     renderIncidentTableUser(incidents);
                     
-                    // TỰ ĐỘNG ĐIỀN FORM BÁO HỎNG
                     const userDeptName = departments[userProfile.departmentKey];
                     document.getElementById('incident-department').value = userDeptName;
                     const today = new Date();
@@ -773,7 +772,6 @@
             }
         });
         
-        // LOGIC TẠO CỬA SỔ POP-UP ĐỂ IN PHIẾU BÁO HỎNG
         document.getElementById('print-report-btn').addEventListener('click', () => {
             const selectedEquipmentOption = dom.incidentEquipmentSelect.options[dom.incidentEquipmentSelect.selectedIndex];
             const equipmentText = selectedEquipmentOption.value ? selectedEquipmentOption.text : '';
@@ -796,13 +794,19 @@
             const printContent = `
                 <!DOCTYPE html><html lang="vi"><head><title>Phiếu Báo Hỏng Thiết Bị Y Tế</title>
                 <style>
-                    body { font-family: 'Times New Roman', Times, serif; font-size: 13pt; margin: 40px; } .header { text-align: center; }
-                    .header h2 { font-size: 14pt; font-weight: bold; text-transform: uppercase; margin: 0; } .header p { margin: 5px 0; }
+                    body { font-family: 'Times New Roman', Times, serif; font-size: 13pt; margin: 40px; }
+                    .header { text-align: center; }
+                    .header h2 { font-size: 14pt; font-weight: bold; text-transform: uppercase; margin: 0; }
+                    .header p { margin: 5px 0; }
                     .section-title { font-weight: bold; margin-top: 20px; margin-bottom: 10px; }
                     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                    th, td { border: 1px solid black; padding: 8px; text-align: left; } th { font-weight: bold; }
-                    .signature-section { margin-top: 40px; text-align: right; } .signature-section .date-info { font-style: italic; }
-                    .signature-section .role { font-weight: bold; margin-top: 5px; } .signature-section .signature-space { margin-top: 60px; }
+                    th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; }
+                    th { font-weight: bold; }
+                    .signature-container { display: flex; justify-content: flex-end; margin-top: 40px; }
+                    .signature-section { width: 50%; text-align: center; }
+                    .signature-section .date-info { font-style: italic; }
+                    .signature-section .role { font-weight: bold; margin-top: 5px; }
+                    .signature-section .signature-space { margin-top: 60px; }
                 </style></head><body>
                 <div class="header"><h2>PHIẾU BÁO HỎNG THIẾT BỊ Y TẾ</h2><p>----------------</p></div>
                 <p class="section-title">A. THÔNG TIN CHUNG</p>
@@ -810,8 +814,14 @@
                 <p class="section-title">B. THÔNG TIN BÁO HỎNG</p>
                 <table><thead><tr><th>Tên thiết bị</th><th>Số serial</th><th>Nguyên nhân hỏng</th></tr></thead>
                 <tbody><tr><td>${reportData.equipmentName}</td><td>${reportData.serial}</td><td>${reportData.problem}</td></tr>
-                <tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>
-                <div class="signature-section"><p class="date-info">Ngày ...... Tháng ...... Năm ........</p><p class="role">Trưởng Khoa, Phòng</p><p class="signature-space">(Ký, Họ tên)</p></div>
+                <tr><td style="height: 50px;">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table>
+                <div class="signature-container">
+                    <div class="signature-section">
+                        <p class="date-info">Ngày ...... Tháng ...... Năm ........</p>
+                        <p class="role">Trưởng Khoa, Phòng</p>
+                        <p class="signature-space">(Ký, Họ tên)</p>
+                    </div>
+                </div>
                 </body></html>`;
             printWindow.document.write(printContent);
             printWindow.document.close();
