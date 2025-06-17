@@ -812,8 +812,8 @@
                         .info-line { margin-bottom: 8px; }
                         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12pt; }
                         th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; }
-                        th { font-weight: bold; text-align: center; }
-                        .signatures { display: flex; justify-content: space-evenly; margin-top: 25px; } /* ĐÃ SỬA THÀNH SPACE-EVENLY */
+                        th { font-weight: bold; text-align: center; white-space: nowrap; }
+                        .signatures { display: flex; justify-content: space-evenly; margin-top: 25px; }
                         .signature-block { width: 30%; text-align: center; }
                         .signature-block .role { font-weight: bold; }
                         .signature-block .signature-space { margin-top: 60px; font-style: italic; }
@@ -845,12 +845,12 @@
                             </tbody>
                         </table>
                         <p class="info-line"><strong>III. Xác nhận từ khoa phòng</strong></p>
-                        <div class="signatures">
-                            <div class="signature-block">
+                        <div class="signatures" style="justify-content: space-around;">
+                            <div class="signature-block" style="width: 45%;">
                                 <p class="role">Ý kiến của người có thẩm quyền giải quyết</p>
                                 <p class="signature-space">(Ký, Họ tên)</p>
                             </div>
-                            <div class="signature-block">
+                            <div class="signature-block" style="width: 45%;">
                                 <p>Ngày...Tháng...Năm...</p>
                                 <p class="role">Trưởng Khoa, Phòng</p>
                                 <p class="signature-space">(Ký, Họ tên)</p>
@@ -877,7 +877,7 @@
                         <p class="section-title">C. Xác nhận chung</p>
                         <div class="signatures">
                             <div class="signature-block">
-                                <p class="role">Khoa, Phòng xác nhận công tác hoàn tất</p>
+                                <p class="role">Khoa, Phòng xác nhận<br>công tác hoàn tất</p>
                                 <p class="signature-space">(Ký, Họ tên)</p>
                             </div>
                             <div class="signature-block">
