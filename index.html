@@ -813,10 +813,10 @@
                         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12pt; }
                         th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; }
                         th { font-weight: bold; text-align: center; white-space: nowrap; }
-                        .signatures { display: flex; justify-content: space-evenly; margin-top: 25px; }
-                        .signature-block { width: 30%; text-align: center; }
-                        .signature-block .role { font-weight: bold; }
-                        .signature-block .signature-space { margin-top: 60px; font-style: italic; }
+                        .signatures { display: flex; justify-content: space-evenly; margin-top: 10px; align-items: flex-start; }
+                        .signature-block { width: 33%; text-align: center; }
+                        .signature-block .role { font-weight: bold; min-height: 3em; }
+                        .signature-block .signature-space { margin-top: 50px; font-style: italic; }
                         .page-break { page-break-before: always; }
                     </style>
                 </head>
@@ -845,13 +845,13 @@
                             </tbody>
                         </table>
                         <p class="info-line"><strong>III. Xác nhận từ khoa phòng</strong></p>
+                        <div style="text-align: right; font-style: italic; margin-bottom: 5px;">Ngày...Tháng...Năm...</div>
                         <div class="signatures" style="justify-content: space-around;">
                             <div class="signature-block" style="width: 45%;">
                                 <p class="role">Ý kiến của người có thẩm quyền giải quyết</p>
                                 <p class="signature-space">(Ký, Họ tên)</p>
                             </div>
                             <div class="signature-block" style="width: 45%;">
-                                <p>Ngày...Tháng...Năm...</p>
                                 <p class="role">Trưởng Khoa, Phòng</p>
                                 <p class="signature-space">(Ký, Họ tên)</p>
                             </div>
@@ -875,6 +875,7 @@
 
                     <div class="section">
                         <p class="section-title">C. Xác nhận chung</p>
+                        <div style="text-align: right; font-style: italic; margin-bottom: 5px;">Ngày...Tháng...Năm...</div>
                         <div class="signatures">
                             <div class="signature-block">
                                 <p class="role">Khoa, Phòng xác nhận<br>công tác hoàn tất</p>
@@ -885,7 +886,6 @@
                                 <p class="signature-space">(Ký, Họ tên)</p>
                             </div>
                             <div class="signature-block">
-                                <p>Ngày...Tháng...Năm...</p>
                                 <p class="role">Người thực hiện công tác</p>
                                 <p class="signature-space">(Ký, Họ tên)</p>
                             </div>
