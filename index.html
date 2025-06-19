@@ -110,6 +110,17 @@
         #pagination-controls button:hover { background-color: #f1faff; }
         #pagination-controls button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
         #pagination-controls button:disabled { cursor: not-allowed; opacity: 0.6; }
+        .notification-bell { position: relative; cursor: pointer; font-size: 20px; color: white; display: flex; align-items: center; }
+        .notification-badge { position: absolute; top: -5px; right: -10px; background-color: var(--danger-color); color: white; border-radius: 50%; padding: 2px 6px; font-size: 11px; font-weight: bold; display: none; }
+        .notification-dropdown { display: none; position: absolute; top: 40px; right: 0; background-color: white; color: var(--dark-color); border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); width: 350px; z-index: 1001; border: 1px solid #eee; }
+        .notification-dropdown.show { display: block; }
+        .notification-header { padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #eee; }
+        .notification-item { display: block; padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 14px; color: var(--dark-color); text-decoration: none; }
+        .notification-item:last-child { border-bottom: none; }
+        .notification-item:hover { background-color: #f8f9fa; }
+        .notification-item p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .notification-item span { font-size: 12px; color: #6c757d; }
+        
         @media (max-width: 992px) { .dashboard { grid-template-columns: 1fr; } .sidebar { margin-bottom: 20px; } .header-content { flex-direction: column; gap: 15px; } }
         @media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } .main-header { flex-direction: column; gap: 15px; } }
     </style>
@@ -122,7 +133,28 @@
     </div>
 
     <div id="main-app-container">
-        <header><div class="container header-content"><div class="header-left"><div class="logo"><i class="fas fa-hospital-user"></i><span>Quản Lý Thiết Bị Y Tế</span></div></div><div class="header-right"><div class="header-controls"><div class="department-search-wrapper"><i class="fas fa-search"></i><input type="text" id="departmentSearchInput" placeholder="Tìm kiếm khoa..."></div><div class="department-selector"><i class="fas fa-sitemap"></i><select id="departmentSelect"></select></div></div><button id="logout-btn"><i class="fas fa-sign-out-alt"></i> Đăng xuất</button></div></div></header>
+        <header>
+            <div class="container header-content">
+                <div class="header-left">
+                    <div class="logo"><i class="fas fa-hospital-user"></i><span>Quản Lý Thiết Bị Y Tế</span></div>
+                </div>
+                <div class="header-right">
+                    <div class="header-controls">
+                        <div class="department-search-wrapper"><i class="fas fa-search"></i><input type="text" id="departmentSearchInput" placeholder="Tìm kiếm khoa..."></div>
+                        <div class="department-selector"><i class="fas fa-sitemap"></i><select id="departmentSelect"></select></div>
+                    </div>
+                    <div class="notification-bell" id="notificationBellContainer" style="display: none;">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge" id="notificationBadge"></span>
+                        <div class="notification-dropdown" id="notificationDropdown">
+                            <div class="notification-header">Thông Báo Mới</div>
+                            <div id="notificationList"></div>
+                        </div>
+                    </div>
+                    <button id="logout-btn"><i class="fas fa-sign-out-alt"></i> Đăng xuất</button>
+                </div>
+            </div>
+        </header>
         
         <div class="container">
             <div class="dashboard">
@@ -255,7 +287,11 @@
             incidentTableBodyAdmin: document.getElementById('incident-table-body-admin'),
             incidentTableBodyUser: document.getElementById('incident-table-body-user'),
             closeModalBtn: document.getElementById('closeModalBtn'),
-            cancelBtn: document.getElementById('cancelBtn')
+            cancelBtn: document.getElementById('cancelBtn'),
+            notificationBellContainer: document.getElementById('notificationBellContainer'),
+            notificationBadge: document.getElementById('notificationBadge'),
+            notificationDropdown: document.getElementById('notificationDropdown'),
+            notificationList: document.getElementById('notificationList'),
         };
         
         const saveToken = (token) => localStorage.setItem('authToken', token);
@@ -277,6 +313,11 @@
             dom.loginContainer.style.display = 'none';
             dom.mainAppContainer.style.display = 'block';
             dom.logoutBtn.innerHTML = `<i class="fas fa-sign-out-alt"></i> ${userProfile.username} (Đăng xuất)`;
+            if(userProfile.role === 'admin') {
+                dom.notificationBellContainer.style.display = 'flex';
+                fetchNotifications();
+                setInterval(fetchNotifications, 60000); 
+            }
         }
 
         async function checkAuth() {
@@ -814,8 +855,8 @@
                         th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; }
                         th { font-weight: bold; text-align: center; white-space: nowrap; }
                         .signatures { display: flex; justify-content: space-evenly; align-items: flex-end; }
-                        .signature-block { width: 33%; text-align: center; }
-                        .signature-block .role { font-weight: bold; min-height: 4.5em; }
+                        .signature-block { width: 30%; text-align: center; }
+                        .signature-block .role { font-weight: bold; min-height: 4em; }
                         .signature-block .signature-name { font-style: italic; }
                         .page-break { page-break-before: always; }
                     </style>
@@ -845,14 +886,15 @@
                             </tbody>
                         </table>
                         <p class="info-line"><strong>III. Xác nhận từ khoa phòng</strong></p>
-                        <div class="signatures" style="justify-content: space-around; margin-top: 10px;">
+                        <div style="text-align: right; font-style: italic; margin-bottom: 10px;">Ngày...Tháng...Năm...</div>
+                        <div class="signatures" style="justify-content: space-around;">
                             <div class="signature-block" style="width: 45%;">
                                 <p class="role">Ý kiến của người có thẩm quyền giải quyết</p>
-                                <p class="signature-name">(Ký, Họ tên)</p>
+                                <p class="signature-name" style="margin-top: 40px;">(Ký, Họ tên)</p>
                             </div>
                             <div class="signature-block" style="width: 45%;">
                                 <p class="role">Trưởng Khoa, Phòng</p>
-                                <p class="signature-name">(Ký, Họ tên)</p>
+                                <p class="signature-name" style="margin-top: 40px;">(Ký, Họ tên)</p>
                             </div>
                         </div>
                     </div>
@@ -874,7 +916,7 @@
 
                     <div class="section">
                         <p class="section-title">C. Xác nhận chung</p>
-                        <div style="text-align: right; font-style: italic; margin-bottom: 5px;">Ngày...Tháng...Năm...</div>
+                        <div style="text-align: right; font-style: italic; margin-bottom: 10px;">Ngày...Tháng...Năm...</div>
                         <div class="signatures">
                             <div class="signature-block">
                                 <p class="role">Khoa, Phòng xác nhận<br>công tác hoàn tất</p>

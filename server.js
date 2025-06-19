@@ -1,5 +1,5 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN CÓ PHÂN TRANG VÀ STATS CHÍNH XÁC
+// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (CÓ CHUÔNG THÔNG BÁO)
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
@@ -52,7 +52,8 @@ const incidentSchema = new mongoose.Schema({
     problemDescription: { type: String, required: true },
     status: { type: String, enum: ['new', 'in_progress', 'resolved'], default: 'new' },
     notes: String,
-    resolvedAt: Date
+    resolvedAt: Date,
+    isRead: { type: Boolean, default: false }
 }, { timestamps: true });
 const Incident = mongoose.models.Incident || mongoose.model('Incident', incidentSchema);
 
@@ -112,70 +113,45 @@ app.get('/api/departments', authenticateToken, (req, res) => {
     res.json(userDept);
 });
 
-// === API ĐÃ ĐƯỢC CẬP NHẬT ĐỂ TÍNH STATS ===
 app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
     try {
         const { deptKey } = req.params;
-        
         if (req.user.role === 'user' && req.user.departmentKey !== deptKey) {
             return res.status(403).json({ message: "Không có quyền xem dữ liệu của khoa này." });
         }
-
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const status = req.query.status;
         const skip = (page - 1) * limit;
-
         const queryForPagination = { department: deptKey };
         if (status && status !== 'all') {
             queryForPagination.status = status;
         }
-
-        // --- Bắt đầu phần logic mới ---
-        
-        // 1. Lấy dữ liệu cho trang hiện tại (đã lọc và phân trang)
         const equipmentsPromise = Equipment.find(queryForPagination).sort({ name: 1 }).skip(skip).limit(limit);
-        
-        // 2. Đếm tổng số thiết bị (đã lọc) cho phân trang
         const totalItemsPromise = Equipment.countDocuments(queryForPagination);
-
-        // 3. TÍNH TOÁN STATS BẰNG AGGREGATION (tính trên toàn bộ khoa, không bị ảnh hưởng bởi filter)
         const statsPromise = Equipment.aggregate([
             { $match: { department: deptKey } }, 
             { $group: { _id: '$status', count: { $sum: 1 } } } 
         ]);
-        
-        // Thực thi tất cả các truy vấn song song
         const [equipments, totalItems, statsResult] = await Promise.all([
             equipmentsPromise,
             totalItemsPromise,
             statsPromise
         ]);
-
-        // Xử lý kết quả stats thành object { active: X, maintenance: Y, ... }
         const stats = statsResult.reduce((acc, curr) => {
-            if (curr._id) { // Đảm bảo status không phải là null hoặc undefined
-                acc[curr._id] = curr.count;
-            }
+            if (curr._id) { acc[curr._id] = curr.count; }
             return acc;
         }, {});
-
         const totalPages = Math.ceil(totalItems / limit);
-
         res.json({
-            equipments,
-            totalPages,
-            currentPage: page,
-            totalItems,
-            stats 
+            equipments, totalPages, currentPage: page,
+            totalItems, stats 
         });
-        
     } catch (error) {
         console.error("Lỗi khi lấy dữ liệu equipment:", error);
         res.status(500).json({ message: 'Lỗi server khi lấy dữ liệu', error: error.message });
     }
 });
-// ===============================================
 
 app.post('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
     try {
@@ -234,16 +210,10 @@ app.put('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (re
 app.post('/api/incidents', authenticateToken, async (req, res) => {
     try {
         const { equipmentSerial, problemDescription } = req.body;
-        if (!equipmentSerial || !problemDescription) {
-            return res.status(400).json({ message: "Vui lòng cung cấp đủ thông tin sự cố." });
-        }
+        if (!equipmentSerial || !problemDescription) { return res.status(400).json({ message: "Vui lòng cung cấp đủ thông tin sự cố." }); }
         const equipment = await Equipment.findOne({ serial: equipmentSerial });
-        if (!equipment) {
-            return res.status(404).json({ message: "Không tìm thấy thiết bị được báo cáo." });
-        }
-        if(req.user.role === 'user' && req.user.departmentKey !== equipment.department) {
-            return res.status(403).json({ message: "Không có quyền báo cáo cho thiết bị này." });
-        }
+        if (!equipment) { return res.status(404).json({ message: "Không tìm thấy thiết bị được báo cáo." }); }
+        if(req.user.role === 'user' && req.user.departmentKey !== equipment.department) { return res.status(403).json({ message: "Không có quyền báo cáo cho thiết bị này." }); }
         const newIncident = new Incident({
             equipmentId: equipment._id,
             equipmentName: equipment.name,
@@ -278,7 +248,7 @@ app.put('/api/incidents/:id', authenticateToken, isAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { status, notes } = req.body;
-        const updateData = { status, notes };
+        const updateData = { status, notes, isRead: true };
         if (status === 'resolved') {
             updateData.resolvedAt = new Date();
         }
@@ -290,6 +260,25 @@ app.put('/api/incidents/:id', authenticateToken, isAdmin, async (req, res) => {
         res.status(500).json({ message: 'Lỗi server khi cập nhật sự cố', error: error.message });
     }
 });
+
+app.get('/api/incidents/unread/count', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const count = await Incident.countDocuments({ isRead: false });
+        res.json({ count });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi đếm sự cố' });
+    }
+});
+
+app.get('/api/incidents/unread', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const incidents = await Incident.find({ isRead: false }).sort({ createdAt: -1 }).limit(5);
+        res.json(incidents);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi lấy danh sách sự cố chưa đọc' });
+    }
+});
+
 
 // 10. KHỞI ĐỘNG SERVER
 app.listen(PORT, () => {
