@@ -1113,7 +1113,8 @@
 
         async function openMaintenanceModal(mode = 'add', data = null) {
             dom.maintenanceForm.reset();
-            document.getElementById('maintenance-edit-id').value = '';
+            const editIdInput = document.getElementById('maintenance-edit-id');
+            editIdInput.value = '';
             
             const selectedDept = dom.departmentSelect.value;
             if (!selectedDept) {
@@ -1137,6 +1138,16 @@
                 return;
             }
 
+            if (mode === 'edit' && data) {
+                document.getElementById('maintenanceModalTitle').textContent = 'Chỉnh Sửa Lịch Bảo Trì';
+                editIdInput.value = data._id;
+                dom.maintenanceEquipmentSelect.value = data.serial;
+                document.getElementById('scheduleDate').value = data.scheduleDate.split('T')[0];
+                document.getElementById('maintenanceType').value = data.type;
+                document.getElementById('maintenanceNotes').value = data.notes;
+            } else {
+                document.getElementById('maintenanceModalTitle').textContent = 'Lên Lịch Bảo Trì Mới';
+            }
             dom.maintenanceModal.style.display = 'flex';
         }
 
@@ -1154,6 +1165,9 @@
         dom.maintenanceForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            const editId = document.getElementById('maintenance-edit-id').value;
+            const isEditing = !!editId;
+
             const payload = {
                 equipmentSerial: document.getElementById('maintenanceEquipmentSelect').value,
                 scheduleDate: document.getElementById('scheduleDate').value,
@@ -1165,32 +1179,70 @@
                 Swal.fire('Lỗi', 'Vui lòng chọn thiết bị và ngày lên lịch.', 'warning');
                 return;
             }
+            
+            const url = isEditing ? `${API_BASE_URL}/api/maintenance/${editId}` : `${API_BASE_URL}/api/maintenance`;
+            const method = isEditing ? 'PUT' : 'POST';
 
             try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/maintenance`, {
-                    method: 'POST',
-                    body: JSON.stringify(payload)
-                });
-
+                const response = await fetchWithAuth(url, { method: method, body: JSON.stringify(payload) });
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.message || 'Thao tác thất bại.');
                 }
-
                 Swal.fire({
                     position: 'top-end',
                     icon: 'success',
-                    title: 'Lên lịch bảo trì thành công!',
+                    title: isEditing ? 'Cập nhật thành công!' : 'Lên lịch bảo trì thành công!',
                     showConfirmButton: false,
                     timer: 1500
                 });
-
                 closeMaintenanceModal();
                 renderMaintenanceView(); 
                 fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
-
             } catch (error) {
-                handleApiError(error, 'Lên lịch bảo trì');
+                handleApiError(error, isEditing ? 'Cập nhật bảo trì' : 'Lên lịch bảo trì');
+            }
+        });
+        
+        dom.maintenanceTableBody.addEventListener('click', async (e) => {
+            const target = e.target.closest('button');
+            if (!target) return;
+            const maintenanceId = target.dataset.id;
+            if (!maintenanceId) return;
+
+            if (target.classList.contains('delete-btn')) {
+                Swal.fire({
+                    title: 'Bạn chắc chắn không?',
+                    text: "Bạn sẽ không thể hoàn tác hành động này!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonColor: '#3085d6',
+                    confirmButtonText: 'Vâng, xóa nó!',
+                    cancelButtonText: 'Hủy bỏ'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            const response = await fetchWithAuth(`${API_BASE_URL}/api/maintenance/${maintenanceId}`, { method: 'DELETE' });
+                            if (!response.ok) throw new Error('Xóa lịch bảo trì thất bại');
+                            Swal.fire('Đã xóa!', 'Lịch bảo trì đã được xóa.', 'success');
+                            renderMaintenanceView();
+                        } catch (error) {
+                            handleApiError(error, 'Xóa lịch bảo trì');
+                        }
+                    }
+                });
+            }
+
+            if (target.classList.contains('edit-btn')) {
+                try {
+                    const response = await fetchWithAuth(`${API_BASE_URL}/api/maintenance/${maintenanceId}`);
+                    if (!response.ok) throw new Error('Không thể lấy thông tin chi tiết.');
+                    const data = await response.json();
+                    openMaintenanceModal('edit', data);
+                } catch(error) {
+                    handleApiError(error, 'Lấy thông tin bảo trì');
+                }
             }
         });
         
