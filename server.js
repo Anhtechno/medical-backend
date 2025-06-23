@@ -1,5 +1,5 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (CÓ CHUÔNG THÔNG BÁO)
+// FILE: server.js - PHIÊN BẢN CÓ API QUẢN LÝ BẢO TRÌ
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
@@ -56,6 +56,32 @@ const incidentSchema = new mongoose.Schema({
     isRead: { type: Boolean, default: false }
 }, { timestamps: true });
 const Incident = mongoose.models.Incident || mongoose.model('Incident', incidentSchema);
+
+const maintenanceSchema = new mongoose.Schema({
+    equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment', required: true },
+    equipmentName: { type: String, required: true },
+    serial: { type: String, required: true },
+    departmentKey: { type: String, required: true },
+    
+    type: { type: String, enum: ['periodic', 'ad-hoc'], default: 'ad-hoc' },
+
+    scheduleDate: { type: Date, required: true },
+    completionDate: { type: Date },
+    
+    technician: { type: String },
+    notes: { type: String },
+    cost: { type: Number, default: 0 },
+    
+    status: { 
+        type: String, 
+        enum: ['scheduled', 'in_progress', 'completed', 'canceled'], 
+        default: 'scheduled' 
+    },
+    
+    createdBy: { type: String, required: true }
+}, { timestamps: true });
+const Maintenance = mongoose.models.Maintenance || mongoose.model('Maintenance', maintenanceSchema);
+
 
 const departments = { 'bvsk_tw_2b': 'Phòng Bảo vệ sức khỏe Trung ương 2B', 'cap_cuu': 'Khoa Cấp cứu', 'kham_benh': 'Khoa Khám bệnh', 'kham_benh_yc': 'Khoa Khám bệnh theo yêu cầu', 'noi_than_loc_mau': 'Khoa Nội thận – Lọc máu', 'dinh_duong_ls': 'Khoa Dinh dưỡng lâm sàng', 'phuc_hoi_cn': 'Khoa Phục hồi chức năng', 'icu': 'Khoa Hồi sức tích cực – Chống độc', 'phau_thuat_gmhs': 'Khoa Phẫu thuật – Gây mê hồi sức', 'ngoai_ctch': 'Khoa Ngoại chấn thương chỉnh hình', 'ngoai_tieu_hoa': 'Khoa Ngoại tiêu hoá', 'ngoai_gan_mat': 'Khoa Ngoại gan mật', 'noi_tiet': 'Khoa Nội tiết', 'ngoai_tim_mach_ln': 'Khoa Ngoại tim mạch – Lồng ngực', 'noi_tim_mach': 'Khoa Nội tim mạch', 'tim_mach_cc_ct': 'Khoa Tim mạch cấp cứu và can thiệp', 'noi_than_kinh': 'Khoa Nội thần kinh', 'loan_nhip_tim': 'Khoa Loạn nhịp tim', 'ngoai_than_kinh': 'Khoa Ngoại thần kinh', 'ngoai_than_tn': 'Khoa Ngoại thận – Tiết niệu', 'dieu_tri_cbcc': 'Khoa Điều trị Cán bộ cao cấp', 'noi_cxk': 'Khoa Nội cơ xương khớp', 'noi_dieu_tri_yc': 'Khoa Nội điều trị theo yêu cầu', 'noi_tieu_hoa_2': 'Khoa Nội tiêu hoá', 'noi_ho_hap': 'Khoa Nội hô hấp', 'mat': 'Khoa Mắt', 'tai_mui_hong': 'Khoa Tai mũi họng', 'pt_hm_thtm': 'Khoa Phẫu thuật hàm mặt – Tạo hình thẩm mỹ', 'ung_buou': 'Khoa Ung bướu', 'noi_nhiem': 'Khoa Nội nhiễm', 'y_hoc_co_truyen': 'Khoa Y học cổ truyền', 'ngoai_dieu_tri_yc': 'Khoa Ngoại điều trị theo yêu cầu', 'da_lieu_md_du': 'Khoa Da liễu – Miễn dịch – Dị ứng' };
 
@@ -279,8 +305,75 @@ app.get('/api/incidents/unread', authenticateToken, isAdmin, async (req, res) =>
     }
 });
 
+// 10. API QUẢN LÝ BẢO TRÌ (MỚI)
+app.post('/api/maintenance', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { equipmentSerial, scheduleDate, notes, type } = req.body;
+        if (!equipmentSerial || !scheduleDate) {
+            return res.status(400).json({ message: "Vui lòng cung cấp đủ Serial thiết bị và ngày dự kiến." });
+        }
+        const equipment = await Equipment.findOne({ serial: equipmentSerial });
+        if (!equipment) {
+            return res.status(404).json({ message: "Không tìm thấy thiết bị để lên lịch bảo trì." });
+        }
+        const newMaintenance = new Maintenance({
+            equipmentId: equipment._id,
+            equipmentName: equipment.name,
+            serial: equipment.serial,
+            departmentKey: equipment.department,
+            scheduleDate,
+            notes,
+            type,
+            createdBy: req.user.username
+        });
+        await newMaintenance.save();
+        await Equipment.findOneAndUpdate({ serial: equipmentSerial }, { status: 'maintenance' });
+        res.status(201).json(newMaintenance);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi tạo lịch bảo trì', error: error.message });
+    }
+});
 
-// 10. KHỞI ĐỘNG SERVER
+app.get('/api/maintenance', authenticateToken, async (req, res) => {
+    try {
+        let query = {};
+        if (req.user.role === 'user') {
+            query.departmentKey = req.user.departmentKey;
+        }
+        const maintenanceSchedules = await Maintenance.find(query).sort({ scheduleDate: -1 });
+        res.json(maintenanceSchedules);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi lấy danh sách bảo trì', error: error.message });
+    }
+});
+
+app.put('/api/maintenance/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, completionDate, technician, notes, cost, type } = req.body;
+        const updatedMaintenance = await Maintenance.findByIdAndUpdate(id, {
+            status, completionDate, technician, notes, cost, type
+        }, { new: true });
+        if (!updatedMaintenance) return res.status(404).json({ message: "Không tìm thấy lịch bảo trì." });
+        res.json(updatedMaintenance);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi cập nhật lịch bảo trì', error: error.message });
+    }
+});
+
+app.delete('/api/maintenance/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedMaintenance = await Maintenance.findByIdAndDelete(id);
+        if (!deletedMaintenance) return res.status(404).json({ message: "Không tìm thấy lịch bảo trì." });
+        res.json({ message: "Xóa lịch bảo trì thành công." });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi xóa lịch bảo trì', error: error.message });
+    }
+});
+
+
+// 11. KHỞI ĐỘNG SERVER
 app.listen(PORT, () => {
     console.log(`Backend đang chạy tại địa chỉ: http://localhost:${PORT}`);
 });
