@@ -77,9 +77,10 @@
         .equipment-image { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; cursor: pointer; transition: transform 0.3s; }
         .equipment-image:hover { transform: scale(1.5); z-index: 10; position: relative; }
         .status, .incident-status { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; color: #fff; }
-        .status.active, .incident-status.resolved { background-color: var(--success-color); } 
-        .status.maintenance, .incident-status.in_progress { background-color: var(--warning-color); } 
-        .status.inactive, .incident-status.new { background-color: var(--danger-color); }
+        .status.active, .incident-status.resolved, .status.completed { background-color: var(--success-color); } 
+        .status.maintenance, .incident-status.in_progress, .status.scheduled { background-color: var(--warning-color); } 
+        .status.inactive, .incident-status.new, .status.canceled { background-color: var(--danger-color); }
+        .status.in_progress { background-color: var(--info-color); }
         .action-btn-group button { padding: 6px 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: all 0.3s; margin: 0 2px; }
         .edit-btn, .action-btn-group .resolve-btn { background-color: var(--info-color); color: white; } .edit-btn:hover, .resolve-btn:hover { background-color: #138496; }
         .delete-btn { background-color: var(--danger-color); color: white; } .delete-btn:hover { background-color: #c82333; }
@@ -105,11 +106,11 @@
         .save-btn { background-color: var(--primary-color); color: white; }
         .save-btn:hover { background-color: #0069d9; }
         footer { text-align: center; margin-top: 50px; padding: 20px 0; color: #6c757d; font-size: 14px; }
-        #pagination-controls { display: flex; justify-content: center; align-items: center; margin-top: 25px; gap: 8px; }
-        #pagination-controls button { padding: 8px 14px; border: 1px solid #ddd; background-color: white; cursor: pointer; border-radius: 5px; transition: background-color 0.3s, color 0.3s; }
-        #pagination-controls button:hover { background-color: #f1faff; }
-        #pagination-controls button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
-        #pagination-controls button:disabled { cursor: not-allowed; opacity: 0.6; }
+        #pagination-controls, #maintenance-pagination-controls { display: flex; justify-content: center; align-items: center; margin-top: 25px; gap: 8px; }
+        #pagination-controls button, #maintenance-pagination-controls button { padding: 8px 14px; border: 1px solid #ddd; background-color: white; cursor: pointer; border-radius: 5px; transition: background-color 0.3s, color 0.3s; }
+        #pagination-controls button:hover, #maintenance-pagination-controls button:hover { background-color: #f1faff; }
+        #pagination-controls button.active, #maintenance-pagination-controls button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+        #pagination-controls button:disabled, #maintenance-pagination-controls button:disabled { cursor: not-allowed; opacity: 0.6; }
         .notification-bell { position: relative; cursor: pointer; font-size: 20px; color: white; display: flex; align-items: center; }
         .notification-badge { position: absolute; top: -5px; right: -10px; background-color: var(--danger-color); color: white; border-radius: 50%; padding: 2px 6px; font-size: 11px; font-weight: bold; display: none; }
         .notification-dropdown { display: none; position: absolute; top: 40px; right: 0; background-color: white; color: var(--dark-color); border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); width: 350px; z-index: 1001; border: 1px solid #eee; }
@@ -163,7 +164,7 @@
                     <ul id="sidebar-main">
                         <li><a data-view="equipment" class="active"><i class="fas fa-list-ul"></i> Danh Sách Thiết Bị</a></li>
                         <li><a data-view="incidents"><i class="fas fa-triangle-exclamation"></i> Báo Cáo Sự Cố</a></li>
-                        <li><a><i class="fas fa-wrench"></i> Quản lý Bảo Trì</a></li>
+                        <li><a data-view="maintenance"><i class="fas fa-wrench"></i> Quản lý Bảo Trì</a></li>
                     </ul>
                     <div id="equipment-filters">
                         <h3 style="margin-top: 30px;">Bộ Lọc Nhanh</h3>
@@ -243,7 +244,33 @@
                                 <tbody id="incident-table-body-user"></tbody>
                             </table>
                         </div>
-
+                    </div>
+                    
+                    <div id="maintenance-view-container" class="view-container">
+                        <div class="main-header">
+                            <h1 class="view-title">Quản lý Bảo trì</h1>
+                            <div class="header-actions">
+                                <button class="action-button" id="addMaintenanceBtn">
+                                    <i class="fas fa-plus"></i> Lên lịch Bảo trì
+                                </button>
+                            </div>
+                        </div>
+                        <table class="generic-table" id="maintenance-table">
+                            <thead>
+                                <tr>
+                                    <th>Thiết Bị</th>
+                                    <th>Số Serial</th>
+                                    <th>Khoa/Phòng</th>
+                                    <th>Ngày Lên Lịch</th>
+                                    <th>Ngày Hoàn Thành</th>
+                                    <th>Trạng Thái</th>
+                                    <th>Hành Động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="maintenance-table-body">
+                            </tbody>
+                        </table>
+                        <div id="maintenance-pagination-controls"></div>
                     </div>
                 </main>
             </div>
@@ -279,6 +306,8 @@
             viewContainers: document.querySelectorAll('.view-container'),
             equipmentView: document.getElementById('equipment-view-container'),
             incidentsView: document.getElementById('incidents-view-container'),
+            maintenanceView: document.getElementById('maintenance-view-container'),
+            maintenanceTableBody: document.getElementById('maintenance-table-body'),
             sidebarNavLinks: document.querySelectorAll('#sidebar-main a'),
             adminIncidentView: document.getElementById('admin-incident-view'),
             userIncidentView: document.getElementById('user-incident-view'),
@@ -702,6 +731,7 @@
                 viewToShow.style.display = 'block';
                 document.getElementById('equipment-filters').style.display = viewName === 'equipment' ? 'block' : 'none';
                 if(viewName === 'incidents') renderIncidentView();
+                if(viewName === 'maintenance') renderMaintenanceView();
             }
         }
         
@@ -817,6 +847,7 @@
                     try {
                         await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'PUT', body: JSON.stringify({ status: newStatus, notes: text }) });
                         renderIncidentView();
+                        fetchNotifications(); // Cập nhật lại chuông
                     } catch(error) { handleApiError(error, "Cập nhật sự cố"); }
                 }
             }
@@ -857,7 +888,7 @@
                         th { font-weight: bold; text-align: center; white-space: nowrap; }
                         .signatures { display: flex; justify-content: space-evenly; align-items: flex-end; }
                         .signature-block { width: 30%; text-align: center; }
-                        .signature-block .role { font-weight: bold; min-height: 4em; }
+                        .signature-block .role { font-weight: bold; min-height: 4em; padding-bottom: 40px; }
                         .signature-block .signature-name { font-style: italic; }
                         .page-break { page-break-before: always; }
                     </style>
@@ -887,7 +918,8 @@
                             </tbody>
                         </table>
                         <p class="info-line" style="margin-top: 15px;"><strong>III. Xác nhận từ khoa phòng</strong></p>
-                        <div class="signatures" style="justify-content: space-around; margin-top: 10px;">
+                        <div style="text-align: right; font-style: italic; margin-bottom: 10px;">Ngày...Tháng...Năm...</div>
+                        <div class="signatures" style="justify-content: space-around;">
                             <div class="signature-block" style="width: 45%;">
                                 <p class="role">Ý kiến của người có thẩm quyền giải quyết</p>
                                 <p class="signature-name">(Ký, Họ tên)</p>
@@ -916,7 +948,7 @@
 
                     <div class="section">
                         <p class="section-title">C. Xác nhận chung</p>
-                        <div style="text-align: right; font-style: italic; margin-bottom: 5px;">Ngày...Tháng...Năm...</div>
+                        <div style="text-align: right; font-style: italic; margin-bottom: 10px;">Ngày...Tháng...Năm...</div>
                         <div class="signatures">
                             <div class="signature-block">
                                 <p class="role">Khoa, Phòng xác nhận<br>công tác hoàn tất</p>
@@ -944,6 +976,61 @@
                 printWindow.print();
             }, 250);
         });
+        
+        async function renderMaintenanceView() {
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/maintenance`);
+                if (!response.ok) throw new Error("Không thể tải danh sách bảo trì");
+                const schedules = await response.json();
+                updateMaintenanceTable(schedules);
+            } catch (error) {
+                handleApiError(error, "Tải dữ liệu bảo trì");
+            }
+        }
+
+        function updateMaintenanceTable(schedules) {
+            const tableBody = dom.maintenanceTableBody;
+            tableBody.innerHTML = ''; 
+
+            if (schedules.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 30px;">Chưa có lịch bảo trì nào.</td></tr>`;
+                return;
+            }
+
+            const statusMap = {
+                scheduled: { text: 'Đã lên lịch', class: 'maintenance' },
+                in_progress: { text: 'Đang tiến hành', class: 'info' },
+                completed: { text: 'Hoàn thành', class: 'success' },
+                canceled: { text: 'Đã hủy', class: 'inactive' }
+            };
+
+            schedules.forEach(item => {
+                const row = document.createElement('tr');
+                const deptName = departments[item.departmentKey] || 'N/A';
+                const scheduleDate = new Date(item.scheduleDate).toLocaleDateString('vi-VN');
+                const completionDate = item.completionDate ? new Date(item.completionDate).toLocaleDateString('vi-VN') : 'Chưa có';
+                const statusInfo = statusMap[item.status] || { text: item.status, class: '' };
+
+                let actionButtons = '';
+                if (userProfile.role === 'admin') {
+                    actionButtons = `
+                        <button class="edit-btn" data-id="${item._id}"><i class="fas fa-edit"></i></button>
+                        <button class="delete-btn" data-id="${item._id}"><i class="fas fa-trash"></i></button>
+                    `;
+                }
+
+                row.innerHTML = `
+                    <td>${item.equipmentName}</td>
+                    <td>${item.serial}</td>
+                    <td>${deptName}</td>
+                    <td>${scheduleDate}</td>
+                    <td>${completionDate}</td>
+                    <td><span class="status ${statusInfo.class}">${statusInfo.text}</span></td>
+                    <td class="action-btn-group">${actionButtons}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
 
         async function fetchNotifications() {
             try {
