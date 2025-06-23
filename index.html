@@ -275,7 +275,50 @@
                 </main>
             </div>
         </div>
-        <div class="modal" id="addEquipmentModal"><div class="modal-content"><div class="modal-header"><h2 id="modalTitle">Thêm Thiết Bị Mới</h2><button class="close-btn" id="closeModalBtn">×</button></div><form id="equipmentForm"><input type="hidden" id="edit-serial"><div class="form-row"><div class="form-group"><label for="equipmentName">Tên Thiết Bị *</label><input type="text" id="equipmentName" placeholder="Ví dụ: Máy thở đa năng" required></div><div class="form-group"><label for="serialNumber">Số Serial *</label><input type="text" id="serialNumber" placeholder="Ví dụ: XYZ-12345" required></div></div><div class="form-row"><div class="form-group"><label for="manufacturer">Hãng Sản Xuất *</label><input type="text" id="manufacturer" placeholder="Ví dụ: Siemens" required></div><div class="form-group"><label for="purchaseDate">Năm Đưa Vào Sử Dụng *</label><input type="number" id="purchaseDate" min="1950" max="2099" placeholder="Ví dụ: 2023" required></div></div><div class="form-group"><label for="accessories">Phụ Kiện</label><input type="text" id="accessories" placeholder="Nhập phụ kiện kèm theo (cách nhau bởi dấu phẩy)"></div><div class="form-group"><label for="status">Tình Trạng *</label><select id="status" required><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Ngừng hoạt động</option></select></div><div class="form-group"><label for="description">Mô Tả / Ghi Chú</label><textarea id="description" rows="3" placeholder="Nhập mô tả hoặc ghi chú về thiết bị"></textarea></div><div class="form-group"><label>Hình Ảnh Thiết Bị</label><div class="image-upload" id="imageUpload"><i class="fas fa-cloud-upload-alt"></i><p>Nhấn để tải lên hoặc kéo thả ảnh vào đây</p><input type="file" id="imageInput" accept="image/*" style="display: none;"><img id="imagePreview" class="image-preview" src="#" alt="Xem trước hình ảnh"></div></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Thiết Bị</button></div></form></div></div>
+        <div class="modal" id="addEquipmentModal"></div>
+        
+        <div class="modal" id="maintenanceModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="maintenanceModalTitle">Lên Lịch Bảo Trì Mới</h2>
+                    <button class="close-btn" id="closeMaintenanceModalBtn">×</button>
+                </div>
+                <form id="maintenanceForm">
+                    <input type="hidden" id="maintenance-edit-id">
+        
+                    <div class="form-group">
+                        <label for="maintenanceEquipmentSelect">Chọn Thiết Bị Cần Bảo Trì *</label>
+                        <select id="maintenanceEquipmentSelect" required>
+                            </select>
+                    </div>
+        
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="scheduleDate">Ngày Lên Lịch *</label>
+                            <input type="date" id="scheduleDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="maintenanceType">Loại Bảo Trì</label>
+                            <select id="maintenanceType">
+                                <option value="ad-hoc">Đột xuất</option>
+                                <option value="periodic">Định kỳ</option>
+                            </select>
+                        </div>
+                    </div>
+        
+                    <div class="form-group">
+                        <label for="maintenanceNotes">Ghi Chú Ban Đầu</label>
+                        <textarea id="maintenanceNotes" rows="3" placeholder="Nhập ghi chú hoặc yêu cầu công việc..."></textarea>
+                    </div>
+        
+                    <div class="form-actions">
+                        <button type="button" class="cancel-btn" id="cancelMaintenanceBtn">Hủy Bỏ</button>
+                        <button type="submit" class="save-btn">Lưu Lịch Trình</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <footer><div class="container"><p>© 2025 Hệ Thống Quản Lý Trang Thiết Bị Y Tế. Tối ưu hóa cho hoạt động bệnh viện.</p></div></footer>
     </div>
     
@@ -308,6 +351,12 @@
             incidentsView: document.getElementById('incidents-view-container'),
             maintenanceView: document.getElementById('maintenance-view-container'),
             maintenanceTableBody: document.getElementById('maintenance-table-body'),
+            addMaintenanceBtn: document.getElementById('addMaintenanceBtn'),
+            maintenanceModal: document.getElementById('maintenanceModal'),
+            maintenanceForm: document.getElementById('maintenanceForm'),
+            closeMaintenanceModalBtn: document.getElementById('closeMaintenanceModalBtn'),
+            cancelMaintenanceBtn: document.getElementById('cancelMaintenanceBtn'),
+            maintenanceEquipmentSelect: document.getElementById('maintenanceEquipmentSelect'),
             sidebarNavLinks: document.querySelectorAll('#sidebar-main a'),
             adminIncidentView: document.getElementById('admin-incident-view'),
             userIncidentView: document.getElementById('user-incident-view'),
@@ -847,7 +896,7 @@
                     try {
                         await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'PUT', body: JSON.stringify({ status: newStatus, notes: text }) });
                         renderIncidentView();
-                        fetchNotifications(); // Cập nhật lại chuông
+                        fetchNotifications();
                     } catch(error) { handleApiError(error, "Cập nhật sự cố"); }
                 }
             }
