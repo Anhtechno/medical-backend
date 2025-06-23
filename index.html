@@ -130,7 +130,22 @@
 <body>
 
     <div id="login-container">
+        <div class="login-box">
+            <h1><i class="fas fa-hospital-user"></i> Đăng Nhập</h1>
+            <form id="login-form">
+                <div class="login-input-group">
+                    <label for="username">Tên đăng nhập</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="login-input-group">
+                    <label for="password">Mật khẩu</label>
+                    <input type="password" id="password" required>
+                </div>
+                <p id="login-error"></p>
+                <button type="submit" id="login-btn">Đăng Nhập</button>
+            </form>
         </div>
+    </div>
 
     <div id="main-app-container">
         <header>
@@ -177,9 +192,73 @@
                 </aside>
                 <main class="main-content">
                     <div id="equipment-view-container" class="view-container active">
-                        </div>
+                        <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
+                        <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Tìm kiếm thiết bị trên toàn bộ các khoa (theo serial, tên, hãng)..."></div>
+                        <div class="stats-cards"><div class="stat-card total"><h3>Tổng Thiết Bị</h3><div class="value" id="totalEquipment">0</div></div><div class="stat-card active"><h3>Đang Hoạt Động</h3><div class="value" id="activeEquipment">0</div></div><div class="stat-card maintenance"><h3>Cần Bảo Trì</h3><div class="value" id="maintenanceEquipment">0</div></div><div class="stat-card inactive"><h3>Ngừng Hoạt Động</h3><div class="value" id="inactiveEquipment">0</div></div></div>
+                        <table class="generic-table equipment-table" id="equipmentTable"><thead><tr><th>Hình Ảnh</th><th>Tên Thiết Bị</th><th>Số Serial</th><th id="departmentColumnHeader" style="display:none;">Khoa/Phòng</th><th>Hãng SX</th><th>Năm SD</th><th>Tình Trạng</th><th>Hành Động</th></tr></thead><tbody id="equipmentTableBody"></tbody></table>
+                        <div id="pagination-controls"></div>
+                    </div>
                     <div id="incidents-view-container" class="view-container">
+                        <div class="main-header"><h1 class="view-title">Báo Cáo Sự Cố</h1></div>
+                        <div id="admin-incident-view" style="display: none;"><table class="generic-table" id="incident-table-admin"><thead><tr><th>Ngày Báo Cáo</th><th>Khoa</th><th>Thiết Bị</th><th>Số Serial</th><th>Mô Tả Sự Cố</th><th>Trạng Thái</th><th>Hành Động</th></tr></thead><tbody id="incident-table-body-admin"></tbody></table></div>
+                        
+                        <div id="user-incident-view" style="display: none;">
+                            <h3 style="margin-bottom: 20px;">Tạo Phiếu Báo Hỏng Thiết Bị Y Tế</h3>
+                            <form id="incident-form">
+                                <fieldset style="border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+                                    <legend style="padding: 0 10px; font-weight: 500; color: var(--primary-color);">A. Thông tin chung</legend>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="incident-department">Khoa báo hỏng</label>
+                                            <input type="text" id="incident-department" readonly>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="incident-phone">Số điện thoại</label>
+                                            <input type="text" id="incident-phone" placeholder="Nhập SĐT của khoa...">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="incident-date">Ngày báo hỏng</label>
+                                        <input type="text" id="incident-date" readonly>
+                                    </div>
+                                </fieldset>
+                        
+                                <fieldset style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-top: 20px;">
+                                    <legend style="padding: 0 10px; font-weight: 500; color: var(--primary-color);">B. Thông tin báo hỏng</legend>
+                                    <div class="form-group">
+                                        <label for="incident-equipment-select">Tên thiết bị gặp sự cố *</label>
+                                        <select id="incident-equipment-select" required>
+                                            <option value="">-- Chọn thiết bị --</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="problem-description">Mô tả tình trạng / Nguyên nhân hỏng *</label>
+                                        <textarea id="problem-description" rows="4" placeholder="Ví dụ: Máy không lên nguồn, màn hình hiển thị sọc..." required></textarea>
+                                    </div>
+                                </fieldset>
+                                
+                                <div class="form-actions">
+                                    <button type="submit" class="save-btn"><i class="fas fa-paper-plane"></i> Gửi Báo Cáo Lên Hệ Thống</button>
+                                    <button type="button" class="action-button" id="print-report-btn" style="background-color: var(--info-color);"><i class="fas fa-print"></i> In Phiếu Báo Hỏng</button>
+                                </div>
+                            </form>
+                            
+                            <hr style="margin: 40px 0;">
+                            <h3 style="margin-bottom: 20px;">Lịch Sử Báo Cáo Của Khoa</h3>
+                            <table class="generic-table" id="incident-table-user">
+                                <thead>
+                                    <tr>
+                                        <th>Ngày Báo Cáo</th>
+                                        <th>Thiết Bị</th>
+                                        <th>Mô Tả Sự Cố</th>
+                                        <th>Trạng Thái</th>
+                                        <th>Ghi Chú Kỹ Sư</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="incident-table-body-user"></tbody>
+                            </table>
                         </div>
+                    </div>
                     
                     <div id="maintenance-view-container" class="view-container">
                         <div class="main-header">
@@ -210,9 +289,9 @@
                 </main>
             </div>
         </div>
-        <div class="modal" id="addEquipmentModal"></div>
-        <div class="modal" id="maintenanceModal"></div>
-        <footer></footer>
+        <div class="modal" id="addEquipmentModal"><div class="modal-content"><div class="modal-header"><h2 id="modalTitle">Thêm Thiết Bị Mới</h2><button class="close-btn" id="closeModalBtn">×</button></div><form id="equipmentForm"><input type="hidden" id="edit-serial"><div class="form-row"><div class="form-group"><label for="equipmentName">Tên Thiết Bị *</label><input type="text" id="equipmentName" placeholder="Ví dụ: Máy thở đa năng" required></div><div class="form-group"><label for="serialNumber">Số Serial *</label><input type="text" id="serialNumber" placeholder="Ví dụ: XYZ-12345" required></div></div><div class="form-row"><div class="form-group"><label for="manufacturer">Hãng Sản Xuất *</label><input type="text" id="manufacturer" placeholder="Ví dụ: Siemens" required></div><div class="form-group"><label for="purchaseDate">Năm Đưa Vào Sử Dụng *</label><input type="number" id="purchaseDate" min="1950" max="2099" placeholder="Ví dụ: 2023" required></div></div><div class="form-group"><label for="accessories">Phụ Kiện</label><input type="text" id="accessories" placeholder="Nhập phụ kiện kèm theo (cách nhau bởi dấu phẩy)"></div><div class="form-group"><label for="status">Tình Trạng *</label><select id="status" required><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Ngừng hoạt động</option></select></div><div class="form-group"><label for="description">Mô Tả / Ghi Chú</label><textarea id="description" rows="3" placeholder="Nhập mô tả hoặc ghi chú về thiết bị"></textarea></div><div class="form-group"><label>Hình Ảnh Thiết Bị</label><div class="image-upload" id="imageUpload"><i class="fas fa-cloud-upload-alt"></i><p>Nhấn để tải lên hoặc kéo thả ảnh vào đây</p><input type="file" id="imageInput" accept="image/*" style="display: none;"><img id="imagePreview" class="image-preview" src="#" alt="Xem trước hình ảnh"></div></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Thiết Bị</button></div></form></div></div>
+        <div class="modal" id="maintenanceModal"><div class="modal-content"><div class="modal-header"><h2 id="maintenanceModalTitle">Lên Lịch Bảo Trì Mới</h2><button class="close-btn" id="closeMaintenanceModalBtn">×</button></div><form id="maintenanceForm"><input type="hidden" id="maintenance-edit-id"><div class="form-group"><label for="maintenanceEquipmentSelect">Chọn Thiết Bị Cần Bảo Trì *</label><select id="maintenanceEquipmentSelect" required></select></div><div class="form-row"><div class="form-group"><label for="scheduleDate">Ngày Lên Lịch *</label><input type="date" id="scheduleDate" required></div><div class="form-group"><label for="maintenanceType">Loại Bảo Trì</label><select id="maintenanceType"><option value="ad-hoc">Đột xuất</option><option value="periodic">Định kỳ</option></select></div></div><div class="form-group"><label for="maintenanceNotes">Ghi Chú Ban Đầu</label><textarea id="maintenanceNotes" rows="3" placeholder="Nhập ghi chú hoặc yêu cầu công việc..."></textarea></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelMaintenanceBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Lịch Trình</button></div></form></div></div>
+        <footer><div class="container"><p>© 2025 Hệ Thống Quản Lý Trang Thiết Bị Y Tế. Tối ưu hóa cho hoạt động bệnh viện.</p></div></footer>
     </div>
     
 <script>
@@ -830,7 +909,7 @@
                         th { font-weight: bold; text-align: center; white-space: nowrap; }
                         .signatures { display: flex; justify-content: space-evenly; align-items: flex-end; }
                         .signature-block { width: 30%; text-align: center; }
-                        .signature-block .role { font-weight: bold; min-height: 4em; padding-bottom: 40px; }
+                        .signature-block .role { font-weight: bold; min-height: 3em; padding-bottom: 50px; }
                         .signature-block .signature-name { font-style: italic; }
                         .page-break { page-break-before: always; }
                     </style>
@@ -860,15 +939,15 @@
                             </tbody>
                         </table>
                         <p class="info-line" style="margin-top: 15px;"><strong>III. Xác nhận từ khoa phòng</strong></p>
-                        <div style="text-align: right; font-style: italic; margin-bottom: 10px;">Ngày...Tháng...Năm...</div>
+                        <div style="text-align: right; font-style: italic; margin-bottom: 5px;">Ngày...Tháng...Năm...</div>
                         <div class="signatures" style="justify-content: space-around;">
                             <div class="signature-block" style="width: 45%;">
                                 <p class="role">Ý kiến của người có thẩm quyền giải quyết</p>
-                                <p class="signature-name" style="margin-top: 40px;">(Ký, Họ tên)</p>
+                                <p class="signature-name">(Ký, Họ tên)</p>
                             </div>
                             <div class="signature-block" style="width: 45%;">
                                 <p class="role">Trưởng Khoa, Phòng</p>
-                                <p class="signature-name" style="margin-top: 40px;">(Ký, Họ tên)</p>
+                                <p class="signature-name">(Ký, Họ tên)</p>
                             </div>
                         </div>
                     </div>
@@ -890,7 +969,7 @@
 
                     <div class="section">
                         <p class="section-title">C. Xác nhận chung</p>
-                        <div style="text-align: right; font-style: italic; margin-bottom: 10px;">Ngày...Tháng...Năm...</div>
+                        <div style="text-align: right; font-style: italic; margin-bottom: 5px;">Ngày...Tháng...Năm...</div>
                         <div class="signatures">
                             <div class="signature-block">
                                 <p class="role">Khoa, Phòng xác nhận<br>công tác hoàn tất</p>
@@ -982,7 +1061,7 @@
                 ]);
                 
                 const countData = await countResponse.json();
-                const listData = await listResponse.json();
+                const listData = await response.json();
 
                 if (countData.count > 0) {
                     dom.notificationBadge.textContent = countData.count;
@@ -1029,90 +1108,6 @@
         window.addEventListener('click', (e) => {
             if (!dom.notificationBellContainer.contains(e.target)) {
                 dom.notificationDropdown.classList.remove('show');
-            }
-        });
-
-        // === CÁC HÀM VÀ SỰ KIỆN CHO MODAL BẢO TRÌ ===
-        async function openMaintenanceModal(mode = 'add', data = null) {
-            dom.maintenanceForm.reset();
-            document.getElementById('maintenance-edit-id').value = '';
-            
-            const selectedDept = dom.departmentSelect.value;
-            if (!selectedDept) {
-                Swal.fire('Lỗi', 'Vui lòng chọn một khoa trước khi lên lịch bảo trì.', 'error');
-                return;
-            }
-            
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${selectedDept}?limit=1000`);
-                const equipmentData = await response.json();
-                const selectElement = dom.maintenanceEquipmentSelect;
-                selectElement.innerHTML = '<option value="">-- Chọn thiết bị --</option>';
-                equipmentData.equipments.forEach(eq => {
-                    const option = document.createElement('option');
-                    option.value = eq.serial;
-                    option.textContent = `${eq.name} (Serial: ${eq.serial})`;
-                    selectElement.appendChild(option);
-                });
-            } catch (error) {
-                handleApiError(error, "Tải danh sách thiết bị");
-                return;
-            }
-
-            dom.maintenanceModal.style.display = 'flex';
-        }
-
-        function closeMaintenanceModal() {
-            dom.maintenanceModal.style.display = 'none';
-        }
-
-        dom.addMaintenanceBtn.addEventListener('click', () => openMaintenanceModal('add'));
-        dom.closeMaintenanceModalBtn.addEventListener('click', closeMaintenanceModal);
-        dom.cancelMaintenanceBtn.addEventListener('click', closeMaintenanceModal);
-        window.addEventListener('click', (e) => {
-            if (e.target === dom.maintenanceModal) closeMaintenanceModal();
-        });
-
-        dom.maintenanceForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const payload = {
-                equipmentSerial: document.getElementById('maintenanceEquipmentSelect').value,
-                scheduleDate: document.getElementById('scheduleDate').value,
-                type: document.getElementById('maintenanceType').value,
-                notes: document.getElementById('maintenanceNotes').value,
-            };
-
-            if (!payload.equipmentSerial || !payload.scheduleDate) {
-                Swal.fire('Lỗi', 'Vui lòng chọn thiết bị và ngày lên lịch.', 'warning');
-                return;
-            }
-
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/maintenance`, {
-                    method: 'POST',
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Thao tác thất bại.');
-                }
-
-                Swal.fire({
-                    position: 'top-end',
-                    icon: 'success',
-                    title: 'Lên lịch bảo trì thành công!',
-                    showConfirmButton: false,
-                    timer: 1500
-                });
-
-                closeMaintenanceModal();
-                renderMaintenanceView(); 
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
-
-            } catch (error) {
-                handleApiError(error, 'Lên lịch bảo trì');
             }
         });
         
