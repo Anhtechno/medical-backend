@@ -793,6 +793,7 @@
                 Swal.fire('Thành công', 'Gửi báo cáo sự cố thành công!', 'success');
                 dom.incidentForm.reset();
                 renderIncidentView();
+                if(userProfile.role === 'admin') { fetchNotifications(); }
             } catch (error) { handleApiError(error, "Gửi báo cáo"); }
         });
         
@@ -856,7 +857,7 @@
                         th { font-weight: bold; text-align: center; white-space: nowrap; }
                         .signatures { display: flex; justify-content: space-evenly; align-items: flex-end; }
                         .signature-block { width: 30%; text-align: center; }
-                        .signature-block .role { font-weight: bold; min-height: 3.5em; padding-bottom: 40px; }
+                        .signature-block .role { font-weight: bold; min-height: 4em; }
                         .signature-block .signature-name { font-style: italic; }
                         .page-break { page-break-before: always; }
                     </style>
@@ -886,8 +887,7 @@
                             </tbody>
                         </table>
                         <p class="info-line" style="margin-top: 15px;"><strong>III. Xác nhận từ khoa phòng</strong></p>
-                        <div style="text-align: right; font-style: italic; margin-bottom: 5px;">Ngày...Tháng...Năm...</div>
-                        <div class="signatures" style="justify-content: space-around;">
+                        <div class="signatures" style="justify-content: space-around; margin-top: 10px;">
                             <div class="signature-block" style="width: 45%;">
                                 <p class="role">Ý kiến của người có thẩm quyền giải quyết</p>
                                 <p class="signature-name">(Ký, Họ tên)</p>
@@ -943,6 +943,64 @@
                 printWindow.focus();
                 printWindow.print();
             }, 250);
+        });
+
+        async function fetchNotifications() {
+            try {
+                const [countResponse, listResponse] = await Promise.all([
+                    fetchWithAuth(`${API_BASE_URL}/api/incidents/unread/count`),
+                    fetchWithAuth(`${API_BASE_URL}/api/incidents/unread`)
+                ]);
+                
+                const countData = await countResponse.json();
+                const listData = await listResponse.json();
+
+                if (countData.count > 0) {
+                    dom.notificationBadge.textContent = countData.count;
+                    dom.notificationBadge.style.display = 'block';
+                } else {
+                    dom.notificationBadge.style.display = 'none';
+                }
+
+                renderNotificationDropdown(listData);
+            } catch (error) {
+                console.error("Lỗi khi lấy thông báo:", error);
+            }
+        }
+
+        function renderNotificationDropdown(notifications) {
+            dom.notificationList.innerHTML = '';
+            if (notifications.length === 0) {
+                dom.notificationList.innerHTML = '<div class="notification-item" style="text-align: center; color: #888;">Không có thông báo mới</div>';
+                return;
+            }
+            notifications.forEach(item => {
+                const deptName = departments[item.departmentKey] || 'Không rõ';
+                const itemDiv = document.createElement('a');
+                itemDiv.href = "#";
+                itemDiv.className = 'notification-item';
+                itemDiv.innerHTML = `
+                    <p><strong>${deptName}</strong> đã báo hỏng thiết bị <strong>${item.equipmentName}</strong></p>
+                    <span>${new Date(item.createdAt).toLocaleString('vi-VN')}</span>
+                `;
+                itemDiv.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    switchView('incidents');
+                    dom.notificationDropdown.classList.remove('show');
+                });
+                dom.notificationList.appendChild(itemDiv);
+            });
+        }
+
+        dom.notificationBellContainer.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dom.notificationDropdown.classList.toggle('show');
+        });
+
+        window.addEventListener('click', (e) => {
+            if (!dom.notificationBellContainer.contains(e.target)) {
+                dom.notificationDropdown.classList.remove('show');
+            }
         });
         
         checkAuth();
