@@ -62,22 +62,29 @@ const maintenanceSchema = new mongoose.Schema({
     equipmentName: { type: String, required: true },
     serial: { type: String, required: true },
     departmentKey: { type: String, required: true },
+    
     type: { type: String, enum: ['periodic', 'ad-hoc'], default: 'ad-hoc' },
+
     scheduleDate: { type: Date, required: true },
     completionDate: { type: Date },
+    
     technician: { type: String },
     notes: { type: String },
     cost: { type: Number, default: 0 },
+    
     status: { 
         type: String, 
         enum: ['scheduled', 'in_progress', 'completed', 'canceled'], 
         default: 'scheduled' 
     },
+    
     createdBy: { type: String, required: true }
 }, { timestamps: true });
 const Maintenance = mongoose.models.Maintenance || mongoose.model('Maintenance', maintenanceSchema);
 
+
 const departments = { 'bvsk_tw_2b': 'Phòng Bảo vệ sức khỏe Trung ương 2B', 'cap_cuu': 'Khoa Cấp cứu', 'kham_benh': 'Khoa Khám bệnh', 'kham_benh_yc': 'Khoa Khám bệnh theo yêu cầu', 'noi_than_loc_mau': 'Khoa Nội thận – Lọc máu', 'dinh_duong_ls': 'Khoa Dinh dưỡng lâm sàng', 'phuc_hoi_cn': 'Khoa Phục hồi chức năng', 'icu': 'Khoa Hồi sức tích cực – Chống độc', 'phau_thuat_gmhs': 'Khoa Phẫu thuật – Gây mê hồi sức', 'ngoai_ctch': 'Khoa Ngoại chấn thương chỉnh hình', 'ngoai_tieu_hoa': 'Khoa Ngoại tiêu hoá', 'ngoai_gan_mat': 'Khoa Ngoại gan mật', 'noi_tiet': 'Khoa Nội tiết', 'ngoai_tim_mach_ln': 'Khoa Ngoại tim mạch – Lồng ngực', 'noi_tim_mach': 'Khoa Nội tim mạch', 'tim_mach_cc_ct': 'Khoa Tim mạch cấp cứu và can thiệp', 'noi_than_kinh': 'Khoa Nội thần kinh', 'loan_nhip_tim': 'Khoa Loạn nhịp tim', 'ngoai_than_kinh': 'Khoa Ngoại thần kinh', 'ngoai_than_tn': 'Khoa Ngoại thận – Tiết niệu', 'dieu_tri_cbcc': 'Khoa Điều trị Cán bộ cao cấp', 'noi_cxk': 'Khoa Nội cơ xương khớp', 'noi_dieu_tri_yc': 'Khoa Nội điều trị theo yêu cầu', 'noi_tieu_hoa_2': 'Khoa Nội tiêu hoá', 'noi_ho_hap': 'Khoa Nội hô hấp', 'mat': 'Khoa Mắt', 'tai_mui_hong': 'Khoa Tai mũi họng', 'pt_hm_thtm': 'Khoa Phẫu thuật hàm mặt – Tạo hình thẩm mỹ', 'ung_buou': 'Khoa Ung bướu', 'noi_nhiem': 'Khoa Nội nhiễm', 'y_hoc_co_truyen': 'Khoa Y học cổ truyền', 'ngoai_dieu_tri_yc': 'Khoa Ngoại điều trị theo yêu cầu', 'da_lieu_md_du': 'Khoa Da liễu – Miễn dịch – Dị ứng' };
+
 
 // 6. API XÁC THỰC
 app.post('/api/auth/register', async (req, res) => {
@@ -359,8 +366,11 @@ app.put('/api/maintenance/:id', authenticateToken, isAdmin, async (req, res) => 
             status, completionDate, technician, notes, cost, type
         }, { new: true });
         if (!updatedMaintenance) return res.status(404).json({ message: "Không tìm thấy lịch bảo trì." });
-        if (status === 'completed') {
-            await Equipment.findOneAndUpdate({ serial: updatedMaintenance.serial }, { status: 'active' });
+        if (status === 'completed' || status === 'canceled') {
+            const relatedEquipment = await Equipment.findById(updatedMaintenance.equipmentId);
+            if (relatedEquipment && relatedEquipment.status === 'maintenance') {
+                 await Equipment.findByIdAndUpdate(updatedMaintenance.equipmentId, { status: 'active' });
+            }
         }
         res.json(updatedMaintenance);
     } catch (error) {
