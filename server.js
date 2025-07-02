@@ -1,5 +1,5 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (CÓ CRUD BẢO TRÌ, DASHBOARD, HỒ SƠ)
+// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (CÓ CRUD BẢO TRÌ, DASHBOARD, HỒ SƠ, USER MGMT)
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
@@ -40,7 +40,7 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     role: { type: String, required: true, enum: ['admin', 'user'], default: 'user' },
     departmentKey: { type: String } 
-});
+}, { timestamps: true });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 const incidentSchema = new mongoose.Schema({
@@ -464,6 +464,74 @@ app.get('/api/equipment/profile/:serial', authenticateToken, isAdmin, async (req
         res.status(500).json({ message: 'Lỗi server khi lấy hồ sơ thiết bị', error: error.message });
     }
 });
+
+// 10.7. API QUẢN LÝ NGƯỜI DÙNG
+app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const users = await User.find({ role: 'user' }).sort({ username: 1 });
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi lấy danh sách người dùng.' });
+    }
+});
+
+app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { username, password, departmentKey } = req.body;
+        if (!username || !password || !departmentKey) {
+            return res.status(400).json({ message: "Vui lòng nhập đủ Tên đăng nhập, Mật khẩu và Khoa." });
+        }
+        const existingUser = await User.findOne({ username });
+        if (existingUser) {
+            return res.status(400).json({ message: "Tên đăng nhập đã tồn tại." });
+        }
+        const hashedPassword = await bcrypt.hash(password, 12);
+        const newUser = new User({
+            username,
+            password: hashedPassword,
+            role: 'user',
+            departmentKey
+        });
+        await newUser.save();
+        res.status(201).json(newUser);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi tạo người dùng.' });
+    }
+});
+
+app.put('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { departmentKey, password } = req.body;
+        const updateData = { departmentKey };
+
+        if (password && password.length > 0) {
+            updateData.password = await bcrypt.hash(password, 12);
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true });
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'Không tìm thấy người dùng.' });
+        }
+        res.json(updatedUser);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi cập nhật người dùng.' });
+    }
+});
+
+app.delete('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedUser = await User.findByIdAndDelete(id);
+        if (!deletedUser) {
+            return res.status(404).json({ message: 'Không tìm thấy người dùng.' });
+        }
+        res.json({ message: 'Xóa người dùng thành công.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi xóa người dùng.' });
+    }
+});
+
 
 // 11. KHỞI ĐỘNG SERVER
 app.listen(PORT, () => {

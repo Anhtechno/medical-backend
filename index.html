@@ -73,7 +73,7 @@
         .generic-table th, .generic-table td { padding: 15px; text-align: left; border-bottom: 1px solid #dee2e6; vertical-align: middle; word-wrap: break-word; }
         .generic-table th { background-color: var(--light-color); font-weight: 700; color: var(--dark-color); font-size: 14px; text-transform: uppercase; }
         .generic-table tr:hover { background-color: #f1faff; }
-        .equipment-table th:last-child, .equipment-table td:last-child { width: 160px; text-align: center; } /* Adjusted width for 3 buttons */
+        .equipment-table th:last-child, .equipment-table td:last-child { width: 160px; text-align: center; }
         .equipment-image { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; cursor: pointer; transition: transform 0.3s; }
         .equipment-image:hover { transform: scale(1.5); z-index: 10; position: relative; }
         .status, .incident-status { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; color: #fff; }
@@ -230,8 +230,29 @@
                         </div>
                     </div>
 
-                    <div id="profile-view-container" class="view-container">
+                    <div id="profile-view-container" class="view-container"></div>
+
+                    <div id="users-view-container" class="view-container">
+                        <div class="main-header">
+                            <h1 class="view-title">Quản lý Người dùng</h1>
+                            <div class="header-actions">
+                                <button id="addUserBtn" class="action-button">
+                                    <i class="fas fa-user-plus"></i> Thêm Người dùng
+                                </button>
+                            </div>
                         </div>
+                        <table class="generic-table" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Tên đăng nhập</th>
+                                    <th>Khoa/Phòng được gán</th>
+                                    <th>Ngày tạo</th>
+                                    <th style="width: 120px; text-align: center;">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body"></tbody>
+                        </table>
+                    </div>
 
                     <div id="incidents-view-container" class="view-container">
                         <div class="main-header"><h1 class="view-title">Báo Cáo Sự Cố</h1></div>
@@ -325,6 +346,7 @@
         </div>
         <div class="modal" id="addEquipmentModal"><div class="modal-content"><div class="modal-header"><h2 id="modalTitle">Thêm Thiết Bị Mới</h2><button class="close-btn" id="closeModalBtn">×</button></div><form id="equipmentForm"><input type="hidden" id="edit-serial"><div class="form-row"><div class="form-group"><label for="equipmentName">Tên Thiết Bị *</label><input type="text" id="equipmentName" placeholder="Ví dụ: Máy thở đa năng" required></div><div class="form-group"><label for="serialNumber">Số Serial *</label><input type="text" id="serialNumber" placeholder="Ví dụ: XYZ-12345" required></div></div><div class="form-row"><div class="form-group"><label for="manufacturer">Hãng Sản Xuất *</label><input type="text" id="manufacturer" placeholder="Ví dụ: Siemens" required></div><div class="form-group"><label for="purchaseDate">Năm Đưa Vào Sử Dụng *</label><input type="number" id="purchaseDate" min="1950" max="2099" placeholder="Ví dụ: 2023" required></div></div><div class="form-group"><label for="accessories">Phụ Kiện</label><input type="text" id="accessories" placeholder="Nhập phụ kiện kèm theo (cách nhau bởi dấu phẩy)"></div><div class="form-group"><label for="status">Tình Trạng *</label><select id="status" required><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Ngừng hoạt động</option></select></div><div class="form-group"><label for="description">Mô Tả / Ghi Chú</label><textarea id="description" rows="3" placeholder="Nhập mô tả hoặc ghi chú về thiết bị"></textarea></div><div class="form-group"><label>Hình Ảnh Thiết Bị</label><div class="image-upload" id="imageUpload"><i class="fas fa-cloud-upload-alt"></i><p>Nhấn để tải lên hoặc kéo thả ảnh vào đây</p><input type="file" id="imageInput" accept="image/*" style="display: none;"><img id="imagePreview" class="image-preview" src="#" alt="Xem trước hình ảnh"></div></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Thiết Bị</button></div></form></div></div>
         <div class="modal" id="maintenanceModal"><div class="modal-content"><div class="modal-header"><h2 id="maintenanceModalTitle">Lên Lịch Bảo Trì Mới</h2><button class="close-btn" id="closeMaintenanceModalBtn">×</button></div><form id="maintenanceForm"><input type="hidden" id="maintenance-edit-id"><div class="form-group"><label for="maintenanceEquipmentSelect">Chọn Thiết Bị Cần Bảo Trì *</label><select id="maintenanceEquipmentSelect" required></select></div><div class="form-row"><div class="form-group"><label for="scheduleDate">Ngày Lên Lịch *</label><input type="date" id="scheduleDate" required></div><div class="form-group"><label for="maintenanceType">Loại Bảo Trì</label><select id="maintenanceType"><option value="ad-hoc">Đột xuất</option><option value="periodic">Định kỳ</option></select></div></div><div class="form-group"><label for="maintenanceNotes">Ghi Chú Ban Đầu</label><textarea id="maintenanceNotes" rows="3" placeholder="Nhập ghi chú hoặc yêu cầu công việc..."></textarea></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelMaintenanceBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Lịch Trình</button></div></form></div></div>
+        <div class="modal" id="userModal"><div class="modal-content"><div class="modal-header"><h2 id="userModalTitle">Thêm Người dùng mới</h2><button class="close-btn" id="closeUserModalBtn">×</button></div><form id="userForm"><input type="hidden" id="edit-userId"><div class="form-group"><label for="userUsername">Tên đăng nhập *</label><input type="text" id="userUsername" required></div><div class="form-group"><label for="userPassword">Mật khẩu *</label><input type="password" id="userPassword"><small id="passwordHelp" style="color: #888; font-size: 12px; margin-top: 5px;">Bắt buộc khi tạo mới. Để trống nếu không muốn thay đổi mật khẩu khi sửa.</small></div><div class="form-group"><label for="userDepartment">Gán vào Khoa/Phòng *</label><select id="userDepartment" required></select></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelUserBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Người dùng</button></div></form></div></div>
         <footer><div class="container"><p>© 2025 Hệ Thống Quản Lý Trang Thiết Bị Y Tế. Tối ưu hóa cho hoạt động bệnh viện.</p></div></footer>
     </div>
     
@@ -358,6 +380,13 @@
             maintenanceView: document.getElementById('maintenance-view-container'),
             dashboardView: document.getElementById('dashboard-view-container'),
             profileView: document.getElementById('profile-view-container'),
+            usersView: document.getElementById('users-view-container'),
+            usersTableBody: document.getElementById('users-table-body'),
+            addUserBtn: document.getElementById('addUserBtn'),
+            userModal: document.getElementById('userModal'),
+            userForm: document.getElementById('userForm'),
+            closeUserModalBtn: document.getElementById('closeUserModalBtn'),
+            cancelUserBtn: document.getElementById('cancelUserBtn'),
             maintenanceTableBody: document.getElementById('maintenance-table-body'),
             addMaintenanceBtn: document.getElementById('addMaintenanceBtn'),
             maintenanceModal: document.getElementById('maintenanceModal'),
@@ -395,15 +424,36 @@
 
         function logout() { removeToken(); window.location.reload(); }
         function showLoginView() { dom.loginContainer.style.display = 'flex'; dom.mainAppContainer.style.display = 'none'; }
+        
         function showMainAppView() {
             dom.loginContainer.style.display = 'none';
             dom.mainAppContainer.style.display = 'block';
             dom.logoutBtn.innerHTML = `<i class="fas fa-sign-out-alt"></i> ${userProfile.username} (Đăng xuất)`;
-            if(userProfile.role === 'admin') {
+
+            if (userProfile.role === 'admin') {
+                if (!document.querySelector('a[data-view="users"]')) {
+                    const sidebar = document.getElementById('sidebar-main');
+                    const userManagementLi = document.createElement('li');
+                    userManagementLi.innerHTML = `<a data-view="users"><i class="fas fa-users-cog"></i> Quản lý Người dùng</a>`;
+                    sidebar.appendChild(userManagementLi);
+                    
+                    dom.sidebarNavLinks = document.querySelectorAll('#sidebar-main a');
+                    dom.sidebarNavLinks.forEach(link => {
+                        link.removeEventListener('click', handleNavLinkClick); // Remove old listeners to avoid duplicates
+                        link.addEventListener('click', handleNavLinkClick); // Add new listener
+                    });
+                }
+                
                 dom.notificationBellContainer.style.display = 'flex';
                 fetchNotifications();
                 setInterval(fetchNotifications, 60000); 
             }
+        }
+        
+        function handleNavLinkClick(e) {
+            e.preventDefault();
+            const viewName = e.currentTarget.dataset.view;
+            if (viewName) switchView(viewName);
         }
 
         async function fetchWithAuth(url, options = {}) {
@@ -489,8 +539,8 @@
         function updateEquipmentTable(list, isGlobalSearch = false) {
             dom.equipmentTableBody.innerHTML = '';
             document.getElementById('departmentColumnHeader').style.display = isGlobalSearch ? '' : 'none';
+            const colspan = isGlobalSearch ? 8 : 7;
             if (list.length === 0) {
-                const colspan = isGlobalSearch ? 8 : 7;
                 dom.equipmentTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 30px;">Không có thiết bị nào phù hợp.</td></tr>`;
                 return;
             }
@@ -746,17 +796,12 @@
         });
 
         dom.sidebarNavLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const viewName = e.currentTarget.dataset.view;
-                if (viewName) switchView(viewName);
-            });
+            link.addEventListener('click', handleNavLinkClick);
         });
 
         function switchView(viewName, param = null) {
             dom.sidebarNavLinks.forEach(link => {
                 const linkView = link.dataset.view;
-                // Make dashboard or profile view active, but also keep equipment list active as a "parent"
                 if (linkView === viewName || (linkView === 'equipment' && viewName === 'profile')) {
                     link.classList.add('active');
                 } else {
@@ -781,6 +826,7 @@
                 if (viewName === 'incidents') renderIncidentView();
                 if (viewName === 'maintenance') renderMaintenanceView();
                 if (viewName === 'profile') renderProfileView(param);
+                if (viewName === 'users') renderUsersView();
             }
         }
         
@@ -1358,10 +1404,7 @@
         // LOGIC CHO TRANG HỒ SƠ THIẾT BỊ
         // ========================================================
         async function renderProfileView(serial) {
-            if (!serial) {
-                switchView('equipment');
-                return;
-            }
+            if (!serial) { switchView('equipment'); return; }
             const profileView = dom.profileView;
             profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
             try {
@@ -1420,9 +1463,7 @@
                         const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
                         incidentBody.innerHTML += `<tr><td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td></tr>`;
                     });
-                } else {
-                    incidentBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Không có lịch sử sự cố.</td></tr>';
-                }
+                } else { incidentBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Không có lịch sử sự cố.</td></tr>'; }
 
                 const maintenanceBody = document.getElementById('profile-maintenance-tbody');
                 if (data.maintenanceHistory.length > 0) {
@@ -1430,16 +1471,157 @@
                      data.maintenanceHistory.forEach(main => {
                         maintenanceBody.innerHTML += `<tr><td>${new Date(main.scheduleDate).toLocaleDateString('vi-VN')}</td><td>${main.completionDate ? new Date(main.completionDate).toLocaleDateString('vi-VN') : 'Chưa có'}</td><td>${main.notes || ''}</td><td><span class="status ${main.status}">${statusMap[main.status]}</span></td></tr>`;
                     });
-                } else {
-                    maintenanceBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Không có lịch sử bảo trì.</td></tr>';
-                }
-
+                } else { maintenanceBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Không có lịch sử bảo trì.</td></tr>'; }
             } catch (error) {
                 handleApiError(error, "Tải hồ sơ thiết bị");
                 profileView.innerHTML = '<p style="text-align:center; padding: 40px; color: var(--danger-color);">Đã xảy ra lỗi khi tải dữ liệu.</p>';
             }
         }
-        
+
+        // ========================================================
+        // LOGIC CHO QUẢN LÝ NGƯỜI DÙNG
+        // ========================================================
+        async function renderUsersView() {
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/users`);
+                if (!response.ok) throw new Error("Không thể tải danh sách người dùng");
+                const users = await response.json();
+                
+                dom.usersTableBody.innerHTML = '';
+                if (users.length === 0) {
+                    dom.usersTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 30px;">Không có người dùng nào.</td></tr>`;
+                    return;
+                }
+                users.forEach(user => {
+                    const row = document.createElement('tr');
+                    const deptName = departments[user.departmentKey] || 'Chưa gán';
+                    row.innerHTML = `
+                        <td>${user.username}</td>
+                        <td>${deptName}</td>
+                        <td>${new Date(user.createdAt).toLocaleDateString('vi-VN')}</td>
+                        <td class="action-btn-group">
+                            <button class="edit-btn user-edit-btn" data-id="${user._id}"><i class="fas fa-edit"></i></button>
+                            <button class="delete-btn user-delete-btn" data-id="${user._id}" data-username="${user.username}"><i class="fas fa-trash"></i></button>
+                        </td>
+                    `;
+                    dom.usersTableBody.appendChild(row);
+                });
+            } catch (error) {
+                handleApiError(error, "Tải danh sách người dùng");
+            }
+        }
+
+        function openUserModal(mode = 'add', userData = null) {
+            dom.userForm.reset();
+            document.getElementById('edit-userId').value = '';
+            const userPassInput = document.getElementById('userPassword');
+            const userUsernameInput = document.getElementById('userUsername');
+            
+            const deptSelect = document.getElementById('userDepartment');
+            deptSelect.innerHTML = '<option value="">-- Chọn khoa --</option>';
+            for (const key in departments) {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = departments[key];
+                deptSelect.appendChild(option);
+            }
+            
+            if (mode === 'edit' && userData) {
+                document.getElementById('userModalTitle').textContent = 'Chỉnh sửa Người dùng';
+                document.getElementById('edit-userId').value = userData._id;
+                userUsernameInput.value = userData.username;
+                userUsernameInput.readOnly = true;
+                deptSelect.value = userData.departmentKey;
+                userPassInput.required = false;
+            } else {
+                document.getElementById('userModalTitle').textContent = 'Thêm Người dùng mới';
+                userUsernameInput.readOnly = false;
+                userPassInput.required = true;
+            }
+            dom.userModal.style.display = 'flex';
+        }
+
+        function closeUserModal() {
+            dom.userModal.style.display = 'none';
+        }
+
+        dom.addUserBtn.addEventListener('click', () => openUserModal('add'));
+        dom.closeUserModalBtn.addEventListener('click', closeUserModal);
+        dom.cancelUserBtn.addEventListener('click', closeUserModal);
+        window.addEventListener('click', (e) => {
+            if (e.target === dom.userModal) closeUserModal();
+        });
+
+        dom.userForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('edit-userId').value;
+            const isEditing = !!userId;
+            
+            const payload = {
+                username: document.getElementById('userUsername').value,
+                password: document.getElementById('userPassword').value,
+                departmentKey: document.getElementById('userDepartment').value
+            };
+
+            if (isEditing && !payload.password) {
+                delete payload.password;
+            }
+
+            const url = isEditing ? `${API_BASE_URL}/api/users/${userId}` : `${API_BASE_URL}/api/users`;
+            const method = isEditing ? 'PUT' : 'POST';
+
+            try {
+                const response = await fetchWithAuth(url, { method: method, body: JSON.stringify(payload) });
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.message);
+                }
+                Swal.fire('Thành công', `Thao tác với người dùng ${payload.username} thành công!`, 'success');
+                closeUserModal();
+                renderUsersView();
+            } catch (error) {
+                handleApiError(error, "Lưu người dùng");
+            }
+        });
+
+        dom.usersTableBody.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.user-delete-btn');
+            if (deleteBtn) {
+                const userId = deleteBtn.dataset.id;
+                const username = deleteBtn.dataset.username;
+                Swal.fire({
+                    title: `Bạn có chắc muốn xóa người dùng "${username}"?`,
+                    text: "Hành động này không thể hoàn tác!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonText: 'Hủy'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            await fetchWithAuth(`${API_BASE_URL}/api/users/${userId}`, { method: 'DELETE' });
+                            Swal.fire('Đã xóa!', 'Người dùng đã được xóa.', 'success');
+                            renderUsersView();
+                        } catch (error) {
+                            handleApiError(error, "Xóa người dùng");
+                        }
+                    }
+                });
+                return;
+            }
+
+            const editBtn = e.target.closest('.user-edit-btn');
+            if (editBtn) {
+                const userId = editBtn.dataset.id;
+                const row = editBtn.closest('tr');
+                const username = row.cells[0].textContent;
+                const deptName = row.cells[1].textContent;
+                const deptKey = Object.keys(departments).find(key => departments[key] === deptName);
+                
+                openUserModal('edit', { _id: userId, username: username, departmentKey: deptKey });
+            }
+        });
+
         async function checkAuth() {
             const token = getToken();
             if (!token) { showLoginView(); return; }
