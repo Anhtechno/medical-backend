@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --primary-color: #007bff; --secondary-color: #5a9ced; --light-color: #f8f9fa; --dark-color: #343a40; --success-color: #28a745; --warning-color: #ffc107; --danger-color: #dc3545; --info-color: #17a2b8; --font-family: 'Roboto', sans-serif; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: var(--font-family); }
@@ -57,7 +58,6 @@
         .action-button { background-color: var(--primary-color); color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; font-weight: 500; transition: background-color 0.3s, transform 0.2s; }
         .action-button:hover { transform: translateY(-2px); }
         #addEquipmentBtn { background-color: var(--primary-color); } #addEquipmentBtn:hover { background-color: #0069d9; } #exportExcelBtn { background-color: var(--success-color); } #exportExcelBtn:hover { background-color: #218838; }
-        .action-button i { margin-right: 8px; }
         .search-bar { margin-bottom: 25px; position: relative; }
         .search-bar input { width: 100%; padding: 12px 15px 12px 40px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; transition: border-color 0.3s, box-shadow 0.3s; }
         .search-bar input:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2); outline: none; }
@@ -176,7 +176,8 @@
                 <aside class="sidebar">
                     <h3>Chức Năng</h3>
                     <ul id="sidebar-main">
-                        <li><a data-view="equipment" class="active"><i class="fas fa-list-ul"></i> Danh Sách Thiết Bị</a></li>
+                        <li><a data-view="dashboard" class="active"><i class="fas fa-tachometer-alt"></i> Tổng quan</a></li>
+                        <li><a data-view="equipment"><i class="fas fa-list-ul"></i> Danh Sách Thiết Bị</a></li>
                         <li><a data-view="incidents"><i class="fas fa-triangle-exclamation"></i> Báo Cáo Sự Cố</a></li>
                         <li><a data-view="maintenance"><i class="fas fa-wrench"></i> Quản lý Bảo Trì</a></li>
                     </ul>
@@ -198,6 +199,40 @@
                         <table class="generic-table equipment-table" id="equipmentTable"><thead><tr><th>Hình Ảnh</th><th>Tên Thiết Bị</th><th>Số Serial</th><th id="departmentColumnHeader" style="display:none;">Khoa/Phòng</th><th>Hãng SX</th><th>Năm SD</th><th>Tình Trạng</th><th>Hành Động</th></tr></thead><tbody id="equipmentTableBody"></tbody></table>
                         <div id="pagination-controls"></div>
                     </div>
+
+                    <div id="dashboard-view-container" class="view-container">
+                        <div class="main-header">
+                            <h1 class="view-title">Bảng điều khiển Tổng quan</h1>
+                        </div>
+                    
+                        <div class="stats-cards" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                            <div class="stat-card total">
+                                <h3>Tổng số Thiết bị</h3>
+                                <div class="value" id="db-total-equipment">0</div>
+                            </div>
+                            <div class="stat-card inactive">
+                                <h3>Sự cố Mới</h3>
+                                <div class="value" id="db-new-incidents">0</div>
+                            </div>
+                            <div class="stat-card maintenance">
+                                <h3>Bảo trì Sắp tới</h3>
+                                <div class="value" id="db-upcoming-maintenance">0</div>
+                            </div>
+                        </div>
+                    
+                        <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 25px; margin-top: 30px;">
+                            <div id="chart-container" style="background-color: #fff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+                                 <h3 style="text-align: center; margin-bottom: 20px; color: var(--dark-color);">Phân bổ Thiết bị</h3>
+                                <canvas id="equipmentStatusChart"></canvas>
+                            </div>
+                            <div id="recent-activity-container" style="background-color: #fff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+                                <h3 style="margin-bottom: 20px; color: var(--dark-color);">Hoạt động Gần đây</h3>
+                                <ul id="recentActivityList" style="list-style: none; padding: 0;">
+                                    </ul>
+                            </div>
+                        </div>
+                    </div>
+
                     <div id="incidents-view-container" class="view-container">
                         <div class="main-header"><h1 class="view-title">Báo Cáo Sự Cố</h1></div>
                         <div id="admin-incident-view" style="display: none;"><table class="generic-table" id="incident-table-admin"><thead><tr><th>Ngày Báo Cáo</th><th>Khoa</th><th>Thiết Bị</th><th>Số Serial</th><th>Mô Tả Sự Cố</th><th>Trạng Thái</th><th>Hành Động</th></tr></thead><tbody id="incident-table-body-admin"></tbody></table></div>
@@ -322,6 +357,7 @@
             equipmentView: document.getElementById('equipment-view-container'),
             incidentsView: document.getElementById('incidents-view-container'),
             maintenanceView: document.getElementById('maintenance-view-container'),
+            dashboardView: document.getElementById('dashboard-view-container'),
             maintenanceTableBody: document.getElementById('maintenance-table-body'),
             addMaintenanceBtn: document.getElementById('addMaintenanceBtn'),
             maintenanceModal: document.getElementById('maintenanceModal'),
@@ -369,43 +405,6 @@
                 setInterval(fetchNotifications, 60000); 
             }
         }
-
-        async function checkAuth() {
-            const token = getToken();
-            if (!token) { showLoginView(); return; }
-            userProfile = getUserProfile();
-            if(!userProfile || !userProfile.role) { logout(); return; }
-            try {
-                await loadInitialData();
-                showMainAppView();
-                switchView('equipment');
-            } catch (error) { logout(); }
-        }
-
-        dom.loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            dom.loginError.textContent = '';
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.message || 'Đăng nhập thất bại.');
-                saveToken(data.token);
-                saveUserProfile(data.token);
-                showMainAppView();
-                await loadInitialData();
-                switchView('equipment');
-            } catch (error) {
-                dom.loginError.textContent = error.message;
-            }
-        });
-        
-        dom.logoutBtn.addEventListener('click', logout);
 
         async function fetchWithAuth(url, options = {}) {
             const token = getToken();
@@ -747,12 +746,23 @@
         function switchView(viewName) {
             dom.sidebarNavLinks.forEach(link => link.classList.toggle('active', link.dataset.view === viewName));
             dom.viewContainers.forEach(container => container.style.display = 'none');
+            
+            // Đảm bảo chỉ có menu chính được active
+            if (viewName !== 'equipment') {
+                dom.sidebarFilters.forEach(f => f.classList.remove('active'));
+            } else {
+                setActiveSidebarFilter(currentStatusFilter);
+            }
+        
             const viewToShow = dom[viewName + 'View'];
-            if(viewToShow) {
+            if (viewToShow) {
                 viewToShow.style.display = 'block';
                 document.getElementById('equipment-filters').style.display = viewName === 'equipment' ? 'block' : 'none';
-                if(viewName === 'incidents') renderIncidentView();
-                if(viewName === 'maintenance') renderMaintenanceView();
+                
+                // Gọi hàm render tương ứng cho từng view
+                if (viewName === 'dashboard') renderDashboardView();
+                if (viewName === 'incidents') renderIncidentView();
+                if (viewName === 'maintenance') renderMaintenanceView();
             }
         }
         
@@ -1246,6 +1256,158 @@
             }
         });
         
+        // ========================================================
+        // LOGIC CHO TRANG DASHBOARD (TÍNH NĂNG MỚI)
+        // ========================================================
+        let equipmentChartInstance = null; // Biến để giữ instance của biểu đồ
+
+        async function renderDashboardView() {
+            // Chỉ admin mới có thể xem trang này
+            if (userProfile.role !== 'admin') {
+                dom.dashboardView.innerHTML = '<p>Bạn không có quyền truy cập trang này.</p>';
+                return;
+            }
+
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/dashboard/summary`);
+                if (!response.ok) throw new Error("Không thể tải dữ liệu tổng quan");
+                const data = await response.json();
+
+                // Cập nhật các thẻ KPI
+                const totalEquipment = Object.values(data.equipmentStats).reduce((a, b) => a + b, 0);
+                document.getElementById('db-total-equipment').textContent = totalEquipment;
+                document.getElementById('db-new-incidents').textContent = data.newIncidentsCount;
+                document.getElementById('db-upcoming-maintenance').textContent = data.upcomingMaintenanceCount;
+
+                // Render biểu đồ
+                renderEquipmentChart(data.equipmentStats);
+
+                // Render danh sách hoạt động gần đây
+                renderRecentActivities(data.recentActivities);
+
+            } catch (error) {
+                handleApiError(error, "Tải dữ liệu Dashboard");
+            }
+        }
+
+        function renderEquipmentChart(stats) {
+            const ctx = document.getElementById('equipmentStatusChart').getContext('2d');
+            const chartData = {
+                labels: ['Hoạt động', 'Bảo trì', 'Ngừng hoạt động'],
+                datasets: [{
+                    label: 'Trạng thái thiết bị',
+                    data: [stats.active, stats.maintenance, stats.inactive],
+                    backgroundColor: [
+                        'rgba(40, 167, 69, 0.8)',  // success-color
+                        'rgba(255, 193, 7, 0.8)',  // warning-color
+                        'rgba(220, 53, 69, 0.8)'   // danger-color
+                    ],
+                    borderColor: [
+                        'rgba(40, 167, 69, 1)',
+                        'rgba(255, 193, 7, 1)',
+                        'rgba(220, 53, 69, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            };
+
+            // Nếu biểu đồ đã tồn tại, hủy nó đi trước khi vẽ lại
+            if (equipmentChartInstance) {
+                equipmentChartInstance.destroy();
+            }
+
+            equipmentChartInstance = new Chart(ctx, {
+                type: 'doughnut', // hoặc 'pie'
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderRecentActivities(activities) {
+            const listElement = document.getElementById('recentActivityList');
+            listElement.innerHTML = '';
+
+            if (activities.length === 0) {
+                listElement.innerHTML = '<li>Không có hoạt động nào gần đây.</li>';
+                return;
+            }
+
+            activities.forEach(act => {
+                const li = document.createElement('li');
+                li.style.borderBottom = '1px solid #eee';
+                li.style.padding = '12px 0';
+
+                let icon, title, details;
+                const deptName = departments[act.departmentKey] || 'Không rõ';
+
+                if (act.type === 'incident') {
+                    icon = '<i class="fas fa-triangle-exclamation" style="color: var(--danger-color); width: 20px;"></i>';
+                    title = `<strong>Sự cố mới:</strong> ${act.equipmentName}`;
+                    details = `Khoa ${deptName} vừa báo hỏng.`;
+                } else { // maintenance
+                    icon = '<i class="fas fa-wrench" style="color: var(--warning-color); width: 20px;"></i>';
+                    title = `<strong>Bảo trì:</strong> ${act.equipmentName}`;
+                    details = `Lên lịch bởi ${act.createdBy} - Trạng thái: ${act.status}`;
+                }
+
+                li.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="font-size: 1.2rem;">${icon}</span>
+                        <div style="flex-grow: 1;">
+                            <p style="margin: 0; font-weight: 500;">${title}</p>
+                            <small style="color: #6c757d;">${details}</small>
+                        </div>
+                        <small style="color: #6c757d;">${new Date(act.date).toLocaleDateString('vi-VN')}</small>
+                    </div>
+                `;
+                listElement.appendChild(li);
+            });
+        }
+        
+        async function checkAuth() {
+            const token = getToken();
+            if (!token) { showLoginView(); return; }
+            userProfile = getUserProfile();
+            if(!userProfile || !userProfile.role) { logout(); return; }
+            try {
+                await loadInitialData();
+                showMainAppView();
+                // Mặc định chuyển đến trang Dashboard khi đăng nhập
+                switchView('dashboard'); 
+            } catch (error) { logout(); }
+        }
+
+        dom.loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            dom.loginError.textContent = '';
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Đăng nhập thất bại.');
+                saveToken(data.token);
+                saveUserProfile(data.token);
+                await checkAuth(); // Gọi checkAuth để load mọi thứ
+            } catch (error) {
+                dom.loginError.textContent = error.message;
+            }
+        });
+        
+        dom.logoutBtn.addEventListener('click', logout);
+
         checkAuth();
     });
 </script>
