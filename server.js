@@ -1,5 +1,5 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (CÓ CRUD BẢO TRÌ, DASHBOARD, HỒ SƠ, USER MGMT)
+// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (ĐÃ SỬA LỖI DEPLOY)
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
@@ -389,7 +389,7 @@ app.delete('/api/maintenance/:id', authenticateToken, isAdmin, async (req, res) 
     }
 });
 
-// 10.5. API CHO TRANG DASHBOARD
+// 10.5. API CHO TRANG DASHBOARD (ĐÃ SỬA LỖI)
 app.get('/api/dashboard/summary', authenticateToken, isAdmin, async (req, res) => {
     try {
         const [
