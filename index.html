@@ -73,7 +73,7 @@
         .generic-table th, .generic-table td { padding: 15px; text-align: left; border-bottom: 1px solid #dee2e6; vertical-align: middle; word-wrap: break-word; }
         .generic-table th { background-color: var(--light-color); font-weight: 700; color: var(--dark-color); font-size: 14px; text-transform: uppercase; }
         .generic-table tr:hover { background-color: #f1faff; }
-        .equipment-table th:last-child, .equipment-table td:last-child { width: 120px; text-align: center; }
+        .equipment-table th:last-child, .equipment-table td:last-child { width: 160px; text-align: center; } /* Adjusted width for 3 buttons */
         .equipment-image { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; cursor: pointer; transition: transform 0.3s; }
         .equipment-image:hover { transform: scale(1.5); z-index: 10; position: relative; }
         .status, .incident-status { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; color: #fff; }
@@ -122,7 +122,7 @@
         .notification-item p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .notification-item span { font-size: 12px; color: #6c757d; }
         
-        @media (max-width: 992px) { .dashboard { grid-template-columns: 1fr; } .sidebar { margin-bottom: 20px; } .header-content { flex-direction: column; gap: 15px; } }
+        @media (max-width: 992px) { .dashboard { grid-template-columns: 1fr; } .sidebar { margin-bottom: 20px; } .header-content { flex-direction: column; gap: 15px; } #profile-content { grid-template-columns: 1fr !important; } }
         @media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } .main-header { flex-direction: column; gap: 15px; } }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -192,7 +192,7 @@
                     </div>
                 </aside>
                 <main class="main-content">
-                    <div id="equipment-view-container" class="view-container active">
+                    <div id="equipment-view-container" class="view-container">
                         <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
                         <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Tìm kiếm thiết bị trên toàn bộ các khoa (theo serial, tên, hãng)..."></div>
                         <div class="stats-cards"><div class="stat-card total"><h3>Tổng Thiết Bị</h3><div class="value" id="totalEquipment">0</div></div><div class="stat-card active"><h3>Đang Hoạt Động</h3><div class="value" id="activeEquipment">0</div></div><div class="stat-card maintenance"><h3>Cần Bảo Trì</h3><div class="value" id="maintenanceEquipment">0</div></div><div class="stat-card inactive"><h3>Ngừng Hoạt Động</h3><div class="value" id="inactiveEquipment">0</div></div></div>
@@ -204,7 +204,6 @@
                         <div class="main-header">
                             <h1 class="view-title">Bảng điều khiển Tổng quan</h1>
                         </div>
-                    
                         <div class="stats-cards" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
                             <div class="stat-card total">
                                 <h3>Tổng số Thiết bị</h3>
@@ -219,7 +218,6 @@
                                 <div class="value" id="db-upcoming-maintenance">0</div>
                             </div>
                         </div>
-                    
                         <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 25px; margin-top: 30px;">
                             <div id="chart-container" style="background-color: #fff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
                                  <h3 style="text-align: center; margin-bottom: 20px; color: var(--dark-color);">Phân bổ Thiết bị</h3>
@@ -227,11 +225,13 @@
                             </div>
                             <div id="recent-activity-container" style="background-color: #fff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
                                 <h3 style="margin-bottom: 20px; color: var(--dark-color);">Hoạt động Gần đây</h3>
-                                <ul id="recentActivityList" style="list-style: none; padding: 0;">
-                                    </ul>
+                                <ul id="recentActivityList" style="list-style: none; padding: 0;"></ul>
                             </div>
                         </div>
                     </div>
+
+                    <div id="profile-view-container" class="view-container">
+                        </div>
 
                     <div id="incidents-view-container" class="view-container">
                         <div class="main-header"><h1 class="view-title">Báo Cáo Sự Cố</h1></div>
@@ -316,8 +316,7 @@
                                     <th>Hành Động</th>
                                 </tr>
                             </thead>
-                            <tbody id="maintenance-table-body">
-                            </tbody>
+                            <tbody id="maintenance-table-body"></tbody>
                         </table>
                         <div id="maintenance-pagination-controls"></div>
                     </div>
@@ -358,6 +357,7 @@
             incidentsView: document.getElementById('incidents-view-container'),
             maintenanceView: document.getElementById('maintenance-view-container'),
             dashboardView: document.getElementById('dashboard-view-container'),
+            profileView: document.getElementById('profile-view-container'),
             maintenanceTableBody: document.getElementById('maintenance-table-body'),
             addMaintenanceBtn: document.getElementById('addMaintenanceBtn'),
             maintenanceModal: document.getElementById('maintenanceModal'),
@@ -490,7 +490,8 @@
             dom.equipmentTableBody.innerHTML = '';
             document.getElementById('departmentColumnHeader').style.display = isGlobalSearch ? '' : 'none';
             if (list.length === 0) {
-                dom.equipmentTableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px;">Không có thiết bị nào phù hợp.</td></tr>`;
+                const colspan = isGlobalSearch ? 8 : 7;
+                dom.equipmentTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 30px;">Không có thiết bị nào phù hợp.</td></tr>`;
                 return;
             }
             list.forEach(item => {
@@ -499,7 +500,11 @@
                 row.className = `status-${item.status}`;
                 let actionButtons = '';
                 if (userProfile.role === 'admin') {
-                    actionButtons = `<button class="edit-btn" data-serial="${item.serial}"><i class="fas fa-edit"></i></button> <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>`;
+                    actionButtons = `
+                        <button class="action-button view-btn" data-serial="${item.serial}" style="background-color: var(--success-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-eye"></i></button>
+                        <button class="edit-btn" data-serial="${item.serial}"><i class="fas fa-edit"></i></button>
+                        <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>
+                    `;
                 }
                 row.innerHTML = `<td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td><td>${item.name}</td><td>${item.serial}</td> ${isGlobalSearch ? `<td>${departments[itemDept] || 'N/A'}</td>` : ''} <td>${item.manufacturer || 'N/A'}</td><td>${item.year}</td><td><span class="status ${item.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span></td><td class="action-btn-group">${actionButtons}</td>`;
                 dom.equipmentTableBody.appendChild(row);
@@ -628,14 +633,19 @@
             const target = e.target.closest('button');
             if (!target) return;
             const serial = target.dataset.serial;
-            if (target.classList.contains('edit-btn')) {
+            
+            if (target.classList.contains('view-btn')) {
+                switchView('profile', serial);
+            } 
+            else if (target.classList.contains('edit-btn')) {
                 try {
                     const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${serial}`);
                     if (!response.ok) throw new Error("Không tìm thấy thông tin thiết bị để sửa.");
                     const itemData = await response.json();
                     if (itemData) openModal('edit', itemData);
                 } catch(error) { handleApiError(error, 'Lấy thông tin sửa'); }
-            } else if (target.classList.contains('delete-btn')) {
+            } 
+            else if (target.classList.contains('delete-btn')) {
                 const deptKey = target.dataset.dept;
                 if (!deptKey) return;
                 
@@ -743,26 +753,34 @@
             });
         });
 
-        function switchView(viewName) {
-            dom.sidebarNavLinks.forEach(link => link.classList.toggle('active', link.dataset.view === viewName));
+        function switchView(viewName, param = null) {
+            dom.sidebarNavLinks.forEach(link => {
+                const linkView = link.dataset.view;
+                // Make dashboard or profile view active, but also keep equipment list active as a "parent"
+                if (linkView === viewName || (linkView === 'equipment' && viewName === 'profile')) {
+                    link.classList.add('active');
+                } else {
+                    link.classList.remove('active');
+                }
+            });
+
             dom.viewContainers.forEach(container => container.style.display = 'none');
             
-            // Đảm bảo chỉ có menu chính được active
-            if (viewName !== 'equipment') {
+            if (viewName !== 'equipment' && viewName !== 'profile') {
                 dom.sidebarFilters.forEach(f => f.classList.remove('active'));
             } else {
                 setActiveSidebarFilter(currentStatusFilter);
             }
-        
+
             const viewToShow = dom[viewName + 'View'];
             if (viewToShow) {
                 viewToShow.style.display = 'block';
-                document.getElementById('equipment-filters').style.display = viewName === 'equipment' ? 'block' : 'none';
+                document.getElementById('equipment-filters').style.display = (viewName === 'equipment' || viewName === 'profile') ? 'block' : 'none';
                 
-                // Gọi hàm render tương ứng cho từng view
                 if (viewName === 'dashboard') renderDashboardView();
                 if (viewName === 'incidents') renderIncidentView();
                 if (viewName === 'maintenance') renderMaintenanceView();
+                if (viewName === 'profile') renderProfileView(param);
             }
         }
         
@@ -1257,34 +1275,26 @@
         });
         
         // ========================================================
-        // LOGIC CHO TRANG DASHBOARD (TÍNH NĂNG MỚI)
+        // LOGIC CHO TRANG DASHBOARD
         // ========================================================
-        let equipmentChartInstance = null; // Biến để giữ instance của biểu đồ
+        let equipmentChartInstance = null;
 
         async function renderDashboardView() {
-            // Chỉ admin mới có thể xem trang này
             if (userProfile.role !== 'admin') {
                 dom.dashboardView.innerHTML = '<p>Bạn không có quyền truy cập trang này.</p>';
                 return;
             }
-
             try {
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/dashboard/summary`);
                 if (!response.ok) throw new Error("Không thể tải dữ liệu tổng quan");
                 const data = await response.json();
 
-                // Cập nhật các thẻ KPI
                 const totalEquipment = Object.values(data.equipmentStats).reduce((a, b) => a + b, 0);
                 document.getElementById('db-total-equipment').textContent = totalEquipment;
                 document.getElementById('db-new-incidents').textContent = data.newIncidentsCount;
                 document.getElementById('db-upcoming-maintenance').textContent = data.upcomingMaintenanceCount;
-
-                // Render biểu đồ
                 renderEquipmentChart(data.equipmentStats);
-
-                // Render danh sách hoạt động gần đây
                 renderRecentActivities(data.recentActivities);
-
             } catch (error) {
                 handleApiError(error, "Tải dữ liệu Dashboard");
             }
@@ -1297,67 +1307,40 @@
                 datasets: [{
                     label: 'Trạng thái thiết bị',
                     data: [stats.active, stats.maintenance, stats.inactive],
-                    backgroundColor: [
-                        'rgba(40, 167, 69, 0.8)',  // success-color
-                        'rgba(255, 193, 7, 0.8)',  // warning-color
-                        'rgba(220, 53, 69, 0.8)'   // danger-color
-                    ],
-                    borderColor: [
-                        'rgba(40, 167, 69, 1)',
-                        'rgba(255, 193, 7, 1)',
-                        'rgba(220, 53, 69, 1)'
-                    ],
+                    backgroundColor: [ 'rgba(40, 167, 69, 0.8)', 'rgba(255, 193, 7, 0.8)', 'rgba(220, 53, 69, 0.8)' ],
+                    borderColor: [ 'rgba(40, 167, 69, 1)', 'rgba(255, 193, 7, 1)', 'rgba(220, 53, 69, 1)' ],
                     borderWidth: 1
                 }]
             };
-
-            // Nếu biểu đồ đã tồn tại, hủy nó đi trước khi vẽ lại
-            if (equipmentChartInstance) {
-                equipmentChartInstance.destroy();
-            }
-
+            if (equipmentChartInstance) { equipmentChartInstance.destroy(); }
             equipmentChartInstance = new Chart(ctx, {
-                type: 'doughnut', // hoặc 'pie'
-                data: chartData,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                        }
-                    }
-                }
+                type: 'doughnut', data: chartData,
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
             });
         }
 
         function renderRecentActivities(activities) {
             const listElement = document.getElementById('recentActivityList');
             listElement.innerHTML = '';
-
             if (activities.length === 0) {
                 listElement.innerHTML = '<li>Không có hoạt động nào gần đây.</li>';
                 return;
             }
-
             activities.forEach(act => {
                 const li = document.createElement('li');
                 li.style.borderBottom = '1px solid #eee';
                 li.style.padding = '12px 0';
-
                 let icon, title, details;
                 const deptName = departments[act.departmentKey] || 'Không rõ';
-
                 if (act.type === 'incident') {
                     icon = '<i class="fas fa-triangle-exclamation" style="color: var(--danger-color); width: 20px;"></i>';
                     title = `<strong>Sự cố mới:</strong> ${act.equipmentName}`;
                     details = `Khoa ${deptName} vừa báo hỏng.`;
-                } else { // maintenance
+                } else {
                     icon = '<i class="fas fa-wrench" style="color: var(--warning-color); width: 20px;"></i>';
                     title = `<strong>Bảo trì:</strong> ${act.equipmentName}`;
                     details = `Lên lịch bởi ${act.createdBy} - Trạng thái: ${act.status}`;
                 }
-
                 li.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 15px;">
                         <span style="font-size: 1.2rem;">${icon}</span>
@@ -1366,10 +1349,95 @@
                             <small style="color: #6c757d;">${details}</small>
                         </div>
                         <small style="color: #6c757d;">${new Date(act.date).toLocaleDateString('vi-VN')}</small>
-                    </div>
-                `;
+                    </div>`;
                 listElement.appendChild(li);
             });
+        }
+        
+        // ========================================================
+        // LOGIC CHO TRANG HỒ SƠ THIẾT BỊ
+        // ========================================================
+        async function renderProfileView(serial) {
+            if (!serial) {
+                switchView('equipment');
+                return;
+            }
+            const profileView = dom.profileView;
+            profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${serial}`);
+                if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
+                const data = await response.json();
+
+                profileView.innerHTML = `
+                    <div class="main-header">
+                        <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
+                        <div class="header-actions">
+                            <button id="back-to-list-btn" class="action-button" style="background-color: var(--dark-color);"><i class="fas fa-arrow-left"></i> Quay lại</button>
+                        </div>
+                    </div>
+                    <div id="profile-content" style="display: grid; grid-template-columns: 300px 1fr; gap: 30px;">
+                        <div id="profile-info-card">
+                            <img src="${data.details.image || 'https://via.placeholder.com/300x300?text=Image'}" style="width: 100%; border-radius: 8px; margin-bottom: 20px; border: 1px solid #eee;">
+                            <h3 style="color: var(--primary-color); margin-bottom: 10px;">${data.details.name}</h3>
+                            <p style="font-weight: 500; color: #555; margin-bottom: 20px;">Serial: ${data.details.serial}</p>
+                            <div style="font-size: 14px; line-height: 2;">
+                                <p><strong>Hãng sản xuất:</strong> ${data.details.manufacturer}</p>
+                                <p><strong>Năm sử dụng:</strong> ${data.details.year}</p>
+                                <p><strong>Khoa:</strong> ${departments[data.details.department]}</p>
+                                <p><strong>Tình trạng:</strong> <span class="status ${data.details.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[data.details.status]}</span></p>
+                                <p><strong>Phụ kiện:</strong> ${data.details.accessories || 'Không có'}</p>
+                                <p><strong>Mô tả:</strong> ${data.details.description || 'Không có'}</p>
+                            </div>
+                        </div>
+                        <div id="profile-history">
+                            <div>
+                                <h3 style="margin-bottom: 15px;">Lịch sử Sự cố (${data.incidents.length})</h3>
+                                <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                                    <table class="generic-table">
+                                        <thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead>
+                                        <tbody id="profile-incidents-tbody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div style="margin-top: 30px;">
+                                <h3 style="margin-bottom: 15px;">Lịch sử Bảo trì (${data.maintenanceHistory.length})</h3>
+                                <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                                    <table class="generic-table">
+                                        <thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Ghi chú</th><th>Trạng thái</th></tr></thead>
+                                        <tbody id="profile-maintenance-tbody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                
+                document.getElementById('back-to-list-btn').addEventListener('click', () => switchView('equipment'));
+
+                const incidentBody = document.getElementById('profile-incidents-tbody');
+                if (data.incidents.length > 0) {
+                    data.incidents.forEach(inc => {
+                        const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
+                        incidentBody.innerHTML += `<tr><td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td></tr>`;
+                    });
+                } else {
+                    incidentBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Không có lịch sử sự cố.</td></tr>';
+                }
+
+                const maintenanceBody = document.getElementById('profile-maintenance-tbody');
+                if (data.maintenanceHistory.length > 0) {
+                     const statusMap = { scheduled: 'Đã lên lịch', in_progress: 'Đang tiến hành', completed: 'Hoàn thành', canceled: 'Đã hủy' };
+                     data.maintenanceHistory.forEach(main => {
+                        maintenanceBody.innerHTML += `<tr><td>${new Date(main.scheduleDate).toLocaleDateString('vi-VN')}</td><td>${main.completionDate ? new Date(main.completionDate).toLocaleDateString('vi-VN') : 'Chưa có'}</td><td>${main.notes || ''}</td><td><span class="status ${main.status}">${statusMap[main.status]}</span></td></tr>`;
+                    });
+                } else {
+                    maintenanceBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Không có lịch sử bảo trì.</td></tr>';
+                }
+
+            } catch (error) {
+                handleApiError(error, "Tải hồ sơ thiết bị");
+                profileView.innerHTML = '<p style="text-align:center; padding: 40px; color: var(--danger-color);">Đã xảy ra lỗi khi tải dữ liệu.</p>';
+            }
         }
         
         async function checkAuth() {
@@ -1380,7 +1448,6 @@
             try {
                 await loadInitialData();
                 showMainAppView();
-                // Mặc định chuyển đến trang Dashboard khi đăng nhập
                 switchView('dashboard'); 
             } catch (error) { logout(); }
         }
@@ -1400,7 +1467,7 @@
                 if (!response.ok) throw new Error(data.message || 'Đăng nhập thất bại.');
                 saveToken(data.token);
                 saveUserProfile(data.token);
-                await checkAuth(); // Gọi checkAuth để load mọi thứ
+                await checkAuth();
             } catch (error) {
                 dom.loginError.textContent = error.message;
             }

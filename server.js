@@ -1,5 +1,5 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (CÓ CRUD BẢO TRÌ & DASHBOARD)
+// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (CÓ CRUD BẢO TRÌ, DASHBOARD, HỒ SƠ)
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
@@ -389,28 +389,23 @@ app.delete('/api/maintenance/:id', authenticateToken, isAdmin, async (req, res) 
     }
 });
 
-// 10.5. API CHO TRANG DASHBOARD (TÍNH NĂNG MỚI)
+// 10.5. API CHO TRANG DASHBOARD
 app.get('/api/dashboard/summary', authenticateToken, isAdmin, async (req, res) => {
     try {
-        // Sử dụng Promise.all để thực hiện các truy vấn song song, tăng hiệu năng
         const [
             equipmentStats,
             newIncidentsCount,
             upcomingMaintenanceCount,
             recentActivities
         ] = await Promise.all([
-            // 1. Thống kê trạng thái thiết bị
             Equipment.aggregate([
                 { $group: { _id: '$status', count: { $sum: 1 } } }
             ]),
-            // 2. Đếm số sự cố mới
             Incident.countDocuments({ status: 'new' }),
-            // 3. Đếm số lịch bảo trì sắp tới
             Maintenance.countDocuments({ 
                 status: { $in: ['scheduled', 'in_progress'] },
                 scheduleDate: { $gte: new Date() } 
             }),
-            // 4. Lấy 5 hoạt động gần nhất (cả sự cố và bảo trì)
             Promise.all([
                 Incident.find().sort({ createdAt: -1 }).limit(5).lean(),
                 Maintenance.find().sort({ createdAt: -1 }).limit(5).lean()
@@ -419,12 +414,10 @@ app.get('/api/dashboard/summary', authenticateToken, isAdmin, async (req, res) =
                     ...incidents.map(i => ({ ...i, type: 'incident', date: i.createdAt })),
                     ...maintenances.map(m => ({ ...m, type: 'maintenance', date: m.createdAt }))
                 ];
-                // Sắp xếp tất cả hoạt động theo ngày tháng mới nhất
                 return activities.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
             })
         ]);
 
-        // Định dạng lại kết quả thống kê thiết bị cho dễ sử dụng
         const formattedStats = equipmentStats.reduce((acc, curr) => {
             if (curr._id) {
                 acc[curr._id] = curr.count;
@@ -442,6 +435,33 @@ app.get('/api/dashboard/summary', authenticateToken, isAdmin, async (req, res) =
     } catch (error) {
         console.error("Lỗi khi lấy dữ liệu dashboard:", error);
         res.status(500).json({ message: 'Lỗi server khi lấy dữ liệu cho dashboard', error: error.message });
+    }
+});
+
+// 10.6. API CHO TRANG HỒ SƠ THIẾT BỊ
+app.get('/api/equipment/profile/:serial', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { serial } = req.params;
+        const equipment = await Equipment.findOne({ serial }).lean();
+
+        if (!equipment) {
+            return res.status(404).json({ message: 'Không tìm thấy thiết bị.' });
+        }
+
+        const [incidents, maintenanceHistory] = await Promise.all([
+            Incident.find({ equipmentId: equipment._id }).sort({ createdAt: -1 }).lean(),
+            Maintenance.find({ equipmentId: equipment._id }).sort({ scheduleDate: -1 }).lean()
+        ]);
+
+        res.json({
+            details: equipment,
+            incidents,
+            maintenanceHistory
+        });
+
+    } catch (error) {
+        console.error("Lỗi khi lấy hồ sơ thiết bị:", error);
+        res.status(500).json({ message: 'Lỗi server khi lấy hồ sơ thiết bị', error: error.message });
     }
 });
 
