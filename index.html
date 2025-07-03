@@ -1418,11 +1418,11 @@
     profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
 
     try {
-        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${decodeURIComponent(serial)}`);
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/public/equipment-info/${decodeURIComponent(serial)}`);
         if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
         const data = await response.json();
 
-        // Cập nhật lại cấu trúc HTML để có thêm khu vực QR Code
+        // Cập nhật lại cấu trúc HTML để có 3 cột rõ ràng
         profileView.innerHTML = `
             <div class="main-header">
                 <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
@@ -1431,28 +1431,42 @@
                     <button id="back-to-list-btn" class="action-button"><i class="fas fa-arrow-left"></i> Quay lại</button>
                 </div>
             </div>
-            <div id="profile-content" style="display: grid; grid-template-columns: 300px 1fr; gap: 30px;">
-                <div id="profile-info-card">
-                    <div id="qrcode-container" style="width: 250px; margin: 0 auto 25px; padding: 15px; border: 1px solid #ddd; background: white;">
+            <div id="profile-content" style="display: grid; grid-template-columns: 280px 1.2fr 1.5fr; gap: 25px;">
+                <div id="profile-info-card" style="text-align: center;">
+                    <div id="qrcode-container" style="width: 250px; margin: 0 auto; padding: 15px; border: 1px solid #ddd; background: white; margin-bottom: 20px;">
                         </div>
-                    <h3 id="profile-name" style="color: var(--primary-color); margin-bottom: 10px;">${data.details.name}</h3>
-                    <p id="profile-serial" style="font-weight: 500; color: #555; margin-bottom: 20px;">Serial: ${data.details.serial}</p>
                 </div>
+
+                <div id="profile-details">
+                    <h3 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 2px solid var(--light-color); padding-bottom: 10px;">Thông tin chi tiết</h3>
+                    <div style="font-size: 15px; line-height: 2.2;">
+                        <p><strong>Tên thiết bị:</strong> ${data.details.name}</p>
+                        <p><strong>Số Serial:</strong> ${data.details.serial}</p>
+                        <p><strong>Hãng sản xuất:</strong> ${data.details.manufacturer}</p>
+                        <p><strong>Năm sử dụng:</strong> ${data.details.year}</p>
+                        <p><strong>Khoa:</strong> ${departments[data.details.department]}</p>
+                        <p><strong>Tình trạng:</strong> <span class="status ${data.details.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[data.details.status]}</span></p>
+                        <p><strong>Phụ kiện:</strong> ${data.details.accessories || 'Không có'}</p>
+                        <p><strong>Mô tả:</strong> ${data.details.description || 'Không có'}</p>
+                    </div>
+                </div>
+                
                 <div id="profile-history">
+                    <h3 style="margin-bottom: 15px; border-bottom: 2px solid var(--light-color); padding-bottom: 10px;">Lịch sử Hoạt động</h3>
                     <div>
-                        <h3 style="margin-bottom: 15px;">Lịch sử Sự cố (${data.incidents.length})</h3>
-                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                        <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Sự cố (${data.incidents.length})</h4>
+                        <div style="max-height: 250px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
                             <table class="generic-table">
                                 <thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead>
                                 <tbody id="profile-incidents-tbody"></tbody>
                             </table>
                         </div>
                     </div>
-                    <div style="margin-top: 30px;">
-                        <h3 style="margin-bottom: 15px;">Lịch sử Bảo trì (${data.maintenanceHistory.length})</h3>
-                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                    <div style="margin-top: 20px;">
+                        <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Bảo trì (${data.maintenanceHistory.length})</h4>
+                        <div style="max-height: 250px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
                             <table class="generic-table">
-                                <thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Ghi chú</th><th>Trạng thái</th></tr></thead>
+                                <thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Trạng thái</th></tr></thead>
                                 <tbody id="profile-maintenance-tbody"></tbody>
                             </table>
                         </div>
@@ -1460,9 +1474,8 @@
                 </div>
             </div>`;
         
-        // --- LOGIC MỚI ĐỂ TẠO QR CODE ---
+        // Tạo QR Code
         const qrCodeContainer = document.getElementById('qrcode-container');
-        qrCodeContainer.innerHTML = ''; // Xóa QR code cũ nếu có
         new QRCode(qrCodeContainer, {
             text: `https://resilient-dieffenbachia-5881b7.netlify.app/report.html?serial=${encodeURIComponent(data.details.serial)}`,
             width: 220,
@@ -1479,7 +1492,7 @@
             printQRCode(qrImageSrc, data.details.name, data.details.serial);
         });
 
-        // Đổ dữ liệu vào các bảng lịch sử (giữ nguyên như cũ)
+        // Đổ dữ liệu vào các bảng lịch sử
         const incidentBody = document.getElementById('profile-incidents-tbody');
         if (data.incidents.length > 0) {
             data.incidents.forEach(inc => {
@@ -1492,9 +1505,9 @@
         if (data.maintenanceHistory.length > 0) {
              const statusMap = { scheduled: 'Đã lên lịch', in_progress: 'Đang tiến hành', completed: 'Hoàn thành', canceled: 'Đã hủy' };
              data.maintenanceHistory.forEach(main => {
-                maintenanceBody.innerHTML += `<tr><td>${new Date(main.scheduleDate).toLocaleDateString('vi-VN')}</td><td>${main.completionDate ? new Date(main.completionDate).toLocaleDateString('vi-VN') : 'Chưa có'}</td><td>${main.notes || ''}</td><td><span class="status ${main.status}">${statusMap[main.status]}</span></td></tr>`;
+                maintenanceBody.innerHTML += `<tr><td>${new Date(main.scheduleDate).toLocaleDateString('vi-VN')}</td><td>${main.completionDate ? new Date(main.completionDate).toLocaleDateString('vi-VN') : 'Chưa có'}</td><td><span class="status ${main.status}">${statusMap[main.status]}</span></td></tr>`;
             });
-        } else { maintenanceBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Không có lịch sử bảo trì.</td></tr>'; }
+        } else { maintenanceBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Không có lịch sử bảo trì.</td></tr>'; }
 
     } catch (error) {
         handleApiError(error, "Tải hồ sơ thiết bị");
