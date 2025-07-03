@@ -1418,7 +1418,7 @@
     profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
 
     try {
-        const response = await fetchWithAuth(`${API_BASE_URL}/api/public/equipment-info/${decodeURIComponent(serial)}`);
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${decodeURIComponent(serial)}`);
         if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
         const data = await response.json();
 
