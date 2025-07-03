@@ -193,7 +193,8 @@
                 </aside>
                 <main class="main-content">
                     <div id="equipment-view-container" class="view-container">
-                        <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
+                        <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="importExcelBtn" style="background-color: var(--success-color);"><i class="fas fa-file-import"></i> Nhập từ Excel</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
+                        <input type="file" id="excelFileInput" style="display: none" accept=".xlsx, .xls">
                         <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Tìm kiếm thiết bị trên toàn bộ các khoa (theo serial, tên, hãng)..."></div>
                         <div class="stats-cards"><div class="stat-card total"><h3>Tổng Thiết Bị</h3><div class="value" id="totalEquipment">0</div></div><div class="stat-card active"><h3>Đang Hoạt Động</h3><div class="value" id="activeEquipment">0</div></div><div class="stat-card maintenance"><h3>Cần Bảo Trì</h3><div class="value" id="maintenanceEquipment">0</div></div><div class="stat-card inactive"><h3>Ngừng Hoạt Động</h3><div class="value" id="inactiveEquipment">0</div></div></div>
                         <table class="generic-table equipment-table" id="equipmentTable"><thead><tr><th>Hình Ảnh</th><th>Tên Thiết Bị</th><th>Số Serial</th><th id="departmentColumnHeader" style="display:none;">Khoa/Phòng</th><th>Hãng SX</th><th>Năm SD</th><th>Tình Trạng</th><th>Hành Động</th></tr></thead><tbody id="equipmentTableBody"></tbody></table>
@@ -1656,7 +1657,106 @@
         });
         
         dom.logoutBtn.addEventListener('click', logout);
+        // ========================================================
+        // LOGIC NHẬP FILE EXCEL (TÍNH NĂNG MỚI)
+        // ========================================================
+       const importBtn = document.getElementById('importExcelBtn');
+       const fileInput = document.getElementById('excelFileInput');
 
+importBtn.addEventListener('click', () => {
+    // Khi bấm nút "Nhập", ta sẽ kích hoạt input file ẩn
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const selectedDeptKey = dom.departmentSelect.value;
+    if (!selectedDeptKey) {
+        Swal.fire('Lỗi', 'Vui lòng chọn một khoa trước khi nhập dữ liệu!', 'warning');
+        return;
+    }
+
+    Swal.fire({
+        title: 'Đang xử lý file...',
+        text: 'Vui lòng chờ trong giây lát.',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            // Chuyển sheet thành JSON
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+            if (jsonData.length === 0) {
+                throw new Error("File Excel rỗng hoặc không có dữ liệu.");
+            }
+
+            // Map tên cột trong Excel sang key của API
+            const mappedData = jsonData.map(row => ({
+                name: row['Tên Thiết Bị'],
+                serial: row['Số Serial'],
+                manufacturer: row['Hãng Sản Xuất'],
+                year: row['Năm Sử Dụng'],
+                accessories: row['Phụ Kiện'],
+                description: row['Mô Tả']
+            }));
+
+            // Lọc ra những dòng không có Tên hoặc Serial
+            const validData = mappedData.filter(item => item.name && item.serial);
+            const invalidCount = mappedData.length - validData.length;
+
+            if (validData.length === 0) {
+                throw new Error("Không có dòng dữ liệu hợp lệ nào (thiếu Tên hoặc Serial).");
+            }
+            
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/batch-import/${selectedDeptKey}`, {
+                method: 'POST',
+                body: JSON.stringify(validData)
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || "Lỗi không xác định từ server.");
+            }
+
+            let resultText = `${result.message}`;
+            if (invalidCount > 0) {
+                resultText += ` Ngoài ra, có ${invalidCount} dòng bị bỏ qua do thiếu Tên hoặc Serial.`;
+            }
+            if (result.errors && result.errors.length > 0) {
+                resultText += '<br><br><strong>Chi tiết lỗi:</strong><br>' + result.errors.join('<br>');
+            }
+
+            Swal.fire({
+                title: 'Hoàn tất!',
+                html: resultText,
+                icon: 'success'
+            });
+
+            // Tải lại danh sách thiết bị để thấy dữ liệu mới
+            fetchAndDisplayEquipment(selectedDeptKey, 1);
+
+        } catch (error) {
+            handleApiError(error, "Nhập dữ liệu từ Excel");
+        } finally {
+            // Reset input file để có thể chọn lại cùng 1 file
+            fileInput.value = '';
+        }
+    };
+    reader.readAsArrayBuffer(file);
+});
+        
         checkAuth();
     });
 </script>
