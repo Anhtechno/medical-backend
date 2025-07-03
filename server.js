@@ -1,5 +1,5 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (ĐÃ SỬA LỖI DEPLOY)
+// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (CÓ TÍNH NĂNG IMPORT EXCEL)
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
@@ -389,7 +389,7 @@ app.delete('/api/maintenance/:id', authenticateToken, isAdmin, async (req, res) 
     }
 });
 
-// 10.5. API CHO TRANG DASHBOARD (ĐÃ SỬA LỖI)
+// 10.5. API CHO TRANG DASHBOARD
 app.get('/api/dashboard/summary', authenticateToken, isAdmin, async (req, res) => {
     try {
         const [
@@ -530,6 +530,49 @@ app.delete('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: 'Lỗi server khi xóa người dùng.' });
     }
+});
+
+// 10.8. API NHẬP DỮ LIỆU HÀNG LOẠT TỪ EXCEL
+app.post('/api/equipment/batch-import/:deptKey', authenticateToken, isAdmin, async (req, res) => {
+    const { deptKey } = req.params;
+    const equipmentList = req.body;
+
+    if (!Array.isArray(equipmentList) || equipmentList.length === 0) {
+        return res.status(400).json({ message: 'Dữ liệu gửi lên không hợp lệ.' });
+    }
+
+    let successCount = 0;
+    let failedCount = 0;
+    const errors = [];
+
+    const dataToInsert = equipmentList.map(item => ({
+        ...item,
+        department: deptKey,
+        status: item.status || 'active',
+        year: item.year || new Date().getFullYear().toString(),
+    }));
+
+    try {
+        const result = await Equipment.insertMany(dataToInsert, { ordered: false });
+        successCount = result.length;
+    } catch (error) {
+        if (error.writeErrors) {
+            successCount = error.insertedDocs.length;
+            failedCount = error.writeErrors.length;
+            error.writeErrors.forEach(err => {
+                errors.push(`Serial '${err.err.op.serial}' đã tồn tại.`);
+            });
+        } else {
+            return res.status(500).json({ message: 'Đã có lỗi nghiêm trọng xảy ra.', details: error.message });
+        }
+    }
+
+    res.status(201).json({
+        message: `Hoàn tất! Thêm thành công ${successCount} thiết bị. Thất bại: ${failedCount} thiết bị.`,
+        successCount,
+        failedCount,
+        errors
+    });
 });
 
 

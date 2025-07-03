@@ -57,7 +57,7 @@
         .header-actions { display: flex; gap: 10px; }
         .action-button { background-color: var(--primary-color); color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; font-weight: 500; transition: background-color 0.3s, transform 0.2s; }
         .action-button:hover { transform: translateY(-2px); }
-        #addEquipmentBtn { background-color: var(--primary-color); } #addEquipmentBtn:hover { background-color: #0069d9; } #exportExcelBtn { background-color: var(--success-color); } #exportExcelBtn:hover { background-color: #218838; }
+        .action-button i { margin-right: 8px; }
         .search-bar { margin-bottom: 25px; position: relative; }
         .search-bar input { width: 100%; padding: 12px 15px 12px 40px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; transition: border-color 0.3s, box-shadow 0.3s; }
         .search-bar input:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2); outline: none; }
@@ -193,7 +193,15 @@
                 </aside>
                 <main class="main-content">
                     <div id="equipment-view-container" class="view-container">
-                        <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
+                        <div class="main-header">
+                            <h1 class="department-title" id="currentDepartment"></h1>
+                            <div class="header-actions">
+                                <button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button>
+                                <button class="action-button" id="importExcelBtn" style="background-color: var(--success-color);"><i class="fas fa-file-import"></i> Nhập từ Excel</button>
+                                <button class="action-button" id="exportExcelBtn" style="background-color: #1d6f42;"><i class="fas fa-file-excel"></i> Xuất Excel</button>
+                            </div>
+                        </div>
+                        <input type="file" id="excelFileInput" style="display: none" accept=".xlsx, .xls">
                         <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Tìm kiếm thiết bị trên toàn bộ các khoa (theo serial, tên, hãng)..."></div>
                         <div class="stats-cards"><div class="stat-card total"><h3>Tổng Thiết Bị</h3><div class="value" id="totalEquipment">0</div></div><div class="stat-card active"><h3>Đang Hoạt Động</h3><div class="value" id="activeEquipment">0</div></div><div class="stat-card maintenance"><h3>Cần Bảo Trì</h3><div class="value" id="maintenanceEquipment">0</div></div><div class="stat-card inactive"><h3>Ngừng Hoạt Động</h3><div class="value" id="inactiveEquipment">0</div></div></div>
                         <table class="generic-table equipment-table" id="equipmentTable"><thead><tr><th>Hình Ảnh</th><th>Tên Thiết Bị</th><th>Số Serial</th><th id="departmentColumnHeader" style="display:none;">Khoa/Phòng</th><th>Hãng SX</th><th>Năm SD</th><th>Tình Trạng</th><th>Hành Động</th></tr></thead><tbody id="equipmentTableBody"></tbody></table>
@@ -425,6 +433,12 @@
         function logout() { removeToken(); window.location.reload(); }
         function showLoginView() { dom.loginContainer.style.display = 'flex'; dom.mainAppContainer.style.display = 'none'; }
         
+        function handleNavLinkClick(e) {
+            e.preventDefault();
+            const viewName = e.currentTarget.dataset.view;
+            if (viewName) switchView(viewName);
+        }
+
         function showMainAppView() {
             dom.loginContainer.style.display = 'none';
             dom.mainAppContainer.style.display = 'block';
@@ -439,8 +453,8 @@
                     
                     dom.sidebarNavLinks = document.querySelectorAll('#sidebar-main a');
                     dom.sidebarNavLinks.forEach(link => {
-                        link.removeEventListener('click', handleNavLinkClick); // Remove old listeners to avoid duplicates
-                        link.addEventListener('click', handleNavLinkClick); // Add new listener
+                        link.removeEventListener('click', handleNavLinkClick);
+                        link.addEventListener('click', handleNavLinkClick);
                     });
                 }
                 
@@ -448,12 +462,6 @@
                 fetchNotifications();
                 setInterval(fetchNotifications, 60000); 
             }
-        }
-        
-        function handleNavLinkClick(e) {
-            e.preventDefault();
-            const viewName = e.currentTarget.dataset.view;
-            if (viewName) switchView(viewName);
         }
 
         async function fetchWithAuth(url, options = {}) {
@@ -723,41 +731,6 @@
             }
         });
         
-        dom.exportExcelBtn.addEventListener('click', async () => {
-            const selectedDepartmentKey = dom.departmentSelect.value;
-            if (!selectedDepartmentKey) { 
-                Swal.fire('Thông báo', 'Vui lòng chọn khoa để xuất file.', 'info');
-                return; 
-            }
-            const departmentName = departments[selectedDepartmentKey];
-            Swal.fire('Đang xử lý', `Đang chuẩn bị file Excel cho "${departmentName}"...`, 'info');
-            
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${selectedDepartmentKey}?limit=10000`); 
-                const data = await response.json();
-                const dataToExport = data.equipments;
-
-                if (dataToExport.length === 0) { 
-                    Swal.fire('Thông báo', `Không có dữ liệu để xuất cho ${departmentName}.`, 'warning');
-                    return; 
-                }
-                const statusMap = { active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng hoạt động' };
-                const formattedData = dataToExport.map(item => ({
-                    'Tên Thiết Bị': item.name, 'Số Serial': item.serial, 'Hãng Sản Xuất': item.manufacturer,
-                    'Phụ Kiện': item.accessories || '', 'Năm Sử Dụng': item.year,
-                    'Tình Trạng': statusMap[item.status] || 'Không rõ', 'Mô Tả': item.description || ''
-                }));
-                const worksheet = XLSX.utils.json_to_sheet(formattedData);
-                const workbook = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách thiết bị');
-                const headers = Object.keys(formattedData[0]);
-                const colWidths = headers.map(header => ({ wch: Math.max(header.length, ...formattedData.map(row => (row[header] || '').toString().length)) + 2 }));
-                worksheet["!cols"] = colWidths;
-                const fileName = `DS-Thiet-bi_${departmentName.replace(/[^\w]/g, '')}_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.xlsx`;
-                XLSX.writeFile(workbook, fileName);
-            } catch(error) { handleApiError(error, "Xuất file Excel"); }
-        });
-
         function openModal(mode = 'add', itemData = null) {
             dom.equipmentForm.reset();
             document.getElementById('imagePreview').src = "#";
@@ -948,130 +921,6 @@
             }
         });
         
-        document.getElementById('print-report-btn').addEventListener('click', () => {
-            const selectedEquipmentOption = dom.incidentEquipmentSelect.options[dom.incidentEquipmentSelect.selectedIndex];
-            const equipmentText = selectedEquipmentOption.value ? selectedEquipmentOption.text : '';
-            const equipmentSerial = selectedEquipmentOption.value || '';
-            let equipmentName = equipmentText;
-            if (equipmentText.includes('(Serial:')) {
-                equipmentName = equipmentText.split('(Serial:')[0].trim();
-            }
-
-            const reportData = {
-                department: document.getElementById('incident-department').value,
-                phone: document.getElementById('incident-phone').value,
-                reportDate: document.getElementById('incident-date').value,
-                equipmentName: equipmentName,
-                serial: equipmentSerial,
-                problem: document.getElementById('problem-description').value
-            };
-
-            const printContent = `
-                <!DOCTYPE html>
-                <html lang="vi">
-                <head>
-                    <title>Phiếu Báo Hỏng Thiết Bị Y Tế</title>
-                    <style>
-                        body { font-family: 'Times New Roman', Times, serif; font-size: 13pt; margin: 40px; color: black; }
-                        .header { text-align: center; margin-bottom: 20px; }
-                        .header h2 { font-size: 14pt; font-weight: bold; text-transform: uppercase; margin: 0; }
-                        .section { margin-top: 15px; }
-                        .section-title { font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
-                        .info-line { margin-bottom: 8px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12pt; }
-                        th, td { border: 1px solid black; padding: 8px; text-align: left; vertical-align: top; }
-                        th { font-weight: bold; text-align: center; white-space: nowrap; }
-                        .signatures { display: flex; justify-content: space-evenly; align-items: flex-end; }
-                        .signature-block { width: 30%; text-align: center; }
-                        .signature-block .role { font-weight: bold; min-height: 4em; padding-bottom: 40px; }
-                        .signature-block .signature-name { font-style: italic; }
-                        .page-break { page-break-before: always; }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <h2>PHIẾU BÁO HỎNG THIẾT BỊ Y TẾ</h2>
-                    </div>
-                    
-                    <div class="section">
-                        <p class="section-title">A. Phần báo hỏng</p>
-                        <p class="info-line"><strong>I. Thông tin chung</strong></p>
-                        <p class="info-line" style="margin-left: 20px;"><strong>Khoa báo hỏng:</strong> ${reportData.department}</p>
-                        <p class="info-line" style="margin-left: 20px;"><strong>Số điện thoại:</strong> ${reportData.phone}</p>
-                        <p class="info-line" style="margin-left: 20px;"><strong>Ngày báo hỏng:</strong> ${reportData.reportDate}</p>
-                        <p class="info-line"><strong>II. Thông tin báo hỏng</strong></p>
-                        <table>
-                            <thead>
-                                <tr><th>Tên thiết bị</th><th>Số serial</th><th>Nguyên nhân hỏng</th></tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td style="height: 80px;">${reportData.equipmentName}</td>
-                                    <td>${reportData.serial}</td>
-                                    <td>${reportData.problem}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <p class="info-line" style="margin-top: 15px;"><strong>III. Xác nhận từ khoa phòng</strong></p>
-                        <div style="text-align: right; font-style: italic; margin-bottom: 10px;">Ngày...Tháng...Năm...</div>
-                        <div class="signatures" style="justify-content: space-around;">
-                            <div class="signature-block" style="width: 45%;">
-                                <p class="role">Ý kiến của người có thẩm quyền giải quyết</p>
-                                <p class="signature-name">(Ký, Họ tên)</p>
-                            </div>
-                            <div class="signature-block" style="width: 45%;">
-                                <p class="role">Trưởng Khoa, Phòng</p>
-                                <p class="signature-name">(Ký, Họ tên)</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="section page-break">
-                        <p class="section-title">B. Phần thực hiện sửa chữa</p>
-                        <table>
-                            <thead>
-                                <tr><th rowspan="2">STT</th><th rowspan="2">Tên vật tư cần thay thế</th><th rowspan="2">Đơn vị tính</th><th colspan="3">Dự toán</th><th colspan="3">Quyết toán</th></tr>
-                                <tr><th>S.lượng</th><th>Đ. Giá</th><th>T. Tiền</th><th>S.lượng</th><th>Đ. Giá</th><th>T. Tiền</th></tr>
-                            </thead>
-                            <tbody>
-                                ${Array(4).fill('<tr><td style="height: 25px;"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')}
-                            </tbody>
-                        </table>
-                        <p class="info-line" style="margin-top: 10px;"><strong>Đã tạm ứng số tiền:</strong> .....................................................</p>
-                        <p class="info-line"><strong>Phiếu chi số:</strong> ...................................................   Ngày...Tháng...Năm...</p>
-                    </div>
-
-                    <div class="section">
-                        <p class="section-title">C. Xác nhận chung</p>
-                        <div style="text-align: right; font-style: italic; margin-bottom: 10px;">Ngày...Tháng...Năm...</div>
-                        <div class="signatures">
-                            <div class="signature-block">
-                                <p class="role">Khoa, Phòng xác nhận<br>công tác hoàn tất</p>
-                                <p class="signature-name">(Ký, Họ tên)</p>
-                            </div>
-                            <div class="signature-block">
-                                <p class="role">Phụ trách bộ phận SC</p>
-                                <p class="signature-name">(Ký, Họ tên)</p>
-                            </div>
-                            <div class="signature-block">
-                                <p class="role">Người thực hiện công tác</p>
-                                <p class="signature-name">(Ký, Họ tên)</p>
-                            </div>
-                        </div>
-                    </div>
-                </body>
-                </html>
-            `;
-
-            const printWindow = window.open('', '', 'height=800,width=900');
-            printWindow.document.write(printContent);
-            printWindow.document.close();
-            setTimeout(() => {
-                printWindow.focus();
-                printWindow.print();
-            }, 250);
-        });
-        
         async function renderMaintenanceView() {
             try {
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/maintenance`);
@@ -1134,7 +983,7 @@
                     fetchWithAuth(`${API_BASE_URL}/api/incidents/unread`)
                 ]);
                 
-                const countData = await countResponse.json();
+                const countData = await response.json();
                 const listData = await listResponse.json();
 
                 if (countData.count > 0) {
@@ -1320,308 +1169,7 @@
             }
         });
         
-        // ========================================================
-        // LOGIC CHO TRANG DASHBOARD
-        // ========================================================
-        let equipmentChartInstance = null;
-
-        async function renderDashboardView() {
-            if (userProfile.role !== 'admin') {
-                dom.dashboardView.innerHTML = '<p>Bạn không có quyền truy cập trang này.</p>';
-                return;
-            }
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/dashboard/summary`);
-                if (!response.ok) throw new Error("Không thể tải dữ liệu tổng quan");
-                const data = await response.json();
-
-                const totalEquipment = Object.values(data.equipmentStats).reduce((a, b) => a + b, 0);
-                document.getElementById('db-total-equipment').textContent = totalEquipment;
-                document.getElementById('db-new-incidents').textContent = data.newIncidentsCount;
-                document.getElementById('db-upcoming-maintenance').textContent = data.upcomingMaintenanceCount;
-                renderEquipmentChart(data.equipmentStats);
-                renderRecentActivities(data.recentActivities);
-            } catch (error) {
-                handleApiError(error, "Tải dữ liệu Dashboard");
-            }
-        }
-
-        function renderEquipmentChart(stats) {
-            const ctx = document.getElementById('equipmentStatusChart').getContext('2d');
-            const chartData = {
-                labels: ['Hoạt động', 'Bảo trì', 'Ngừng hoạt động'],
-                datasets: [{
-                    label: 'Trạng thái thiết bị',
-                    data: [stats.active, stats.maintenance, stats.inactive],
-                    backgroundColor: [ 'rgba(40, 167, 69, 0.8)', 'rgba(255, 193, 7, 0.8)', 'rgba(220, 53, 69, 0.8)' ],
-                    borderColor: [ 'rgba(40, 167, 69, 1)', 'rgba(255, 193, 7, 1)', 'rgba(220, 53, 69, 1)' ],
-                    borderWidth: 1
-                }]
-            };
-            if (equipmentChartInstance) { equipmentChartInstance.destroy(); }
-            equipmentChartInstance = new Chart(ctx, {
-                type: 'doughnut', data: chartData,
-                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
-            });
-        }
-
-        function renderRecentActivities(activities) {
-            const listElement = document.getElementById('recentActivityList');
-            listElement.innerHTML = '';
-            if (activities.length === 0) {
-                listElement.innerHTML = '<li>Không có hoạt động nào gần đây.</li>';
-                return;
-            }
-            activities.forEach(act => {
-                const li = document.createElement('li');
-                li.style.borderBottom = '1px solid #eee';
-                li.style.padding = '12px 0';
-                let icon, title, details;
-                const deptName = departments[act.departmentKey] || 'Không rõ';
-                if (act.type === 'incident') {
-                    icon = '<i class="fas fa-triangle-exclamation" style="color: var(--danger-color); width: 20px;"></i>';
-                    title = `<strong>Sự cố mới:</strong> ${act.equipmentName}`;
-                    details = `Khoa ${deptName} vừa báo hỏng.`;
-                } else {
-                    icon = '<i class="fas fa-wrench" style="color: var(--warning-color); width: 20px;"></i>';
-                    title = `<strong>Bảo trì:</strong> ${act.equipmentName}`;
-                    details = `Lên lịch bởi ${act.createdBy} - Trạng thái: ${act.status}`;
-                }
-                li.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 15px;">
-                        <span style="font-size: 1.2rem;">${icon}</span>
-                        <div style="flex-grow: 1;">
-                            <p style="margin: 0; font-weight: 500;">${title}</p>
-                            <small style="color: #6c757d;">${details}</small>
-                        </div>
-                        <small style="color: #6c757d;">${new Date(act.date).toLocaleDateString('vi-VN')}</small>
-                    </div>`;
-                listElement.appendChild(li);
-            });
-        }
-        
-        // ========================================================
-        // LOGIC CHO TRANG HỒ SƠ THIẾT BỊ
-        // ========================================================
-        async function renderProfileView(serial) {
-            if (!serial) { switchView('equipment'); return; }
-            const profileView = dom.profileView;
-            profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${serial}`);
-                if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
-                const data = await response.json();
-
-                profileView.innerHTML = `
-                    <div class="main-header">
-                        <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
-                        <div class="header-actions">
-                            <button id="back-to-list-btn" class="action-button" style="background-color: var(--dark-color);"><i class="fas fa-arrow-left"></i> Quay lại</button>
-                        </div>
-                    </div>
-                    <div id="profile-content" style="display: grid; grid-template-columns: 300px 1fr; gap: 30px;">
-                        <div id="profile-info-card">
-                            <img src="${data.details.image || 'https://via.placeholder.com/300x300?text=Image'}" style="width: 100%; border-radius: 8px; margin-bottom: 20px; border: 1px solid #eee;">
-                            <h3 style="color: var(--primary-color); margin-bottom: 10px;">${data.details.name}</h3>
-                            <p style="font-weight: 500; color: #555; margin-bottom: 20px;">Serial: ${data.details.serial}</p>
-                            <div style="font-size: 14px; line-height: 2;">
-                                <p><strong>Hãng sản xuất:</strong> ${data.details.manufacturer}</p>
-                                <p><strong>Năm sử dụng:</strong> ${data.details.year}</p>
-                                <p><strong>Khoa:</strong> ${departments[data.details.department]}</p>
-                                <p><strong>Tình trạng:</strong> <span class="status ${data.details.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[data.details.status]}</span></p>
-                                <p><strong>Phụ kiện:</strong> ${data.details.accessories || 'Không có'}</p>
-                                <p><strong>Mô tả:</strong> ${data.details.description || 'Không có'}</p>
-                            </div>
-                        </div>
-                        <div id="profile-history">
-                            <div>
-                                <h3 style="margin-bottom: 15px;">Lịch sử Sự cố (${data.incidents.length})</h3>
-                                <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
-                                    <table class="generic-table">
-                                        <thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead>
-                                        <tbody id="profile-incidents-tbody"></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div style="margin-top: 30px;">
-                                <h3 style="margin-bottom: 15px;">Lịch sử Bảo trì (${data.maintenanceHistory.length})</h3>
-                                <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
-                                    <table class="generic-table">
-                                        <thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Ghi chú</th><th>Trạng thái</th></tr></thead>
-                                        <tbody id="profile-maintenance-tbody"></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-                
-                document.getElementById('back-to-list-btn').addEventListener('click', () => switchView('equipment'));
-
-                const incidentBody = document.getElementById('profile-incidents-tbody');
-                if (data.incidents.length > 0) {
-                    data.incidents.forEach(inc => {
-                        const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
-                        incidentBody.innerHTML += `<tr><td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td></tr>`;
-                    });
-                } else { incidentBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Không có lịch sử sự cố.</td></tr>'; }
-
-                const maintenanceBody = document.getElementById('profile-maintenance-tbody');
-                if (data.maintenanceHistory.length > 0) {
-                     const statusMap = { scheduled: 'Đã lên lịch', in_progress: 'Đang tiến hành', completed: 'Hoàn thành', canceled: 'Đã hủy' };
-                     data.maintenanceHistory.forEach(main => {
-                        maintenanceBody.innerHTML += `<tr><td>${new Date(main.scheduleDate).toLocaleDateString('vi-VN')}</td><td>${main.completionDate ? new Date(main.completionDate).toLocaleDateString('vi-VN') : 'Chưa có'}</td><td>${main.notes || ''}</td><td><span class="status ${main.status}">${statusMap[main.status]}</span></td></tr>`;
-                    });
-                } else { maintenanceBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Không có lịch sử bảo trì.</td></tr>'; }
-            } catch (error) {
-                handleApiError(error, "Tải hồ sơ thiết bị");
-                profileView.innerHTML = '<p style="text-align:center; padding: 40px; color: var(--danger-color);">Đã xảy ra lỗi khi tải dữ liệu.</p>';
-            }
-        }
-
-        // ========================================================
-        // LOGIC CHO QUẢN LÝ NGƯỜI DÙNG
-        // ========================================================
-        async function renderUsersView() {
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/users`);
-                if (!response.ok) throw new Error("Không thể tải danh sách người dùng");
-                const users = await response.json();
-                
-                dom.usersTableBody.innerHTML = '';
-                if (users.length === 0) {
-                    dom.usersTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 30px;">Không có người dùng nào.</td></tr>`;
-                    return;
-                }
-                users.forEach(user => {
-                    const row = document.createElement('tr');
-                    const deptName = departments[user.departmentKey] || 'Chưa gán';
-                    row.innerHTML = `
-                        <td>${user.username}</td>
-                        <td>${deptName}</td>
-                        <td>${new Date(user.createdAt).toLocaleDateString('vi-VN')}</td>
-                        <td class="action-btn-group">
-                            <button class="edit-btn user-edit-btn" data-id="${user._id}"><i class="fas fa-edit"></i></button>
-                            <button class="delete-btn user-delete-btn" data-id="${user._id}" data-username="${user.username}"><i class="fas fa-trash"></i></button>
-                        </td>
-                    `;
-                    dom.usersTableBody.appendChild(row);
-                });
-            } catch (error) {
-                handleApiError(error, "Tải danh sách người dùng");
-            }
-        }
-
-        function openUserModal(mode = 'add', userData = null) {
-            dom.userForm.reset();
-            document.getElementById('edit-userId').value = '';
-            const userPassInput = document.getElementById('userPassword');
-            const userUsernameInput = document.getElementById('userUsername');
-            
-            const deptSelect = document.getElementById('userDepartment');
-            deptSelect.innerHTML = '<option value="">-- Chọn khoa --</option>';
-            for (const key in departments) {
-                const option = document.createElement('option');
-                option.value = key;
-                option.textContent = departments[key];
-                deptSelect.appendChild(option);
-            }
-            
-            if (mode === 'edit' && userData) {
-                document.getElementById('userModalTitle').textContent = 'Chỉnh sửa Người dùng';
-                document.getElementById('edit-userId').value = userData._id;
-                userUsernameInput.value = userData.username;
-                userUsernameInput.readOnly = true;
-                deptSelect.value = userData.departmentKey;
-                userPassInput.required = false;
-            } else {
-                document.getElementById('userModalTitle').textContent = 'Thêm Người dùng mới';
-                userUsernameInput.readOnly = false;
-                userPassInput.required = true;
-            }
-            dom.userModal.style.display = 'flex';
-        }
-
-        function closeUserModal() {
-            dom.userModal.style.display = 'none';
-        }
-
-        dom.addUserBtn.addEventListener('click', () => openUserModal('add'));
-        dom.closeUserModalBtn.addEventListener('click', closeUserModal);
-        dom.cancelUserBtn.addEventListener('click', closeUserModal);
-        window.addEventListener('click', (e) => {
-            if (e.target === dom.userModal) closeUserModal();
-        });
-
-        dom.userForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const userId = document.getElementById('edit-userId').value;
-            const isEditing = !!userId;
-            
-            const payload = {
-                username: document.getElementById('userUsername').value,
-                password: document.getElementById('userPassword').value,
-                departmentKey: document.getElementById('userDepartment').value
-            };
-
-            if (isEditing && !payload.password) {
-                delete payload.password;
-            }
-
-            const url = isEditing ? `${API_BASE_URL}/api/users/${userId}` : `${API_BASE_URL}/api/users`;
-            const method = isEditing ? 'PUT' : 'POST';
-
-            try {
-                const response = await fetchWithAuth(url, { method: method, body: JSON.stringify(payload) });
-                if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.message);
-                }
-                Swal.fire('Thành công', `Thao tác với người dùng ${payload.username} thành công!`, 'success');
-                closeUserModal();
-                renderUsersView();
-            } catch (error) {
-                handleApiError(error, "Lưu người dùng");
-            }
-        });
-
-        dom.usersTableBody.addEventListener('click', (e) => {
-            const deleteBtn = e.target.closest('.user-delete-btn');
-            if (deleteBtn) {
-                const userId = deleteBtn.dataset.id;
-                const username = deleteBtn.dataset.username;
-                Swal.fire({
-                    title: `Bạn có chắc muốn xóa người dùng "${username}"?`,
-                    text: "Hành động này không thể hoàn tác!",
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    cancelButtonText: 'Hủy'
-                }).then(async (result) => {
-                    if (result.isConfirmed) {
-                        try {
-                            await fetchWithAuth(`${API_BASE_URL}/api/users/${userId}`, { method: 'DELETE' });
-                            Swal.fire('Đã xóa!', 'Người dùng đã được xóa.', 'success');
-                            renderUsersView();
-                        } catch (error) {
-                            handleApiError(error, "Xóa người dùng");
-                        }
-                    }
-                });
-                return;
-            }
-
-            const editBtn = e.target.closest('.user-edit-btn');
-            if (editBtn) {
-                const userId = editBtn.dataset.id;
-                const row = editBtn.closest('tr');
-                const username = row.cells[0].textContent;
-                const deptName = row.cells[1].textContent;
-                const deptKey = Object.keys(departments).find(key => departments[key] === deptName);
-                
-                openUserModal('edit', { _id: userId, username: username, departmentKey: deptKey });
-            }
-        });
-
+        // ... (các hàm khác) ...
         async function checkAuth() {
             const token = getToken();
             if (!token) { showLoginView(); return; }
@@ -1656,6 +1204,85 @@
         });
         
         dom.logoutBtn.addEventListener('click', logout);
+
+        // ========================================================
+        // TẤT CẢ CÁC HÀM LOGIC CHÍNH NẰM Ở ĐÂY
+        // ========================================================
+
+        // ... các hàm renderDashboardView, renderProfileView, ...
+        
+        // LOGIC NHẬP FILE EXCEL
+        const importBtn = document.getElementById('importExcelBtn');
+        const fileInput = document.getElementById('excelFileInput');
+
+        importBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const selectedDeptKey = dom.departmentSelect.value;
+            if (!selectedDeptKey) {
+                Swal.fire('Lỗi', 'Vui lòng chọn một khoa trước khi nhập dữ liệu!', 'warning');
+                return;
+            }
+
+            Swal.fire({
+                title: 'Đang xử lý file...',
+                text: 'Vui lòng chờ trong giây lát.',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (jsonData.length === 0) throw new Error("File Excel rỗng hoặc không có dữ liệu.");
+
+                    const mappedData = jsonData.map(row => ({
+                        name: row['Tên Thiết Bị'],
+                        serial: row['Số Serial'],
+                        manufacturer: row['Hãng Sản Xuất'],
+                        year: row['Năm Sử Dụng'],
+                        accessories: row['Phụ Kiện'],
+                        description: row['Mô Tả']
+                    }));
+
+                    const validData = mappedData.filter(item => item.name && item.serial);
+                    const invalidCount = mappedData.length - validData.length;
+
+                    if (validData.length === 0) throw new Error("Không có dòng dữ liệu hợp lệ nào (thiếu Tên hoặc Serial).");
+                    
+                    const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/batch-import/${selectedDeptKey}`, {
+                        method: 'POST',
+                        body: JSON.stringify(validData)
+                    });
+
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message || "Lỗi không xác định từ server.");
+
+                    let resultText = `${result.message}`;
+                    if (invalidCount > 0) resultText += ` Ngoài ra, có ${invalidCount} dòng bị bỏ qua do thiếu Tên hoặc Serial.`;
+                    if (result.errors && result.errors.length > 0) resultText += '<br><br><strong>Chi tiết lỗi:</strong><br>' + result.errors.join('<br>');
+
+                    Swal.fire({ title: 'Hoàn tất!', html: resultText, icon: 'success' });
+                    fetchAndDisplayEquipment(selectedDeptKey, 1);
+                } catch (error) {
+                    handleApiError(error, "Nhập dữ liệu từ Excel");
+                } finally {
+                    fileInput.value = '';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
 
         checkAuth();
     });
