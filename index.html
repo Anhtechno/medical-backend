@@ -176,7 +176,7 @@
                 <aside class="sidebar">
                     <h3>Chức Năng</h3>
                     <ul id="sidebar-main">
-                        <li><a data-view="dashboard" class="active"><i class="fas fa-tachometer-alt"></i> Tổng quan</a></li>
+                        <li><a data-view="dashboard"><i class="fas fa-tachometer-alt"></i> Tổng quan</a></li>
                         <li><a data-view="equipment"><i class="fas fa-list-ul"></i> Danh Sách Thiết Bị</a></li>
                         <li><a data-view="incidents"><i class="fas fa-triangle-exclamation"></i> Báo Cáo Sự Cố</a></li>
                         <li><a data-view="maintenance"><i class="fas fa-wrench"></i> Quản lý Bảo Trì</a></li>
@@ -239,7 +239,7 @@
                     </div>
 
                     <div id="profile-view-container" class="view-container"></div>
-
+                    
                     <div id="users-view-container" class="view-container">
                         <div class="main-header">
                             <h1 class="view-title">Quản lý Người dùng</h1>
@@ -360,11 +360,13 @@
     
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // --- KHAI BÁO BIẾN ---
         const API_BASE_URL = 'https://quanlythietbi-anh.onrender.com';
         let departments = {}; 
         let currentFullDeptList = []; 
         let currentStatusFilter = 'all';
         let userProfile = {};
+        let equipmentChartInstance = null;
         
         const dom = {
             loginContainer: document.getElementById('login-container'),
@@ -417,10 +419,10 @@
             notificationList: document.getElementById('notificationList'),
         };
         
+        // --- CÁC HÀM TIỆN ÍCH & XÁC THỰC ---
         const saveToken = (token) => localStorage.setItem('authToken', token);
         const getToken = () => localStorage.getItem('authToken');
         const removeToken = () => { localStorage.removeItem('authToken'); localStorage.removeItem('userProfile'); };
-
         const saveUserProfile = (token) => {
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
@@ -478,13 +480,10 @@
         
         const handleApiError = (error, context = 'Thao tác') => {
             console.error(`${context} thất bại:`, error);
-            Swal.fire({
-                icon: 'error',
-                title: `${context} thất bại`,
-                text: `Lỗi: ${error.message}`,
-            });
+            Swal.fire({ icon: 'error', title: `${context} thất bại`, text: `Lỗi: ${error.message}` });
         };
         
+        // --- CÁC HÀM RENDER VIEW VÀ KHỞI TẠO DỮ LIỆU ---
         async function loadInitialData() {
             try {
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/departments`);
@@ -494,7 +493,6 @@
                 let firstDeptKey = (userProfile.role === 'user') ? userProfile.departmentKey : Object.keys(departments)[0];
                 if (firstDeptKey) {
                     dom.departmentSelect.value = firstDeptKey;
-                    await fetchAndDisplayEquipment(firstDeptKey, 1);
                 }
             } catch (error) { handleApiError(error, 'Tải dữ liệu ban đầu'); throw error; }
         }
@@ -530,11 +528,8 @@
                 const url = `${API_BASE_URL}/api/equipment/${deptKey}?page=${page}&limit=10&status=${currentStatusFilter}`;
                 const response = await fetchWithAuth(url);
                 if (!response.ok) throw new Error(`Không thể tải dữ liệu`);
-                
                 const data = await response.json();
-                currentFullDeptList = data.equipments;
-                
-                updateEquipmentTable(currentFullDeptList); 
+                updateEquipmentTable(data.equipments); 
                 updateDepartmentTitle(deptKey);
                 updateStats(data.stats);
                 renderPaginationControls(data.totalPages, data.currentPage);
@@ -585,9 +580,7 @@
                 const button = document.createElement('button');
                 button.textContent = i;
                 if (i === currentPage) button.classList.add('active');
-                button.addEventListener('click', () => {
-                    fetchAndDisplayEquipment(dom.departmentSelect.value, i);
-                });
+                button.addEventListener('click', () => { fetchAndDisplayEquipment(dom.departmentSelect.value, i); });
                 paginationContainer.appendChild(button);
             }
         }
@@ -596,42 +589,38 @@
             dom.currentDepartment.textContent = departments[deptKey];
         }
 
-        dom.departmentSelect.addEventListener('change', () => {
-            dom.searchInput.value = '';
-            currentStatusFilter = 'all';
-            setActiveSidebarFilter('all');
-            fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
-        });
-        
-        dom.departmentSearchInput.addEventListener('input', (e) => {
-            populateDepartmentDropdown(e.target.value);
-        });
-        
-        dom.searchInput.addEventListener('input', async (e) => {
-            const searchTerm = e.target.value.trim();
-            document.getElementById('pagination-controls').innerHTML = ''; 
-            if (searchTerm.length > 1) {
-                try {
-                    dom.currentDepartment.textContent = `Kết quả tìm kiếm cho "${searchTerm}"`;
-                    updateStats();
-                    const response = await fetchWithAuth(`${API_BASE_URL}/api/search?q=${searchTerm}`);
-                    const results = await response.json();
-                    updateEquipmentTable(results, true);
-                } catch (error) { handleApiError(error, 'Tìm kiếm'); }
-            } else if (searchTerm.length === 0) {
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
-            }
-        });
-
-        dom.sidebarFilters.forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                dom.searchInput.value = '';
-                currentStatusFilter = e.currentTarget.dataset.filter;
-                setActiveSidebarFilter(currentStatusFilter);
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+        function switchView(viewName, param = null) {
+            dom.sidebarNavLinks.forEach(link => {
+                const linkView = link.dataset.view;
+                let isActive = linkView === viewName;
+                if ((viewName === 'profile' || viewName === 'users') && linkView === viewName) {
+                    // special handling for admin views to keep nothing else active
+                } else if (viewName === 'profile' && linkView === 'equipment') {
+                    isActive = true; // Keep equipment active when viewing profile
+                }
+                link.classList.toggle('active', isActive);
             });
-        });
+
+            dom.viewContainers.forEach(container => container.style.display = 'none');
+            
+            if (viewName !== 'equipment' && viewName !== 'profile') {
+                dom.sidebarFilters.forEach(f => f.classList.remove('active'));
+            } else {
+                setActiveSidebarFilter(currentStatusFilter);
+            }
+
+            const viewToShow = dom[viewName + 'View'];
+            if (viewToShow) {
+                viewToShow.style.display = 'block';
+                document.getElementById('equipment-filters').style.display = (viewName === 'equipment' || viewName === 'profile') ? 'block' : 'none';
+                
+                if (viewName === 'dashboard') renderDashboardView();
+                if (viewName === 'incidents') renderIncidentView();
+                if (viewName === 'maintenance') renderMaintenanceView();
+                if (viewName === 'profile') renderProfileView(param);
+                if (viewName === 'users') renderUsersView();
+            }
+        }
 
         function setActiveSidebarFilter(activeFilter) {
             dom.sidebarFilters.forEach(link => {
@@ -639,97 +628,6 @@
                 if(link.dataset.filter === activeFilter) link.classList.add('active');
             });
         }
-        
-        dom.equipmentForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const editSerial = document.getElementById('edit-serial').value;
-            const isEditing = !!editSerial;
-            const serialNumber = document.getElementById('serialNumber').value.trim();
-            if (!serialNumber) { 
-                Swal.fire('Lỗi', 'Số serial là bắt buộc.', 'error');
-                return; 
-            }
-            const payload = {
-                name: document.getElementById('equipmentName').value, serial: serialNumber, manufacturer: document.getElementById('manufacturer').value,
-                accessories: document.getElementById('accessories').value, year: document.getElementById('purchaseDate').value,
-                status: document.getElementById('status').value, description: document.getElementById('description').value,
-                image: document.getElementById('imagePreview').src.startsWith('data:image') ? document.getElementById('imagePreview').src : null
-            };
-            let url, method, targetDeptKey;
-            if (isEditing) {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${editSerial}`);
-                if (!response.ok) { 
-                    handleApiError({ message: 'Không tìm thấy thiết bị gốc để cập nhật.'}, 'Cập nhật');
-                    return; 
-                }
-                const originalItem = await response.json();
-                targetDeptKey = originalItem.department;
-                url = `${API_BASE_URL}/api/equipment/${targetDeptKey}/${editSerial}`;
-                method = 'PUT';
-            } else {
-                targetDeptKey = dom.departmentSelect.value;
-                if (!targetDeptKey) { 
-                    Swal.fire('Lỗi', 'Vui lòng chọn một khoa trước khi thêm.', 'warning');
-                    return; 
-                }
-                payload.department = targetDeptKey;
-                url = `${API_BASE_URL}/api/equipment/${targetDeptKey}`;
-                method = 'POST';
-            }
-            try {
-                const response = await fetchWithAuth(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message || 'Thao tác thất bại.'); }
-                Swal.fire({ position: 'top-end', icon: 'success', title: 'Thao tác thành công!', showConfirmButton: false, timer: 1500 });
-                closeModal();
-                await fetchAndDisplayEquipment(targetDeptKey, 1);
-            } catch (error) {
-                handleApiError(error, isEditing ? 'Cập nhật' : 'Thêm mới');
-            }
-        });
-
-        dom.equipmentTableBody.addEventListener('click', async (e) => {
-            const target = e.target.closest('button');
-            if (!target) return;
-            const serial = target.dataset.serial;
-            
-            if (target.classList.contains('view-btn')) {
-                switchView('profile', serial);
-            } 
-            else if (target.classList.contains('edit-btn')) {
-                try {
-                    const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${serial}`);
-                    if (!response.ok) throw new Error("Không tìm thấy thông tin thiết bị để sửa.");
-                    const itemData = await response.json();
-                    if (itemData) openModal('edit', itemData);
-                } catch(error) { handleApiError(error, 'Lấy thông tin sửa'); }
-            } 
-            else if (target.classList.contains('delete-btn')) {
-                const deptKey = target.dataset.dept;
-                if (!deptKey) return;
-                
-                Swal.fire({
-                    title: 'Bạn chắc chắn không?',
-                    text: `Bạn sẽ không thể hoàn tác hành động xóa thiết bị có serial "${serial}"!`,
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    cancelButtonColor: '#3085d6',
-                    confirmButtonText: 'Vâng, xóa nó!',
-                    cancelButtonText: 'Hủy bỏ'
-                }).then(async (result) => {
-                    if (result.isConfirmed) {
-                        try {
-                            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${serial}`, { method: 'DELETE' });
-                            if (!response.ok) throw new Error('Xóa thất bại');
-                            Swal.fire('Đã xóa!', 'Thiết bị đã được xóa thành công.', 'success');
-                            await fetchAndDisplayEquipment(dom.departmentSelect.value, 1); 
-                        } catch (error) { 
-                            handleApiError(error, 'Xóa thiết bị'); 
-                        }
-                    }
-                });
-            }
-        });
         
         function openModal(mode = 'add', itemData = null) {
             dom.equipmentForm.reset();
@@ -754,54 +652,219 @@
             }
             dom.addEquipmentModal.style.display = 'flex';
         }
+
         function closeModal() { dom.addEquipmentModal.style.display = 'none'; }
-        dom.addEquipmentBtn.addEventListener('click', () => openModal('add'));
-        dom.closeModalBtn.addEventListener('click', closeModal);
-        dom.cancelBtn.addEventListener('click', closeModal);
-        window.addEventListener('click', (e) => { if (e.target === dom.addEquipmentModal) closeModal(); });
-        document.getElementById('imageUpload').addEventListener('click', () => document.getElementById('imageInput').click());
-        document.getElementById('imageInput').addEventListener('change', function() {
-            if (this.files && this.files[0]) {
-                const reader = new FileReader();
-                reader.onload = (e) => { document.getElementById('imagePreview').src = e.target.result; document.getElementById('imagePreview').style.display = 'block'; };
-                reader.readAsDataURL(this.files[0]);
+        
+        async function renderDashboardView() {
+            if (userProfile.role !== 'admin') {
+                dom.dashboardView.innerHTML = '<p>Bạn không có quyền truy cập trang này.</p>';
+                return;
             }
-        });
-
-        dom.sidebarNavLinks.forEach(link => {
-            link.addEventListener('click', handleNavLinkClick);
-        });
-
-        function switchView(viewName, param = null) {
-            dom.sidebarNavLinks.forEach(link => {
-                const linkView = link.dataset.view;
-                if (linkView === viewName || (linkView === 'equipment' && viewName === 'profile')) {
-                    link.classList.add('active');
-                } else {
-                    link.classList.remove('active');
-                }
-            });
-
-            dom.viewContainers.forEach(container => container.style.display = 'none');
-            
-            if (viewName !== 'equipment' && viewName !== 'profile') {
-                dom.sidebarFilters.forEach(f => f.classList.remove('active'));
-            } else {
-                setActiveSidebarFilter(currentStatusFilter);
-            }
-
-            const viewToShow = dom[viewName + 'View'];
-            if (viewToShow) {
-                viewToShow.style.display = 'block';
-                document.getElementById('equipment-filters').style.display = (viewName === 'equipment' || viewName === 'profile') ? 'block' : 'none';
-                
-                if (viewName === 'dashboard') renderDashboardView();
-                if (viewName === 'incidents') renderIncidentView();
-                if (viewName === 'maintenance') renderMaintenanceView();
-                if (viewName === 'profile') renderProfileView(param);
-                if (viewName === 'users') renderUsersView();
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/dashboard/summary`);
+                if (!response.ok) throw new Error("Không thể tải dữ liệu tổng quan");
+                const data = await response.json();
+                const totalEquipment = Object.values(data.equipmentStats).reduce((a, b) => a + b, 0);
+                document.getElementById('db-total-equipment').textContent = totalEquipment;
+                document.getElementById('db-new-incidents').textContent = data.newIncidentsCount;
+                document.getElementById('db-upcoming-maintenance').textContent = data.upcomingMaintenanceCount;
+                renderEquipmentChart(data.equipmentStats);
+                renderRecentActivities(data.recentActivities);
+            } catch (error) {
+                handleApiError(error, "Tải dữ liệu Dashboard");
             }
         }
+
+        function renderEquipmentChart(stats) {
+            const ctx = document.getElementById('equipmentStatusChart').getContext('2d');
+            const chartData = {
+                labels: ['Hoạt động', 'Bảo trì', 'Ngừng hoạt động'],
+                datasets: [{
+                    label: 'Trạng thái thiết bị',
+                    data: [stats.active, stats.maintenance, stats.inactive],
+                    backgroundColor: [ 'rgba(40, 167, 69, 0.8)', 'rgba(255, 193, 7, 0.8)', 'rgba(220, 53, 69, 0.8)' ],
+                    borderColor: [ 'rgba(40, 167, 69, 1)', 'rgba(255, 193, 7, 1)', 'rgba(220, 53, 69, 1)' ],
+                    borderWidth: 1
+                }]
+            };
+            if (equipmentChartInstance) { equipmentChartInstance.destroy(); }
+            equipmentChartInstance = new Chart(ctx, {
+                type: 'doughnut', data: chartData,
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        function renderRecentActivities(activities) {
+            const listElement = document.getElementById('recentActivityList');
+            listElement.innerHTML = '';
+            if (activities.length === 0) {
+                listElement.innerHTML = '<li>Không có hoạt động nào gần đây.</li>';
+                return;
+            }
+            activities.forEach(act => {
+                const li = document.createElement('li');
+                li.style.borderBottom = '1px solid #eee';
+                li.style.padding = '12px 0';
+                let icon, title, details;
+                const deptName = departments[act.departmentKey] || 'Không rõ';
+                if (act.type === 'incident') {
+                    icon = '<i class="fas fa-triangle-exclamation" style="color: var(--danger-color); width: 20px;"></i>';
+                    title = `<strong>Sự cố mới:</strong> ${act.equipmentName}`;
+                    details = `Khoa ${deptName} vừa báo hỏng.`;
+                } else {
+                    icon = '<i class="fas fa-wrench" style="color: var(--warning-color); width: 20px;"></i>';
+                    title = `<strong>Bảo trì:</strong> ${act.equipmentName}`;
+                    details = `Lên lịch bởi ${act.createdBy} - Trạng thái: ${act.status}`;
+                }
+                li.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="font-size: 1.2rem;">${icon}</span>
+                        <div style="flex-grow: 1;">
+                            <p style="margin: 0; font-weight: 500;">${title}</p>
+                            <small style="color: #6c757d;">${details}</small>
+                        </div>
+                        <small style="color: #6c757d;">${new Date(act.date).toLocaleDateString('vi-VN')}</small>
+                    </div>`;
+                listElement.appendChild(li);
+            });
+        }
+        
+        async function renderProfileView(serial) {
+            if (!serial) { switchView('equipment'); return; }
+            const profileView = dom.profileView;
+            profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${serial}`);
+                if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
+                const data = await response.json();
+
+                profileView.innerHTML = `
+                    <div class="main-header">
+                        <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
+                        <div class="header-actions">
+                            <button id="back-to-list-btn" class="action-button" style="background-color: var(--dark-color);"><i class="fas fa-arrow-left"></i> Quay lại</button>
+                        </div>
+                    </div>
+                    <div id="profile-content" style="display: grid; grid-template-columns: 300px 1fr; gap: 30px;">
+                        <div id="profile-info-card">
+                            <img src="${data.details.image || 'https://via.placeholder.com/300x300?text=Image'}" style="width: 100%; border-radius: 8px; margin-bottom: 20px; border: 1px solid #eee;">
+                            <h3 style="color: var(--primary-color); margin-bottom: 10px;">${data.details.name}</h3>
+                            <p style="font-weight: 500; color: #555; margin-bottom: 20px;">Serial: ${data.details.serial}</p>
+                            <div style="font-size: 14px; line-height: 2;">
+                                <p><strong>Hãng sản xuất:</strong> ${data.details.manufacturer}</p>
+                                <p><strong>Năm sử dụng:</strong> ${data.details.year}</p>
+                                <p><strong>Khoa:</strong> ${departments[data.details.department]}</p>
+                                <p><strong>Tình trạng:</strong> <span class="status ${data.details.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[data.details.status]}</span></p>
+                                <p><strong>Phụ kiện:</strong> ${data.details.accessories || 'Không có'}</p>
+                                <p><strong>Mô tả:</strong> ${data.details.description || 'Không có'}</p>
+                            </div>
+                        </div>
+                        <div id="profile-history">
+                            <div>
+                                <h3 style="margin-bottom: 15px;">Lịch sử Sự cố (${data.incidents.length})</h3>
+                                <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                                    <table class="generic-table">
+                                        <thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead>
+                                        <tbody id="profile-incidents-tbody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div style="margin-top: 30px;">
+                                <h3 style="margin-bottom: 15px;">Lịch sử Bảo trì (${data.maintenanceHistory.length})</h3>
+                                <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                                    <table class="generic-table">
+                                        <thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Ghi chú</th><th>Trạng thái</th></tr></thead>
+                                        <tbody id="profile-maintenance-tbody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                
+                document.getElementById('back-to-list-btn').addEventListener('click', () => switchView('equipment'));
+
+                const incidentBody = document.getElementById('profile-incidents-tbody');
+                if (data.incidents.length > 0) {
+                    data.incidents.forEach(inc => {
+                        const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
+                        incidentBody.innerHTML += `<tr><td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td></tr>`;
+                    });
+                } else { incidentBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Không có lịch sử sự cố.</td></tr>'; }
+
+                const maintenanceBody = document.getElementById('profile-maintenance-tbody');
+                if (data.maintenanceHistory.length > 0) {
+                     const statusMap = { scheduled: 'Đã lên lịch', in_progress: 'Đang tiến hành', completed: 'Hoàn thành', canceled: 'Đã hủy' };
+                     data.maintenanceHistory.forEach(main => {
+                        maintenanceBody.innerHTML += `<tr><td>${new Date(main.scheduleDate).toLocaleDateString('vi-VN')}</td><td>${main.completionDate ? new Date(main.completionDate).toLocaleDateString('vi-VN') : 'Chưa có'}</td><td>${main.notes || ''}</td><td><span class="status ${main.status}">${statusMap[main.status]}</span></td></tr>`;
+                    });
+                } else { maintenanceBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Không có lịch sử bảo trì.</td></tr>'; }
+            } catch (error) {
+                handleApiError(error, "Tải hồ sơ thiết bị");
+                profileView.innerHTML = '<p style="text-align:center; padding: 40px; color: var(--danger-color);">Đã xảy ra lỗi khi tải dữ liệu.</p>';
+            }
+        }
+        
+        async function renderUsersView() {
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/users`);
+                if (!response.ok) throw new Error("Không thể tải danh sách người dùng");
+                const users = await response.json();
+                
+                dom.usersTableBody.innerHTML = '';
+                if (users.length === 0) {
+                    dom.usersTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 30px;">Không có người dùng nào.</td></tr>`;
+                    return;
+                }
+                users.forEach(user => {
+                    const row = document.createElement('tr');
+                    const deptName = departments[user.departmentKey] || 'Chưa gán';
+                    row.innerHTML = `
+                        <td>${user.username}</td>
+                        <td>${deptName}</td>
+                        <td>${new Date(user.createdAt).toLocaleDateString('vi-VN')}</td>
+                        <td class="action-btn-group">
+                            <button class="edit-btn user-edit-btn" data-id="${user._id}"><i class="fas fa-edit"></i></button>
+                            <button class="delete-btn user-delete-btn" data-id="${user._id}" data-username="${user.username}"><i class="fas fa-trash"></i></button>
+                        </td>
+                    `;
+                    dom.usersTableBody.appendChild(row);
+                });
+            } catch (error) {
+                handleApiError(error, "Tải danh sách người dùng");
+            }
+        }
+
+        function openUserModal(mode = 'add', userData = null) {
+            dom.userForm.reset();
+            document.getElementById('edit-userId').value = '';
+            const userPassInput = document.getElementById('userPassword');
+            const userUsernameInput = document.getElementById('userUsername');
+            
+            const deptSelect = document.getElementById('userDepartment');
+            deptSelect.innerHTML = '<option value="">-- Chọn khoa --</option>';
+            for (const key in departments) {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = departments[key];
+                deptSelect.appendChild(option);
+            }
+            
+            if (mode === 'edit' && userData) {
+                document.getElementById('userModalTitle').textContent = 'Chỉnh sửa Người dùng';
+                document.getElementById('edit-userId').value = userData._id;
+                userUsernameInput.value = userData.username;
+                userUsernameInput.readOnly = true;
+                deptSelect.value = userData.departmentKey;
+                userPassInput.required = false;
+            } else {
+                document.getElementById('userModalTitle').textContent = 'Thêm Người dùng mới';
+                userUsernameInput.readOnly = false;
+                userPassInput.required = true;
+            }
+            dom.userModal.style.display = 'flex';
+        }
+
+        function closeUserModal() { dom.userModal.style.display = 'none'; }
         
         async function renderIncidentView() {
             try {
@@ -830,17 +893,21 @@
         }
         
         async function populateIncidentFormEquipmentSelect() {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${userProfile.departmentKey}?limit=1000`);
-            const data = await response.json();
-            const equipmentList = data.equipments;
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${userProfile.departmentKey}?limit=1000`);
+                const data = await response.json();
+                const equipmentList = data.equipments;
 
-            dom.incidentEquipmentSelect.innerHTML = '<option value="">-- Chọn thiết bị --</option>';
-            equipmentList.forEach(eq => {
-                const option = document.createElement('option');
-                option.value = eq.serial;
-                option.textContent = `${eq.name} (Serial: ${eq.serial})`;
-                dom.incidentEquipmentSelect.appendChild(option);
-            });
+                dom.incidentEquipmentSelect.innerHTML = '<option value="">-- Chọn thiết bị --</option>';
+                equipmentList.forEach(eq => {
+                    const option = document.createElement('option');
+                    option.value = eq.serial;
+                    option.textContent = `${eq.name} (Serial: ${eq.serial})`;
+                    dom.incidentEquipmentSelect.appendChild(option);
+                });
+            } catch (error) {
+                handleApiError(error, "Tải danh sách thiết bị cho form sự cố");
+            }
         }
 
         function renderIncidentTableAdmin(incidents) {
@@ -878,48 +945,6 @@
                 tableBody.appendChild(row);
             });
         }
-
-        dom.incidentForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const payload = { equipmentSerial: dom.incidentEquipmentSelect.value, problemDescription: document.getElementById('problem-description').value };
-            if(!payload.equipmentSerial || !payload.problemDescription) { 
-                Swal.fire('Lỗi', 'Vui lòng điền đầy đủ thông tin.', 'warning');
-                return; 
-            }
-            try {
-                await fetchWithAuth(`${API_BASE_URL}/api/incidents`, { method: 'POST', body: JSON.stringify(payload) });
-                Swal.fire('Thành công', 'Gửi báo cáo sự cố thành công!', 'success');
-                dom.incidentForm.reset();
-                renderIncidentView();
-                if(userProfile.role === 'admin') { fetchNotifications(); }
-            } catch (error) { handleApiError(error, "Gửi báo cáo"); }
-        });
-        
-        dom.incidentTableBodyAdmin.addEventListener('click', async (e) => {
-            if (e.target.classList.contains('resolve-btn')) {
-                const incidentId = e.target.dataset.id;
-                const newStatus = e.target.dataset.newStatus;
-                
-                const { value: text } = await Swal.fire({
-                    input: 'textarea',
-                    inputLabel: 'Ghi chú',
-                    inputPlaceholder: (newStatus === 'in_progress') 
-                        ? 'Ví dụ: Đã cử kỹ sư A, dự kiến xem lúc 14h...'
-                        : 'Ví dụ: Đã thay thế linh kiện X, máy hoạt động bình thường...',
-                    inputAttributes: { 'aria-label': 'Type your message here' },
-                    showCancelButton: true,
-                    cancelButtonText: 'Hủy bỏ'
-                });
-
-                if (text) {
-                    try {
-                        await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'PUT', body: JSON.stringify({ status: newStatus, notes: text }) });
-                        renderIncidentView();
-                        fetchNotifications();
-                    } catch(error) { handleApiError(error, "Cập nhật sự cố"); }
-                }
-            }
-        });
         
         async function renderMaintenanceView() {
             try {
@@ -958,8 +983,8 @@
                 let actionButtons = '';
                 if (userProfile.role === 'admin') {
                     actionButtons = `
-                        <button class="edit-btn" data-id="${item._id}"><i class="fas fa-edit"></i></button>
-                        <button class="delete-btn" data-id="${item._id}"><i class="fas fa-trash"></i></button>
+                        <button class="edit-btn maintenance-edit-btn" data-id="${item._id}"><i class="fas fa-edit"></i></button>
+                        <button class="delete-btn maintenance-delete-btn" data-id="${item._id}"><i class="fas fa-trash"></i></button>
                     `;
                 }
 
@@ -975,64 +1000,6 @@
                 tableBody.appendChild(row);
             });
         }
-        
-        async function fetchNotifications() {
-            try {
-                const [countResponse, listResponse] = await Promise.all([
-                    fetchWithAuth(`${API_BASE_URL}/api/incidents/unread/count`),
-                    fetchWithAuth(`${API_BASE_URL}/api/incidents/unread`)
-                ]);
-                
-                const countData = await response.json();
-                const listData = await listResponse.json();
-
-                if (countData.count > 0) {
-                    dom.notificationBadge.textContent = countData.count;
-                    dom.notificationBadge.style.display = 'block';
-                } else {
-                    dom.notificationBadge.style.display = 'none';
-                }
-
-                renderNotificationDropdown(listData);
-            } catch (error) {
-                console.error("Lỗi khi lấy thông báo:", error);
-            }
-        }
-
-        function renderNotificationDropdown(notifications) {
-            dom.notificationList.innerHTML = '';
-            if (notifications.length === 0) {
-                dom.notificationList.innerHTML = '<div class="notification-item" style="text-align: center; color: #888;">Không có thông báo mới</div>';
-                return;
-            }
-            notifications.forEach(item => {
-                const deptName = departments[item.departmentKey] || 'Không rõ';
-                const itemDiv = document.createElement('a');
-                itemDiv.href = "#";
-                itemDiv.className = 'notification-item';
-                itemDiv.innerHTML = `
-                    <p><strong>${deptName}</strong> đã báo hỏng thiết bị <strong>${item.equipmentName}</strong></p>
-                    <span>${new Date(item.createdAt).toLocaleString('vi-VN')}</span>
-                `;
-                itemDiv.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    switchView('incidents');
-                    dom.notificationDropdown.classList.remove('show');
-                });
-                dom.notificationList.appendChild(itemDiv);
-            });
-        }
-        
-        dom.notificationBellContainer.addEventListener('click', (e) => {
-            e.stopPropagation();
-            dom.notificationDropdown.classList.toggle('show');
-        });
-
-        window.addEventListener('click', (e) => {
-            if (!dom.notificationBellContainer.contains(e.target)) {
-                dom.notificationDropdown.classList.remove('show');
-            }
-        });
 
         async function openMaintenanceModal(mode = 'add', data = null) {
             dom.maintenanceForm.reset();
@@ -1074,114 +1041,9 @@
             dom.maintenanceModal.style.display = 'flex';
         }
 
-        function closeMaintenanceModal() {
-            dom.maintenanceModal.style.display = 'none';
-        }
-
-        dom.addMaintenanceBtn.addEventListener('click', () => openMaintenanceModal('add'));
-        dom.closeMaintenanceModalBtn.addEventListener('click', closeMaintenanceModal);
-        dom.cancelMaintenanceBtn.addEventListener('click', closeMaintenanceModal);
-        window.addEventListener('click', (e) => {
-            if (e.target === dom.maintenanceModal) closeMaintenanceModal();
-        });
-
-        dom.maintenanceForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const editId = document.getElementById('maintenance-edit-id').value;
-            const isEditing = !!editId;
-
-            const payload = {
-                equipmentSerial: document.getElementById('maintenanceEquipmentSelect').value,
-                scheduleDate: document.getElementById('scheduleDate').value,
-                type: document.getElementById('maintenanceType').value,
-                notes: document.getElementById('maintenanceNotes').value,
-            };
-
-            if (!payload.equipmentSerial || !payload.scheduleDate) {
-                Swal.fire('Lỗi', 'Vui lòng chọn thiết bị và ngày lên lịch.', 'warning');
-                return;
-            }
-            
-            const url = isEditing ? `${API_BASE_URL}/api/maintenance/${editId}` : `${API_BASE_URL}/api/maintenance`;
-            const method = isEditing ? 'PUT' : 'POST';
-
-            try {
-                const response = await fetchWithAuth(url, { method: method, body: JSON.stringify(payload) });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Thao tác thất bại.');
-                }
-                Swal.fire({
-                    position: 'top-end',
-                    icon: 'success',
-                    title: isEditing ? 'Cập nhật thành công!' : 'Lên lịch bảo trì thành công!',
-                    showConfirmButton: false,
-                    timer: 1500
-                });
-                closeMaintenanceModal();
-                renderMaintenanceView(); 
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
-            } catch (error) {
-                handleApiError(error, isEditing ? 'Cập nhật bảo trì' : 'Lên lịch bảo trì');
-            }
-        });
+        function closeMaintenanceModal() { dom.maintenanceModal.style.display = 'none'; }
         
-        dom.maintenanceTableBody.addEventListener('click', async (e) => {
-            const target = e.target.closest('button');
-            if (!target) return;
-            const maintenanceId = target.dataset.id;
-            if (!maintenanceId) return;
-
-            if (target.classList.contains('delete-btn')) {
-                Swal.fire({
-                    title: 'Bạn chắc chắn không?',
-                    text: "Bạn sẽ không thể hoàn tác hành động này!",
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    cancelButtonColor: '#3085d6',
-                    confirmButtonText: 'Vâng, xóa nó!',
-                    cancelButtonText: 'Hủy bỏ'
-                }).then(async (result) => {
-                    if (result.isConfirmed) {
-                        try {
-                            const response = await fetchWithAuth(`${API_BASE_URL}/api/maintenance/${maintenanceId}`, { method: 'DELETE' });
-                            if (!response.ok) throw new Error('Xóa lịch bảo trì thất bại');
-                            Swal.fire('Đã xóa!', 'Lịch bảo trì đã được xóa.', 'success');
-                            renderMaintenanceView();
-                        } catch (error) {
-                            handleApiError(error, 'Xóa lịch bảo trì');
-                        }
-                    }
-                });
-            }
-
-            if (target.classList.contains('edit-btn')) {
-                try {
-                    const response = await fetchWithAuth(`${API_BASE_URL}/api/maintenance/${maintenanceId}`);
-                    if (!response.ok) throw new Error('Không thể lấy thông tin chi tiết.');
-                    const data = await response.json();
-                    openMaintenanceModal('edit', data);
-                } catch(error) {
-                    handleApiError(error, 'Lấy thông tin bảo trì');
-                }
-            }
-        });
-        
-        // ... (các hàm khác) ...
-        async function checkAuth() {
-            const token = getToken();
-            if (!token) { showLoginView(); return; }
-            userProfile = getUserProfile();
-            if(!userProfile || !userProfile.role) { logout(); return; }
-            try {
-                await loadInitialData();
-                showMainAppView();
-                switchView('dashboard'); 
-            } catch (error) { logout(); }
-        }
-
+        // --- TẤT CẢ EVENT LISTENERS ---
         dom.loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             dom.loginError.textContent = '';
@@ -1202,40 +1064,185 @@
                 dom.loginError.textContent = error.message;
             }
         });
-        
         dom.logoutBtn.addEventListener('click', logout);
-
-        // ========================================================
-        // TẤT CẢ CÁC HÀM LOGIC CHÍNH NẰM Ở ĐÂY
-        // ========================================================
-
-        // ... các hàm renderDashboardView, renderProfileView, ...
+        dom.sidebarNavLinks.forEach(link => { link.addEventListener('click', handleNavLinkClick); });
         
-        // LOGIC NHẬP FILE EXCEL
-        const importBtn = document.getElementById('importExcelBtn');
-        const fileInput = document.getElementById('excelFileInput');
-
-        importBtn.addEventListener('click', () => {
-            fileInput.click();
+        // Listeners cho các modals
+        dom.addEquipmentBtn.addEventListener('click', () => openModal('add'));
+        dom.closeModalBtn.addEventListener('click', closeModal);
+        dom.cancelBtn.addEventListener('click', closeModal);
+        window.addEventListener('click', (e) => { if (e.target === dom.addEquipmentModal) closeModal(); });
+        document.getElementById('imageUpload').addEventListener('click', () => document.getElementById('imageInput').click());
+        document.getElementById('imageInput').addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => { document.getElementById('imagePreview').src = e.target.result; document.getElementById('imagePreview').style.display = 'block'; };
+                reader.readAsDataURL(this.files[0]);
+            }
         });
 
-        fileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+        dom.addUserBtn.addEventListener('click', () => openUserModal('add'));
+        dom.closeUserModalBtn.addEventListener('click', closeUserModal);
+        dom.cancelUserBtn.addEventListener('click', closeUserModal);
+        window.addEventListener('click', (e) => { if (e.target === dom.userModal) closeUserModal(); });
+        
+        dom.addMaintenanceBtn.addEventListener('click', () => openMaintenanceModal('add'));
+        dom.closeMaintenanceModalBtn.addEventListener('click', closeMaintenanceModal);
+        dom.cancelMaintenanceBtn.addEventListener('click', closeMaintenanceModal);
+        window.addEventListener('click', (e) => { if (e.target === dom.maintenanceModal) closeMaintenanceModal(); });
 
-            const selectedDeptKey = dom.departmentSelect.value;
-            if (!selectedDeptKey) {
-                Swal.fire('Lỗi', 'Vui lòng chọn một khoa trước khi nhập dữ liệu!', 'warning');
+        // Listeners cho các form submit
+        dom.equipmentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const editSerial = document.getElementById('edit-serial').value;
+            const isEditing = !!editSerial;
+            const serialNumber = document.getElementById('serialNumber').value.trim();
+            if (!serialNumber) { Swal.fire('Lỗi', 'Số serial là bắt buộc.', 'error'); return; }
+            const payload = {
+                name: document.getElementById('equipmentName').value, serial: serialNumber, manufacturer: document.getElementById('manufacturer').value,
+                accessories: document.getElementById('accessories').value, year: document.getElementById('purchaseDate').value,
+                status: document.getElementById('status').value, description: document.getElementById('description').value,
+                image: document.getElementById('imagePreview').src.startsWith('data:image') ? document.getElementById('imagePreview').src : null
+            };
+            let url, method, targetDeptKey;
+            if (isEditing) {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${editSerial}`);
+                if (!response.ok) { handleApiError({ message: 'Không tìm thấy thiết bị gốc để cập nhật.'}, 'Cập nhật'); return; }
+                const originalItem = await response.json();
+                targetDeptKey = originalItem.department;
+                url = `${API_BASE_URL}/api/equipment/${targetDeptKey}/${editSerial}`;
+                method = 'PUT';
+            } else {
+                targetDeptKey = dom.departmentSelect.value;
+                if (!targetDeptKey) { Swal.fire('Lỗi', 'Vui lòng chọn một khoa trước khi thêm.', 'warning'); return; }
+                payload.department = targetDeptKey;
+                url = `${API_BASE_URL}/api/equipment/${targetDeptKey}`;
+                method = 'POST';
+            }
+            try {
+                const response = await fetchWithAuth(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message || 'Thao tác thất bại.'); }
+                Swal.fire({ position: 'top-end', icon: 'success', title: 'Thao tác thành công!', showConfirmButton: false, timer: 1500 });
+                closeModal();
+                await fetchAndDisplayEquipment(targetDeptKey, 1);
+            } catch (error) {
+                handleApiError(error, isEditing ? 'Cập nhật' : 'Thêm mới');
+            }
+        });
+
+        dom.userForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('edit-userId').value;
+            const isEditing = !!userId;
+            const payload = {
+                username: document.getElementById('userUsername').value,
+                password: document.getElementById('userPassword').value,
+                departmentKey: document.getElementById('userDepartment').value
+            };
+            if (isEditing && !payload.password) { delete payload.password; }
+            const url = isEditing ? `${API_BASE_URL}/api/users/${userId}` : `${API_BASE_URL}/api/users`;
+            const method = isEditing ? 'PUT' : 'POST';
+            try {
+                const response = await fetchWithAuth(url, { method: method, body: JSON.stringify(payload) });
+                if (!response.ok) { const errData = await response.json(); throw new Error(errData.message); }
+                Swal.fire('Thành công', `Thao tác với người dùng ${payload.username} thành công!`, 'success');
+                closeUserModal();
+                renderUsersView();
+            } catch (error) {
+                handleApiError(error, "Lưu người dùng");
+            }
+        });
+        
+        dom.maintenanceForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const editId = document.getElementById('maintenance-edit-id').value;
+            const isEditing = !!editId;
+            const payload = {
+                equipmentSerial: document.getElementById('maintenanceEquipmentSelect').value,
+                scheduleDate: document.getElementById('scheduleDate').value,
+                type: document.getElementById('maintenanceType').value,
+                notes: document.getElementById('maintenanceNotes').value,
+            };
+            if (!payload.equipmentSerial || !payload.scheduleDate) { Swal.fire('Lỗi', 'Vui lòng chọn thiết bị và ngày lên lịch.', 'warning'); return; }
+            const url = isEditing ? `${API_BASE_URL}/api/maintenance/${editId}` : `${API_BASE_URL}/api/maintenance`;
+            const method = isEditing ? 'PUT' : 'POST';
+            try {
+                const response = await fetchWithAuth(url, { method: method, body: JSON.stringify(payload) });
+                if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message || 'Thao tác thất bại.'); }
+                Swal.fire({ position: 'top-end', icon: 'success', title: isEditing ? 'Cập nhật thành công!' : 'Lên lịch bảo trì thành công!', showConfirmButton: false, timer: 1500 });
+                closeMaintenanceModal();
+                renderMaintenanceView(); 
+                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+            } catch (error) {
+                handleApiError(error, isEditing ? 'Cập nhật bảo trì' : 'Lên lịch bảo trì');
+            }
+        });
+
+        dom.incidentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = { equipmentSerial: dom.incidentEquipmentSelect.value, problemDescription: document.getElementById('problem-description').value };
+            if(!payload.equipmentSerial || !payload.problemDescription) { Swal.fire('Lỗi', 'Vui lòng điền đầy đủ thông tin.', 'warning'); return; }
+            try {
+                await fetchWithAuth(`${API_BASE_URL}/api/incidents`, { method: 'POST', body: JSON.stringify(payload) });
+                Swal.fire('Thành công', 'Gửi báo cáo sự cố thành công!', 'success');
+                dom.incidentForm.reset();
+                renderIncidentView();
+                if(userProfile.role === 'admin') { fetchNotifications(); }
+            } catch (error) { handleApiError(error, "Gửi báo cáo"); }
+        });
+        
+        // Listeners cho các hành động trong bảng
+        dom.equipmentTableBody.addEventListener('click', async (e) => { /* ... code from previous turn ... */ });
+        dom.usersTableBody.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.user-delete-btn');
+            if (deleteBtn) {
+                const userId = deleteBtn.dataset.id;
+                const username = deleteBtn.dataset.username;
+                Swal.fire({
+                    title: `Bạn có chắc muốn xóa người dùng "${username}"?`,
+                    text: "Hành động này không thể hoàn tác!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    cancelButtonText: 'Hủy'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            await fetchWithAuth(`${API_BASE_URL}/api/users/${userId}`, { method: 'DELETE' });
+                            Swal.fire('Đã xóa!', 'Người dùng đã được xóa.', 'success');
+                            renderUsersView();
+                        } catch (error) {
+                            handleApiError(error, "Xóa người dùng");
+                        }
+                    }
+                });
                 return;
             }
 
-            Swal.fire({
-                title: 'Đang xử lý file...',
-                text: 'Vui lòng chờ trong giây lát.',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
-
+            const editBtn = e.target.closest('.user-edit-btn');
+            if (editBtn) {
+                const userId = editBtn.dataset.id;
+                const row = editBtn.closest('tr');
+                const username = row.cells[0].textContent;
+                const deptName = row.cells[1].textContent;
+                const deptKey = Object.keys(departments).find(key => departments[key] === deptName);
+                openUserModal('edit', { _id: userId, username: username, departmentKey: deptKey });
+            }
+        });
+        dom.maintenanceTableBody.addEventListener('click', async (e) => { /* ... code from previous turn ... */ });
+        dom.incidentTableBodyAdmin.addEventListener('click', async (e) => { /* ... code from previous turn ... */ });
+        
+        // Listener cho các nút chức năng khác
+        document.getElementById('print-report-btn').addEventListener('click', () => { /* ... code from previous turn ... */ });
+        const importBtn = document.getElementById('importExcelBtn');
+        const fileInput = document.getElementById('excelFileInput');
+        importBtn.addEventListener('click', () => { fileInput.click(); });
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const selectedDeptKey = dom.departmentSelect.value;
+            if (!selectedDeptKey) { Swal.fire('Lỗi', 'Vui lòng chọn một khoa trước khi nhập dữ liệu!', 'warning'); return; }
+            Swal.fire({ title: 'Đang xử lý file...', text: 'Vui lòng chờ trong giây lát.', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
             const reader = new FileReader();
             reader.onload = async (e) => {
                 try {
@@ -1244,9 +1251,7 @@
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
                     const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
                     if (jsonData.length === 0) throw new Error("File Excel rỗng hoặc không có dữ liệu.");
-
                     const mappedData = jsonData.map(row => ({
                         name: row['Tên Thiết Bị'],
                         serial: row['Số Serial'],
@@ -1255,24 +1260,15 @@
                         accessories: row['Phụ Kiện'],
                         description: row['Mô Tả']
                     }));
-
                     const validData = mappedData.filter(item => item.name && item.serial);
                     const invalidCount = mappedData.length - validData.length;
-
                     if (validData.length === 0) throw new Error("Không có dòng dữ liệu hợp lệ nào (thiếu Tên hoặc Serial).");
-                    
-                    const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/batch-import/${selectedDeptKey}`, {
-                        method: 'POST',
-                        body: JSON.stringify(validData)
-                    });
-
+                    const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/batch-import/${selectedDeptKey}`, { method: 'POST', body: JSON.stringify(validData) });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message || "Lỗi không xác định từ server.");
-
                     let resultText = `${result.message}`;
                     if (invalidCount > 0) resultText += ` Ngoài ra, có ${invalidCount} dòng bị bỏ qua do thiếu Tên hoặc Serial.`;
                     if (result.errors && result.errors.length > 0) resultText += '<br><br><strong>Chi tiết lỗi:</strong><br>' + result.errors.join('<br>');
-
                     Swal.fire({ title: 'Hoàn tất!', html: resultText, icon: 'success' });
                     fetchAndDisplayEquipment(selectedDeptKey, 1);
                 } catch (error) {
@@ -1283,6 +1279,28 @@
             };
             reader.readAsArrayBuffer(file);
         });
+        dom.notificationBellContainer.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dom.notificationDropdown.classList.toggle('show');
+        });
+        window.addEventListener('click', (e) => {
+            if (!dom.notificationBellContainer.contains(e.target)) {
+                dom.notificationDropdown.classList.remove('show');
+            }
+        });
+
+        // --- HÀM KHỞI ĐỘNG ---
+        async function checkAuth() {
+            const token = getToken();
+            if (!token) { showLoginView(); return; }
+            userProfile = getUserProfile();
+            if(!userProfile || !userProfile.role) { logout(); return; }
+            try {
+                await loadInitialData();
+                showMainAppView();
+                switchView('dashboard'); 
+            } catch (error) { logout(); }
+        }
 
         checkAuth();
     });
