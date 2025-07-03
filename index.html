@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <style>
         :root { --primary-color: #007bff; --secondary-color: #5a9ced; --light-color: #f8f9fa; --dark-color: #343a40; --success-color: #28a745; --warning-color: #ffc107; --danger-color: #dc3545; --info-color: #17a2b8; --font-family: 'Roboto', sans-serif; }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: var(--font-family); }
@@ -1408,79 +1409,98 @@
         // LOGIC CHO TRANG HỒ SƠ THIẾT BỊ
         // ========================================================
         async function renderProfileView(serial) {
-            if (!serial) { switchView('equipment'); return; }
-            const profileView = dom.profileView;
-            profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${serial}`);
-                if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
-                const data = await response.json();
+    if (!serial) {
+        switchView('equipment');
+        return;
+    }
 
-                profileView.innerHTML = `
-                    <div class="main-header">
-                        <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
-                        <div class="header-actions">
-                            <button id="back-to-list-btn" class="action-button" style="background-color: var(--dark-color);"><i class="fas fa-arrow-left"></i> Quay lại</button>
+    const profileView = dom.profileView;
+    profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${decodeURIComponent(serial)}`);
+        if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
+        const data = await response.json();
+
+        // Cập nhật lại cấu trúc HTML để có thêm khu vực QR Code
+        profileView.innerHTML = `
+            <div class="main-header">
+                <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
+                <div class="header-actions">
+                    <button id="print-qr-btn" class="action-button" style="background-color: var(--dark-color);"><i class="fas fa-print"></i> In Mã QR</button>
+                    <button id="back-to-list-btn" class="action-button"><i class="fas fa-arrow-left"></i> Quay lại</button>
+                </div>
+            </div>
+            <div id="profile-content" style="display: grid; grid-template-columns: 300px 1fr; gap: 30px;">
+                <div id="profile-info-card">
+                    <div id="qrcode-container" style="width: 250px; margin: 0 auto 25px; padding: 15px; border: 1px solid #ddd; background: white;">
+                        </div>
+                    <h3 id="profile-name" style="color: var(--primary-color); margin-bottom: 10px;">${data.details.name}</h3>
+                    <p id="profile-serial" style="font-weight: 500; color: #555; margin-bottom: 20px;">Serial: ${data.details.serial}</p>
+                </div>
+                <div id="profile-history">
+                    <div>
+                        <h3 style="margin-bottom: 15px;">Lịch sử Sự cố (${data.incidents.length})</h3>
+                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                            <table class="generic-table">
+                                <thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead>
+                                <tbody id="profile-incidents-tbody"></tbody>
+                            </table>
                         </div>
                     </div>
-                    <div id="profile-content" style="display: grid; grid-template-columns: 300px 1fr; gap: 30px;">
-                        <div id="profile-info-card">
-                            <img src="${data.details.image || 'https://via.placeholder.com/300x300?text=Image'}" style="width: 100%; border-radius: 8px; margin-bottom: 20px; border: 1px solid #eee;">
-                            <h3 style="color: var(--primary-color); margin-bottom: 10px;">${data.details.name}</h3>
-                            <p style="font-weight: 500; color: #555; margin-bottom: 20px;">Serial: ${data.details.serial}</p>
-                            <div style="font-size: 14px; line-height: 2;">
-                                <p><strong>Hãng sản xuất:</strong> ${data.details.manufacturer}</p>
-                                <p><strong>Năm sử dụng:</strong> ${data.details.year}</p>
-                                <p><strong>Khoa:</strong> ${departments[data.details.department]}</p>
-                                <p><strong>Tình trạng:</strong> <span class="status ${data.details.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[data.details.status]}</span></p>
-                                <p><strong>Phụ kiện:</strong> ${data.details.accessories || 'Không có'}</p>
-                                <p><strong>Mô tả:</strong> ${data.details.description || 'Không có'}</p>
-                            </div>
+                    <div style="margin-top: 30px;">
+                        <h3 style="margin-bottom: 15px;">Lịch sử Bảo trì (${data.maintenanceHistory.length})</h3>
+                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                            <table class="generic-table">
+                                <thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Ghi chú</th><th>Trạng thái</th></tr></thead>
+                                <tbody id="profile-maintenance-tbody"></tbody>
+                            </table>
                         </div>
-                        <div id="profile-history">
-                            <div>
-                                <h3 style="margin-bottom: 15px;">Lịch sử Sự cố (${data.incidents.length})</h3>
-                                <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
-                                    <table class="generic-table">
-                                        <thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead>
-                                        <tbody id="profile-incidents-tbody"></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div style="margin-top: 30px;">
-                                <h3 style="margin-bottom: 15px;">Lịch sử Bảo trì (${data.maintenanceHistory.length})</h3>
-                                <div style="max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
-                                    <table class="generic-table">
-                                        <thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Ghi chú</th><th>Trạng thái</th></tr></thead>
-                                        <tbody id="profile-maintenance-tbody"></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-                
-                document.getElementById('back-to-list-btn').addEventListener('click', () => switchView('equipment'));
+                    </div>
+                </div>
+            </div>`;
+        
+        // --- LOGIC MỚI ĐỂ TẠO QR CODE ---
+        const qrCodeContainer = document.getElementById('qrcode-container');
+        qrCodeContainer.innerHTML = ''; // Xóa QR code cũ nếu có
+        new QRCode(qrCodeContainer, {
+            text: `https://resilient-dieffenbachia-5881b7.netlify.app/report.html?serial=${encodeURIComponent(data.details.serial)}`,
+            width: 220,
+            height: 220,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+        
+        // Gắn sự kiện cho các nút
+        document.getElementById('back-to-list-btn').addEventListener('click', () => switchView('equipment'));
+        document.getElementById('print-qr-btn').addEventListener('click', () => {
+            const qrImageSrc = qrCodeContainer.querySelector('img').src;
+            printQRCode(qrImageSrc, data.details.name, data.details.serial);
+        });
 
-                const incidentBody = document.getElementById('profile-incidents-tbody');
-                if (data.incidents.length > 0) {
-                    data.incidents.forEach(inc => {
-                        const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
-                        incidentBody.innerHTML += `<tr><td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td></tr>`;
-                    });
-                } else { incidentBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Không có lịch sử sự cố.</td></tr>'; }
+        // Đổ dữ liệu vào các bảng lịch sử (giữ nguyên như cũ)
+        const incidentBody = document.getElementById('profile-incidents-tbody');
+        if (data.incidents.length > 0) {
+            data.incidents.forEach(inc => {
+                const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
+                incidentBody.innerHTML += `<tr><td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td></tr>`;
+            });
+        } else { incidentBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Không có lịch sử sự cố.</td></tr>'; }
 
-                const maintenanceBody = document.getElementById('profile-maintenance-tbody');
-                if (data.maintenanceHistory.length > 0) {
-                     const statusMap = { scheduled: 'Đã lên lịch', in_progress: 'Đang tiến hành', completed: 'Hoàn thành', canceled: 'Đã hủy' };
-                     data.maintenanceHistory.forEach(main => {
-                        maintenanceBody.innerHTML += `<tr><td>${new Date(main.scheduleDate).toLocaleDateString('vi-VN')}</td><td>${main.completionDate ? new Date(main.completionDate).toLocaleDateString('vi-VN') : 'Chưa có'}</td><td>${main.notes || ''}</td><td><span class="status ${main.status}">${statusMap[main.status]}</span></td></tr>`;
-                    });
-                } else { maintenanceBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Không có lịch sử bảo trì.</td></tr>'; }
-            } catch (error) {
-                handleApiError(error, "Tải hồ sơ thiết bị");
-                profileView.innerHTML = '<p style="text-align:center; padding: 40px; color: var(--danger-color);">Đã xảy ra lỗi khi tải dữ liệu.</p>';
-            }
-        }
+        const maintenanceBody = document.getElementById('profile-maintenance-tbody');
+        if (data.maintenanceHistory.length > 0) {
+             const statusMap = { scheduled: 'Đã lên lịch', in_progress: 'Đang tiến hành', completed: 'Hoàn thành', canceled: 'Đã hủy' };
+             data.maintenanceHistory.forEach(main => {
+                maintenanceBody.innerHTML += `<tr><td>${new Date(main.scheduleDate).toLocaleDateString('vi-VN')}</td><td>${main.completionDate ? new Date(main.completionDate).toLocaleDateString('vi-VN') : 'Chưa có'}</td><td>${main.notes || ''}</td><td><span class="status ${main.status}">${statusMap[main.status]}</span></td></tr>`;
+            });
+        } else { maintenanceBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Không có lịch sử bảo trì.</td></tr>'; }
+
+    } catch (error) {
+        handleApiError(error, "Tải hồ sơ thiết bị");
+        profileView.innerHTML = '<p style="text-align:center; padding: 40px; color: var(--danger-color);">Đã xảy ra lỗi khi tải dữ liệu.</p>';
+    }
+}
 
         // ========================================================
         // LOGIC CHO QUẢN LÝ NGƯỜI DÙNG
@@ -1759,7 +1779,39 @@ fileInput.addEventListener('change', (event) => {
     };
     reader.readAsArrayBuffer(file);
 });
-        
+        function printQRCode(qrImageSrc, equipmentName, serial) {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>In Mã QR</title>
+                <style>
+                    body { font-family: 'Roboto', sans-serif; text-align: center; margin-top: 50px; }
+                    .print-container { display: inline-block; border: 2px solid #333; padding: 20px; }
+                    img { display: block; margin-bottom: 15px; }
+                    h3 { margin: 10px 0 5px 0; font-size: 18px; }
+                    p { margin: 0; font-size: 14px; }
+                </style>
+            </head>
+            <body>
+                <div class="print-container">
+                    <img src="${qrImageSrc}" alt="QR Code">
+                    <h3>${equipmentName}</h3>
+                    <p>Serial: ${serial}</p>
+                </div>
+                <script>
+                    window.onload = function() {
+                        window.print();
+                        window.onafterprint = function() {
+                            window.close();
+                        }
+                    }
+                <\/script>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
+}
         checkAuth();
     });
 </script>
