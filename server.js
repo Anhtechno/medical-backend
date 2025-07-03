@@ -1,5 +1,5 @@
 // =================================================================
-// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (CÓ TÍNH NĂNG IMPORT EXCEL)
+// FILE: server.js - PHIÊN BẢN HOÀN CHỈNH (CÓ TÍNH NĂNG IMPORT EXCEL & SỬA LỖI EDIT)
 // =================================================================
 
 // 1. KHAI BÁO THƯ VIỆN
@@ -194,10 +194,23 @@ app.post('/api/equipment/:deptKey', authenticateToken, isAdmin, async (req, res)
 app.delete('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (req, res) => {
     try {
         const { serial } = req.params;
-        const deletedEquipment = await Equipment.findOneAndDelete({ serial: serial });
-        if (!deletedEquipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+        const equipmentToDelete = await Equipment.findOne({ serial: serial });
+        if (!equipmentToDelete) {
+            return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+        }
+        const incidentCount = await Incident.countDocuments({ equipmentId: equipmentToDelete._id });
+        const maintenanceCount = await Maintenance.countDocuments({ equipmentId: equipmentToDelete._id });
+        if (incidentCount > 0 || maintenanceCount > 0) {
+            return res.status(400).json({ 
+                message: "Không thể xóa thiết bị này vì đã có lịch sử sự cố hoặc bảo trì liên quan. Hãy xem xét chuyển trạng thái sang 'Ngừng hoạt động' thay vì xóa." 
+            });
+        }
+        await Equipment.findByIdAndDelete(equipmentToDelete._id);
         res.json({ message: "Xóa thành công." });
-    } catch (error) { res.status(500).json({ message: 'Lỗi server khi xóa', error: error.message }); }
+    } catch (error) {
+        console.error("Lỗi khi xóa thiết bị:", error);
+        res.status(500).json({ message: 'Lỗi server khi xóa', error: error.message });
+    }
 });
 
 app.get('/api/search', authenticateToken, async (req, res) => {
@@ -225,10 +238,29 @@ app.put('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (re
     try {
         const { serial } = req.params;
         const updatedData = req.body;
-        const updatedEquipment = await Equipment.findOneAndUpdate({ serial: serial }, updatedData, { new: true });
-        if (!updatedEquipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+
+        const originalEquipment = await Equipment.findOne({ serial: serial });
+        if (!originalEquipment) {
+            return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+        }
+
+        const updatedEquipment = await Equipment.findByIdAndUpdate(originalEquipment._id, updatedData, { new: true });
+
+        if (updatedData.name && updatedData.name !== originalEquipment.name) {
+            await Promise.all([
+                Incident.updateMany({ equipmentId: originalEquipment._id }, { equipmentName: updatedData.name }),
+                Maintenance.updateMany({ equipmentId: originalEquipment._id }, { equipmentName: updatedData.name })
+            ]);
+        }
+        
         res.json(updatedEquipment);
-    } catch (error) { res.status(500).json({ message: 'Lỗi server khi cập nhật', error: error.message }); }
+    } catch (error) {
+        console.error("Lỗi khi cập nhật thiết bị:", error);
+        if (error.code === 11000) {
+            return res.status(400).json({ message: `Số serial "${updatedData.serial}" đã tồn tại.` });
+        }
+        res.status(500).json({ message: 'Lỗi server khi cập nhật', error: error.message });
+    }
 });
 
 // 9. API CHO BÁO CÁO SỰ CỐ
