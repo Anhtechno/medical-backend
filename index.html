@@ -657,7 +657,7 @@
                 }
                 const originalItem = await response.json();
                 targetDeptKey = originalItem.department;
-                url = `${API_BASE_URL}/api/equipment/${targetDeptKey}/${editSerial}`;
+                url = `${API_BASE_URL}/api/equipment/${targetDeptKey}/${encodeURIComponent(editSerial)}`;
                 method = 'PUT';
             } else {
                 targetDeptKey = dom.departmentSelect.value;
@@ -686,11 +686,11 @@
             const serial = target.dataset.serial;
             
             if (target.classList.contains('view-btn')) {
-                switchView('profile', serial);
+                switchView('profile', encodeURIComponent(serial));
             } 
             else if (target.classList.contains('edit-btn')) {
                 try {
-                    const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${serial}`);
+                    const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${encodeURIComponent(serial)}`);
                     if (!response.ok) throw new Error("Không tìm thấy thông tin thiết bị để sửa.");
                     const itemData = await response.json();
                     if (itemData) openModal('edit', itemData);
@@ -712,8 +712,11 @@
                 }).then(async (result) => {
                     if (result.isConfirmed) {
                         try {
-                            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${serial}`, { method: 'DELETE' });
-                            if (!response.ok) throw new Error('Xóa thất bại');
+                            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${encodeURIComponent(serial)}`, { method: 'DELETE' });
+                            if (!response.ok) {
+                              const err = await response.json();
+                              throw new Error(err.message);
+                            }
                             Swal.fire('Đã xóa!', 'Thiết bị đã được xóa thành công.', 'success');
                             await fetchAndDisplayEquipment(dom.departmentSelect.value, 1); 
                         } catch (error) { 
