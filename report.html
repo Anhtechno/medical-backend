@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Báo Hỏng Thiết Bị</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --font-family: 'Roboto', sans-serif;
+        }
+        body {
+            font-family: var(--font-family);
+            background-color: var(--light-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .report-container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .equipment-info {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        .equipment-info p {
+            margin: 0;
+            font-size: 16px;
+            color: var(--dark-color);
+        }
+        .equipment-info strong {
+            font-weight: 700;
+            font-size: 18px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            min-height: 120px;
+            box-sizing: border-box;
+        }
+        .submit-btn {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .submit-btn:hover {
+            background-color: #0056b3;
+        }
+        .loader, .error-message {
+            text-align: center;
+            padding: 40px 0;
+        }
+        .loader p { font-size: 18px; }
+        .error-message p { font-size: 18px; color: var(--danger-color); }
+    </style>
+</head>
+<body>
+
+    <div id="report-form-container" class="report-container" style="display: none;">
+        <h1>Báo Hỏng Thiết Bị</h1>
+        <div id="equipment-info-box" class="equipment-info">
+            <p>Bạn đang báo hỏng cho thiết bị:</p>
+            <p><strong id="equipment-name">...</strong></p>
+        </div>
+        <form id="report-form">
+            <div class="form-group">
+                <label for="problem-description">Mô tả tình trạng hỏng:</label>
+                <textarea id="problem-description" placeholder="Ví dụ: Máy không lên nguồn, màn hình bị sọc, phát ra tiếng kêu lạ..." required></textarea>
+            </div>
+            <button type="submit" class="submit-btn">Gửi Báo Cáo</button>
+        </form>
+    </div>
+
+    <div id="loader" class="report-container loader">
+        <p>Đang tải thông tin thiết bị...</p>
+    </div>
+
+    <div id="error-container" class="report-container error-message" style="display: none;">
+        <p id="error-text"></p>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const API_BASE_URL = 'https://quanlythietbi-anh.onrender.com';
+        const params = new URLSearchParams(window.location.search);
+        const serial = params.get('serial');
+
+        const reportFormContainer = document.getElementById('report-form-container');
+        const loader = document.getElementById('loader');
+        const errorContainer = document.getElementById('error-container');
+        const errorText = document.getElementById('error-text');
+        const equipmentNameEl = document.getElementById('equipment-name');
+        const reportForm = document.getElementById('report-form');
+        const problemDescriptionEl = document.getElementById('problem-description');
+
+        function showError(message) {
+            loader.style.display = 'none';
+            reportFormContainer.style.display = 'none';
+            errorText.textContent = message;
+            errorContainer.style.display = 'block';
+        }
+
+        if (!serial) {
+            showError("Lỗi: Không tìm thấy số serial của thiết bị trong đường dẫn.");
+            return;
+        }
+
+        try {
+            // 1. Lấy thông tin thiết bị
+            const response = await fetch(`${API_BASE_URL}/api/public/equipment-info/${encodeURIComponent(serial)}`);
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message);
+            }
+            const equipment = await response.json();
+            
+            // 2. Hiển thị thông tin
+            equipmentNameEl.textContent = `${equipment.name} (Serial: ${equipment.serial})`;
+            loader.style.display = 'none';
+            reportFormContainer.style.display = 'block';
+
+            // 3. Xử lý gửi form
+            reportForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const problemDescription = problemDescriptionEl.value;
+
+                Swal.fire({
+                    title: 'Xác nhận gửi?',
+                    text: "Báo cáo của bạn sẽ được gửi đến bộ phận kỹ thuật.",
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Vâng, gửi đi!',
+                    cancelButtonText: 'Hủy'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            const submitResponse = await fetch(`${API_BASE_URL}/api/public/incidents`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ equipmentSerial: serial, problemDescription })
+                            });
+                            const submitResult = await submitResponse.json();
+                            if (!submitResponse.ok) {
+                                throw new Error(submitResult.message);
+                            }
+                            Swal.fire(
+                                'Thành công!',
+                                'Báo cáo của bạn đã được gửi đi.',
+                                'success'
+                            ).then(() => {
+                                reportFormContainer.innerHTML = '<h1>Cảm ơn bạn đã gửi báo cáo!</h1>';
+                            });
+                        } catch (submitError) {
+                            Swal.fire('Thất bại', `Lỗi: ${submitError.message}`, 'error');
+                        }
+                    }
+                });
+            });
+
+        } catch (error) {
+            showError(`Lỗi: ${error.message}`);
+        }
+    });
+</script>
+
+</body>
+</html>
