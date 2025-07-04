@@ -1544,8 +1544,8 @@
         // Gắn sự kiện cho các nút
         document.getElementById('back-to-list-btn').addEventListener('click', () => switchView('equipment'));
         document.getElementById('print-qr-btn').addEventListener('click', () => {
-            const qrImageSrc = qrCodeContainer.querySelector('img').src;
-            printQRCode(qrImageSrc, data.details.name, data.details.serial);
+            const departmentName = departments[data.details.department];
+            printQRCode(qrImageSrc, data.details.name, data.details.serial, departmentName);
         });
 
         // Đổ dữ liệu vào các bảng lịch sử
@@ -1848,18 +1848,23 @@ fileInput.addEventListener('change', (event) => {
     };
     reader.readAsArrayBuffer(file);
 });
-        function printQRCode(qrImageSrc, equipmentName, serial) {
+        function printQRCode(qrImageSrc, equipmentName, serial, departmentName) {
     const printWindow = window.open('', '_blank');
     printWindow.document.write(`
         <html>
             <head>
-                <title>In Mã QR</title>
+                <title>In Mã QR - ${equipmentName}</title>
                 <style>
-                    body { font-family: 'Roboto', sans-serif; text-align: center; margin-top: 50px; }
-                    .print-container { display: inline-block; border: 2px solid #333; padding: 20px; }
-                    img { display: block; margin-bottom: 15px; }
-                    h3 { margin: 10px 0 5px 0; font-size: 18px; }
-                    p { margin: 0; font-size: 14px; }
+                    body { font-family: 'Roboto', sans-serif; text-align: center; margin-top: 40px; }
+                    .print-container { 
+                        display: inline-block; 
+                        border: 2px solid #333; 
+                        padding: 25px; 
+                        border-radius: 10px;
+                    }
+                    img { display: block; margin: 0 auto 15px auto; }
+                    h3 { margin: 10px 0 5px 0; font-size: 20px; color: #000; }
+                    p { margin: 5px 0; font-size: 16px; color: #333; }
                 </style>
             </head>
             <body>
@@ -1867,7 +1872,7 @@ fileInput.addEventListener('change', (event) => {
                     <img src="${qrImageSrc}" alt="QR Code">
                     <h3>${equipmentName}</h3>
                     <p>Serial: ${serial}</p>
-                </div>
+                    <p>Khoa: ${departmentName || 'N/A'}</p> </div>
                 <script>
                     window.onload = function() {
                         window.print();
