@@ -2094,7 +2094,8 @@ document.getElementById('bulkPrintQrBtn').addEventListener('click', async () => 
                 correctLevel : QRCode.CorrectLevel.H
             });
             
-            const qrImageSrc = tempQrDiv.querySelector('img').src;
+            const canvas = tempQrDiv.querySelector('canvas');
+            const qrImageSrc = canvas.toDataURL("image/png");
             const pageHtml = `
                 <div class="page-container">
                     <div class="print-container">
