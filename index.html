@@ -255,7 +255,47 @@
                             <tbody id="users-table-body"></tbody>
                         </table>
                     </div>
+                    
+                    <div id="reports-view-container" class="view-container">
+    <div class="main-header">
+        <h1 class="view-title">Báo cáo & Thống kê</h1>
+    </div>
+    
+    <div class="report-filters" style="display: flex; gap: 20px; align-items: center; background-color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #eee;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="reportMonthSelect" style="font-weight: 500;">Chọn Tháng</label>
+            <select id="reportMonthSelect"></select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="reportYearSelect" style="font-weight: 500;">Chọn Năm</label>
+            <select id="reportYearSelect"></select>
+        </div>
+        <button id="viewReportBtn" class="action-button" style="align-self: flex-end; background-color: var(--success-color);">
+            <i class="fas fa-chart-bar"></i> Xem Báo cáo
+        </button>
+    </div>
 
+    <div id="report-results" style="display: none;">
+        <div class="stats-cards">
+            <div class="stat-card total">
+                <h3>Tổng Sự Cố</h3>
+                <div class="value" id="report-total-incidents">0</div>
+            </div>
+            <div class="stat-card active">
+                <h3>Đã Giải Quyết</h3>
+                <div class="value" id="report-resolved-incidents">0</div>
+            </div>
+            <div class="stat-card maintenance">
+                <h3>Tỷ Lệ Giải Quyết</h3>
+                <div class="value" id="report-resolution-rate">0%</div>
+            </div>
+        </div>
+        <div style="background-color: #fff; padding: 20px; border-radius: 8px; margin-top: 25px; border: 1px solid #eee;">
+            <h3 style="margin-bottom: 20px;">Thống kê Sự cố theo Khoa/Phòng</h3>
+            <canvas id="departmentReportChart" height="120"></canvas>
+        </div>
+    </div>
+</div>
                     <div id="incidents-view-container" class="view-container">
                         <div class="main-header"><h1 class="view-title">Báo Cáo Sự Cố</h1></div>
                         <div id="admin-incident-view" style="display: none;"><table class="generic-table" id="incident-table-admin"><thead><tr><th>Ngày Báo Cáo</th><th>Khoa</th><th>Thiết Bị</th><th>Số Serial</th><th>Mô Tả Sự Cố</th><th>Trạng Thái</th><th>Hành Động</th></tr></thead><tbody id="incident-table-body-admin"></tbody></table></div>
@@ -409,6 +449,11 @@
             notificationBadge: document.getElementById('notificationBadge'),
             notificationDropdown: document.getElementById('notificationDropdown'),
             notificationList: document.getElementById('notificationList'),
+            reportsView: document.getElementById('reports-view-container'),
+            reportMonthSelect: document.getElementById('reportMonthSelect'),
+            reportYearSelect: document.getElementById('reportYearSelect'),
+            viewReportBtn: document.getElementById('viewReportBtn'),
+            reportResults: document.getElementById('report-results'),
         };
         
         const saveToken = (token) => localStorage.setItem('authToken', token);
@@ -428,29 +473,39 @@
         function showLoginView() { dom.loginContainer.style.display = 'flex'; dom.mainAppContainer.style.display = 'none'; }
         
         function showMainAppView() {
-            dom.loginContainer.style.display = 'none';
-            dom.mainAppContainer.style.display = 'block';
-            dom.logoutBtn.innerHTML = `<i class="fas fa-sign-out-alt"></i> ${userProfile.username} (Đăng xuất)`;
+    dom.loginContainer.style.display = 'none';
+    dom.mainAppContainer.style.display = 'block';
+    dom.logoutBtn.innerHTML = `<i class="fas fa-sign-out-alt"></i> ${userProfile.username} (Đăng xuất)`;
 
-            if (userProfile.role === 'admin') {
-                if (!document.querySelector('a[data-view="users"]')) {
-                    const sidebar = document.getElementById('sidebar-main');
-                    const userManagementLi = document.createElement('li');
-                    userManagementLi.innerHTML = `<a data-view="users"><i class="fas fa-users-cog"></i> Quản lý Người dùng</a>`;
-                    sidebar.appendChild(userManagementLi);
-                    
-                    dom.sidebarNavLinks = document.querySelectorAll('#sidebar-main a');
-                    dom.sidebarNavLinks.forEach(link => {
-                        link.removeEventListener('click', handleNavLinkClick); // Remove old listeners to avoid duplicates
-                        link.addEventListener('click', handleNavLinkClick); // Add new listener
-                    });
-                }
-                
-                dom.notificationBellContainer.style.display = 'flex';
-                fetchNotifications();
-                setInterval(fetchNotifications, 60000); 
-            }
+    if (userProfile.role === 'admin') {
+        const sidebar = document.getElementById('sidebar-main');
+        
+        // Thêm menu Quản lý Người dùng nếu chưa có
+        if (!document.querySelector('a[data-view="users"]')) {
+            const userLi = document.createElement('li');
+            userLi.innerHTML = `<a data-view="users"><i class="fas fa-users-cog"></i> Quản lý Người dùng</a>`;
+            sidebar.appendChild(userLi);
         }
+        
+        // Thêm menu Báo cáo nếu chưa có
+        if (!document.querySelector('a[data-view="reports"]')) {
+            const reportLi = document.createElement('li');
+            reportLi.innerHTML = `<a data-view="reports"><i class="fas fa-chart-pie"></i> Báo cáo</a>`;
+            sidebar.appendChild(reportLi);
+        }
+        
+        // Gán lại sự kiện cho tất cả các link sidebar
+        dom.sidebarNavLinks = document.querySelectorAll('#sidebar-main a');
+        dom.sidebarNavLinks.forEach(link => {
+            link.removeEventListener('click', handleNavLinkClick);
+            link.addEventListener('click', handleNavLinkClick);
+        });
+        
+        dom.notificationBellContainer.style.display = 'flex';
+        fetchNotifications();
+        setInterval(fetchNotifications, 60000); 
+    }
+}
         
         function handleNavLinkClick(e) {
             e.preventDefault();
@@ -832,6 +887,7 @@
                 if (viewName === 'maintenance') renderMaintenanceView();
                 if (viewName === 'profile') renderProfileView(param);
                 if (viewName === 'users') renderUsersView();
+                if (viewName === 'reports') renderReportsView();
             }
         }
         
@@ -1824,6 +1880,106 @@ fileInput.addEventListener('change', (event) => {
         </html>
     `);
     printWindow.document.close();
+}
+
+        // LOGIC CHO TRANG BÁO CÁO (TÍNH NĂNG MỚI)
+// ========================================================
+let departmentChartInstance = null;
+
+function renderReportsView() {
+    // Populate tháng
+    const currentMonth = new Date().getMonth() + 1;
+    dom.reportMonthSelect.innerHTML = '';
+    for(let i = 1; i <= 12; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `Tháng ${i}`;
+        if (i === currentMonth) option.selected = true;
+        dom.reportMonthSelect.appendChild(option);
+    }
+
+    // Populate năm
+    const currentYear = new Date().getFullYear();
+    dom.reportYearSelect.innerHTML = '';
+    for(let i = currentYear; i >= 2020; i--) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `Năm ${i}`;
+        dom.reportYearSelect.appendChild(option);
+    }
+}
+
+dom.viewReportBtn.addEventListener('click', async () => {
+    const year = dom.reportYearSelect.value;
+    const month = dom.reportMonthSelect.value;
+
+    Swal.fire({
+        title: `Đang tạo báo cáo cho Tháng ${month}/${year}...`,
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/reports/monthly-summary?year=${year}&month=${month}`);
+        if(!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.message);
+        }
+        const data = await response.json();
+
+        // Hiển thị kết quả
+        document.getElementById('report-total-incidents').textContent = data.totalIncidents;
+        document.getElementById('report-resolved-incidents').textContent = data.resolvedIncidents;
+        const resolutionRate = data.totalIncidents > 0 ? ((data.resolvedIncidents / data.totalIncidents) * 100).toFixed(1) : 0;
+        document.getElementById('report-resolution-rate').textContent = `${resolutionRate}%`;
+
+        renderDepartmentChart(data.incidentsByDepartment);
+
+        dom.reportResults.style.display = 'block';
+        Swal.close();
+
+    } catch (error) {
+        handleApiError(error, "Tạo báo cáo");
+    }
+});
+
+function renderDepartmentChart(chartData) {
+    const ctx = document.getElementById('departmentReportChart').getContext('2d');
+    const labels = chartData.map(d => d.departmentName);
+    const data = chartData.map(d => d.count);
+
+    if (departmentChartInstance) {
+        departmentChartInstance.destroy();
+    }
+
+    departmentChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Số sự cố',
+                data: data,
+                backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                borderColor: 'rgba(220, 53, 69, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
 }
         checkAuth();
     });

@@ -650,6 +650,78 @@ app.post('/api/public/incidents', async (req, res) => {
         res.status(500).json({ message: 'Lỗi server khi tạo báo cáo sự cố' });
     }
 });
+// 10.9. API CHO TÍNH NĂNG BÁO CÁO (TÍNH NĂNG MỚI)
+// =================================================================
+app.get('/api/reports/monthly-summary', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { year, month } = req.query;
+
+        if (!year || !month) {
+            return res.status(400).json({ message: 'Vui lòng cung cấp đủ năm và tháng.' });
+        }
+
+        const a_year = parseInt(year);
+        const a_month = parseInt(month) - 1; // Tháng trong JavaScript bắt đầu từ 0
+
+        const startDate = new Date(a_year, a_month, 1);
+        const endDate = new Date(a_year, a_month + 1, 1);
+
+        const results = await Incident.aggregate([
+            {
+                // 1. Lọc tất cả các sự cố trong tháng và năm được chọn
+                $match: {
+                    createdAt: {
+                        $gte: startDate,
+                        $lt: endDate
+                    }
+                }
+            },
+            {
+                // 2. Sử dụng $facet để chạy nhiều pipeline tổng hợp song song
+                $facet: {
+                    // Pipeline A: Đếm tổng số sự cố
+                    "totalIncidents": [
+                        { $count: "count" }
+                    ],
+                    // Pipeline B: Đếm số sự cố đã được giải quyết
+                    "resolvedIncidents": [
+                        { $match: { status: 'resolved' } },
+                        { $count: "count" }
+                    ],
+                    // Pipeline C: Thống kê số sự cố theo từng khoa
+                    "incidentsByDepartment": [
+                        {
+                            $group: {
+                                _id: "$departmentKey",
+                                count: { $sum: 1 }
+                            }
+                        },
+                        {
+                            $sort: { count: -1 }
+                        }
+                    ]
+                }
+            }
+        ]);
+        
+        // 3. Xử lý kết quả trả về cho gọn gàng
+        const summary = {
+            totalIncidents: results[0].totalIncidents[0] ? results[0].totalIncidents[0].count : 0,
+            resolvedIncidents: results[0].resolvedIncidents[0] ? results[0].resolvedIncidents[0].count : 0,
+            incidentsByDepartment: results[0].incidentsByDepartment.map(dept => ({
+                departmentKey: dept._id,
+                departmentName: departments[dept._id] || 'Không xác định',
+                count: dept.count
+            }))
+        };
+
+        res.json(summary);
+
+    } catch (error) {
+        console.error("Lỗi khi tạo báo cáo tháng:", error);
+        res.status(500).json({ message: 'Lỗi server khi tạo báo cáo.' });
+    }
+});
 
 // 11. KHỞI ĐỘNG SERVER
 app.listen(PORT, () => {
