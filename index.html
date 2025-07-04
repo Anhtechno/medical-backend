@@ -1856,16 +1856,46 @@ fileInput.addEventListener('change', (event) => {
             <head>
                 <title>In Mã QR - ${equipmentName}</title>
                 <style>
-                    body { font-family: 'Roboto', sans-serif; text-align: center; margin-top: 40px; }
-                    .print-container { 
-                        display: inline-block; 
-                        border: 2px solid #333; 
-                        padding: 25px; 
-                        border-radius: 10px;
+                    /* Quy định khổ giấy và loại bỏ lề mặc định của trình duyệt */
+                    @page {
+                        size: A4;
+                        margin: 0;
                     }
-                    img { display: block; margin: 0 auto 15px auto; }
-                    h3 { margin: 10px 0 5px 0; font-size: 20px; color: #000; }
-                    p { margin: 5px 0; font-size: 16px; color: #333; }
+                    body {
+                        margin: 0;
+                        padding: 1cm; /* Thêm một chút lề để tránh bị cắt khi in */
+                        box-sizing: border-box;
+                        font-family: 'Roboto', sans-serif;
+                        width: 210mm; /* Chiều rộng khổ A4 */
+                        height: 297mm; /* Chiều cao khổ A4 */
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        align-items: center;
+                    }
+                    .print-container {
+                        text-align: center;
+                        border: 3px solid black;
+                        padding: 20px;
+                        width: 180mm; /* Chiều rộng vùng nội dung */
+                    }
+                    /* Phóng to ảnh QR Code */
+                    img {
+                        width: 150mm;
+                        height: 150mm;
+                        display: block;
+                        margin: 0 auto 20mm; /* Canh giữa và tạo khoảng cách với text */
+                    }
+                    /* Phóng to chữ */
+                    h3 {
+                        margin: 10mm 0 5mm 0;
+                        font-size: 28pt;
+                        font-weight: bold;
+                    }
+                    p {
+                        margin: 3mm 0;
+                        font-size: 20pt;
+                    }
                 </style>
             </head>
             <body>
@@ -1873,7 +1903,8 @@ fileInput.addEventListener('change', (event) => {
                     <img src="${qrImageSrc}" alt="QR Code">
                     <h3>${equipmentName}</h3>
                     <p>Serial: ${serial}</p>
-                    <p>Khoa: ${departmentName || 'N/A'}</p> </div>
+                    <p>Khoa: ${departmentName || 'N/A'}</p>
+                </div>
                 <script>
                     window.onload = function() {
                         window.print();
