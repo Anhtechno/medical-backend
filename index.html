@@ -1544,6 +1544,7 @@
         // Gắn sự kiện cho các nút
         document.getElementById('back-to-list-btn').addEventListener('click', () => switchView('equipment'));
         document.getElementById('print-qr-btn').addEventListener('click', () => {
+            const qrImageSrc = qrCodeContainer.querySelector('img').src;
             const departmentName = departments[data.details.department];
             printQRCode(qrImageSrc, data.details.name, data.details.serial, departmentName);
         });
