@@ -194,7 +194,7 @@
                 </aside>
                 <main class="main-content">
                     <div id="equipment-view-container" class="view-container">
-                        <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="importExcelBtn" style="background-color: var(--success-color);"><i class="fas fa-file-import"></i> Nhập từ Excel</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
+                        <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="bulkPrintQrBtn" style="background-color: #555;"><i class="fas fa-qrcode"></i> In QR hàng loạt</button><button class="action-button" id="importExcelBtn" style="background-color: var(--success-color);"><i class="fas fa-file-import"></i> Nhập từ Excel</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
                         <input type="file" id="excelFileInput" style="display: none" accept=".xlsx, .xls">
                         <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Tìm kiếm thiết bị trên toàn bộ các khoa (theo serial, tên, hãng)..."></div>
                         <div class="stats-cards"><div class="stat-card total"><h3>Tổng Thiết Bị</h3><div class="value" id="totalEquipment">0</div></div><div class="stat-card active"><h3>Đang Hoạt Động</h3><div class="value" id="activeEquipment">0</div></div><div class="stat-card maintenance"><h3>Cần Bảo Trì</h3><div class="value" id="maintenanceEquipment">0</div></div><div class="stat-card inactive"><h3>Ngừng Hoạt Động</h3><div class="value" id="inactiveEquipment">0</div></div></div>
@@ -2018,6 +2018,115 @@ function renderDepartmentChart(chartData) {
         }
     });
 }
+        // LOGIC IN QR CODE HÀNG LOẠT
+// ========================================================
+document.getElementById('bulkPrintQrBtn').addEventListener('click', async () => {
+    const selectedDeptKey = dom.departmentSelect.value;
+    if (!selectedDeptKey) {
+        Swal.fire('Lỗi', 'Vui lòng chọn một khoa để in QR hàng loạt!', 'warning');
+        return;
+    }
+    const departmentName = departments[selectedDeptKey];
+
+    Swal.fire({
+        title: `Đang tạo file in cho khoa ${departmentName}...`,
+        text: 'Việc này có thể mất một lúc tùy vào số lượng thiết bị. Vui lòng chờ.',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    try {
+        // Lấy TẤT CẢ thiết bị của khoa (đặt limit rất lớn)
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${selectedDeptKey}?limit=10000`);
+        if (!response.ok) throw new Error("Không thể tải danh sách thiết bị.");
+        
+        const data = await response.json();
+        const equipments = data.equipments;
+
+        if (equipments.length === 0) {
+            Swal.fire('Thông báo', `Khoa ${departmentName} không có thiết bị nào để in.`, 'info');
+            return;
+        }
+
+        // Mở một cửa sổ mới để chuẩn bị nội dung in
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>In Hàng Loạt Mã QR - ${departmentName}</title>
+                    <style>
+                        @page { size: A4; margin: 0; }
+                        body { margin: 0; padding: 0; font-family: 'Roboto', sans-serif; }
+                        .page-container {
+                            width: 210mm;
+                            height: 297mm;
+                            padding: 1cm;
+                            box-sizing: border-box;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                            align-items: center;
+                            page-break-after: always; /* Quan trọng: Ngắt trang sau mỗi mã QR */
+                        }
+                        .print-container { text-align: center; border: 3px solid black; padding: 20px; width: 180mm; }
+                        img { width: 150mm; height: 150mm; display: block; margin: 0 auto 20mm; }
+                        h3 { margin: 10mm 0 5mm 0; font-size: 28pt; font-weight: bold; }
+                        p { margin: 3mm 0; font-size: 20pt; }
+                    </style>
+                </head>
+                <body>
+                    </body>
+            </html>
+        `);
+
+        // Tạo một div ẩn để sinh mã QR
+        const tempQrDiv = document.createElement('div');
+        tempQrDiv.style.display = 'none';
+        document.body.appendChild(tempQrDiv);
+
+        // Lặp qua từng thiết bị để tạo HTML cho từng trang
+        for (const equipment of equipments) {
+            tempQrDiv.innerHTML = ''; // Xóa QR cũ
+            new QRCode(tempQrDiv, {
+                text: `https://resilient-dieffenbachia-5881b7.netlify.app/report.html?serial=${encodeURIComponent(equipment.serial)}`,
+                width: 600,
+                height: 600,
+                correctLevel : QRCode.CorrectLevel.H
+            });
+            
+            const qrImageSrc = tempQrDiv.querySelector('img').src;
+            const pageHtml = `
+                <div class="page-container">
+                    <div class="print-container">
+                        <img src="${qrImageSrc}" alt="QR Code">
+                        <h3>${equipment.name}</h3>
+                        <p>Serial: ${equipment.serial}</p>
+                        <p>Khoa: ${departmentName}</p>
+                    </div>
+                </div>
+            `;
+            printWindow.document.body.innerHTML += pageHtml;
+        }
+
+        document.body.removeChild(tempQrDiv); // Xóa div tạm
+        
+        // Thêm script để tự động mở hộp thoại in
+        const printScript = printWindow.document.createElement('script');
+        printScript.innerHTML = `
+            window.onload = function() {
+                window.print();
+                window.onafterprint = function() { window.close(); }
+            }
+        `;
+        printWindow.document.body.appendChild(printScript);
+        printWindow.document.close();
+        Swal.close();
+
+    } catch (error) {
+        handleApiError(error, "Tạo file in hàng loạt");
+    }
+});
+
         checkAuth();
     });
 </script>
