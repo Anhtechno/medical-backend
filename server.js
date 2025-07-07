@@ -17,7 +17,11 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // 3. CẤU HÌNH MIDDLEWARE
-app.use(cors());
+const corsOptions = {
+    origin: 'https://resilient-dieffenbachia-5881b7.netlify.app',
+    optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
