@@ -336,6 +336,19 @@ app.get('/api/incidents/unread', authenticateToken, isAdmin, async (req, res) =>
     }
 });
 
+app.delete('/api/incidents/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedIncident = await Incident.findByIdAndDelete(id);
+        if (!deletedIncident) {
+            return res.status(404).json({ message: 'Không tìm thấy báo cáo sự cố.' });
+        }
+        res.json({ message: 'Xóa báo cáo sự cố thành công.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi xóa báo cáo sự cố.' });
+    }
+});
+
 // 10. API QUẢN LÝ BẢO TRÌ
 app.post('/api/maintenance', authenticateToken, isAdmin, async (req, res) => {
     try {

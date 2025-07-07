@@ -932,25 +932,31 @@
         }
 
         function renderIncidentTableAdmin(incidents) {
-            const tableBody = dom.incidentTableBodyAdmin;
-            tableBody.innerHTML = '';
-            if (incidents.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 30px;">Chưa có báo cáo sự cố nào.</td></tr>`;
-                return;
-            }
-            incidents.forEach(inc => {
-                const row = document.createElement('tr');
-                const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
-                let actionButton = 'Hoàn thành';
-                if (inc.status === 'new') {
-                    actionButton = `<button class="resolve-btn" data-id="${inc._id}" data-new-status="in_progress">Bắt đầu xử lý</button>`;
-                } else if (inc.status === 'in_progress') {
-                    actionButton = `<button class="resolve-btn" data-id="${inc._id}" data-new-status="resolved">Hoàn thành</button>`;
-                }
-                row.innerHTML = `<td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${departments[inc.departmentKey] || 'Không rõ'}</td><td>${inc.equipmentName}</td><td>${inc.serial}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td><td class="action-btn-group">${actionButton}</td>`;
-                tableBody.appendChild(row);
-            });
+    const tableBody = dom.incidentTableBodyAdmin;
+    tableBody.innerHTML = '';
+    if (incidents.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 30px;">Chưa có báo cáo sự cố nào.</td></tr>`;
+        return;
+    }
+    incidents.forEach(inc => {
+        const row = document.createElement('tr');
+        const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
+        let actionButtons = '';
+        
+        // Quyết định nút hành động dựa trên trạng thái
+        if (inc.status === 'new') {
+            actionButtons = `<button class="resolve-btn" data-id="${inc._id}" data-new-status="in_progress">Bắt đầu xử lý</button>`;
+        } else if (inc.status === 'in_progress') {
+            actionButtons = `<button class="resolve-btn" data-id="${inc._id}" data-new-status="resolved">Hoàn thành</button>`;
+        } else if (inc.status === 'resolved') {
+            // Chỉ hiển thị nút xóa khi sự cố đã được giải quyết
+            actionButtons = `<button class="delete-btn incident-delete-btn" data-id="${inc._id}"><i class="fas fa-trash"></i> Clear</button>`;
         }
+
+        row.innerHTML = `<td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${departments[inc.departmentKey] || 'Không rõ'}</td><td>${inc.equipmentName}</td><td>${inc.serial}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td><td class="action-btn-group">${actionButtons}</td>`;
+        tableBody.appendChild(row);
+    });
+}
 
         function renderIncidentTableUser(incidents) {
             const tableBody = dom.incidentTableBodyUser;
@@ -984,30 +990,55 @@
         });
         
         dom.incidentTableBodyAdmin.addEventListener('click', async (e) => {
-            if (e.target.classList.contains('resolve-btn')) {
-                const incidentId = e.target.dataset.id;
-                const newStatus = e.target.dataset.newStatus;
-                
-                const { value: text } = await Swal.fire({
-                    input: 'textarea',
-                    inputLabel: 'Ghi chú',
-                    inputPlaceholder: (newStatus === 'in_progress') 
-                        ? 'Ví dụ: Đã cử kỹ sư A, dự kiến xem lúc 14h...'
-                        : 'Ví dụ: Đã thay thế linh kiện X, máy hoạt động bình thường...',
-                    inputAttributes: { 'aria-label': 'Type your message here' },
-                    showCancelButton: true,
-                    cancelButtonText: 'Hủy bỏ'
-                });
+    const target = e.target.closest('button');
+    if (!target) return;
 
-                if (text) {
-                    try {
-                        await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'PUT', body: JSON.stringify({ status: newStatus, notes: text }) });
-                        renderIncidentView();
-                        fetchNotifications();
-                    } catch(error) { handleApiError(error, "Cập nhật sự cố"); }
+    const incidentId = target.dataset.id;
+
+    // Xử lý nút XỬ LÝ SỰ CỐ
+    if (target.classList.contains('resolve-btn')) {
+        const newStatus = target.dataset.newStatus;
+        const { value: text } = await Swal.fire({
+            input: 'textarea',
+            inputLabel: 'Ghi chú',
+            inputPlaceholder: 'Nhập ghi chú xử lý...',
+            inputAttributes: { 'aria-label': 'Type your message here' },
+            showCancelButton: true,
+            cancelButtonText: 'Hủy bỏ'
+        });
+
+        if (text) {
+            try {
+                await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'PUT', body: JSON.stringify({ status: newStatus, notes: text }) });
+                renderIncidentView();
+                fetchNotifications();
+            } catch(error) { handleApiError(error, "Cập nhật sự cố"); }
+        }
+    }
+
+    // Xử lý nút XÓA SỰ CỐ (LOGIC MỚI)
+    if (target.classList.contains('incident-delete-btn')) {
+        Swal.fire({
+            title: 'Bạn chắc chắn không?',
+            text: "Báo cáo này sẽ bị xóa vĩnh viễn!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            confirmButtonText: 'Vâng, xóa nó!',
+            cancelButtonText: 'Hủy'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'DELETE' });
+                    Swal.fire('Đã xóa!', 'Báo cáo sự cố đã được xóa.', 'success');
+                    renderIncidentView(); // Tải lại danh sách
+                } catch (error) {
+                    handleApiError(error, "Xóa báo cáo sự cố");
                 }
             }
         });
+    }
+});
         
         document.getElementById('print-report-btn').addEventListener('click', () => {
             const selectedEquipmentOption = dom.incidentEquipmentSelect.options[dom.incidentEquipmentSelect.selectedIndex];
