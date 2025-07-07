@@ -784,15 +784,57 @@
             }
         });
         
-        dom.exportExcelBtn.addEventListener('click', () => {
-    // Nó sẽ dùng biến currentFullDeptList đã được cập nhật từ trước
-    if (!currentFullDeptList || currentFullDeptList.length === 0) {
+        dom.exportExcelBtn.addEventListener('click', async () => {
+    const searchTerm = dom.searchInput.value.trim();
+    let dataToProcess = [];
+    let reportTitle = "";
+
+    // TRƯỜNG HỢP 1: Người dùng đang tìm kiếm
+    if (searchTerm) {
+        if (currentDisplayedData.length === 0) {
+            Swal.fire('Thông báo', 'Không có dữ liệu tìm kiếm để xuất.', 'info');
+            return;
+        }
+        dataToProcess = currentDisplayedData;
+        reportTitle = `Ket-qua-tim-kiem_${searchTerm.replace(/ /g, '_')}`;
+    } 
+    // TRƯỜNG HỢP 2: Người dùng đang xem danh sách theo khoa
+    else {
+        const selectedDepartmentKey = dom.departmentSelect.value;
+        if (!selectedDepartmentKey) {
+            Swal.fire('Thông báo', 'Vui lòng chọn khoa để xuất file.', 'info');
+            return;
+        }
+        reportTitle = `DS-Thiet-bi_${departments[selectedDepartmentKey] || ''}`;
+
+        Swal.fire({
+            title: `Đang tổng hợp dữ liệu cho khoa ${departments[selectedDepartmentKey]}...`,
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading() }
+        });
+
+        try {
+            // Gọi API để lấy TẤT CẢ thiết bị, không phân trang
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${selectedDepartmentKey}?limit=10000`);
+            if (!response.ok) throw new Error('Không thể tải toàn bộ danh sách thiết bị.');
+            
+            const data = await response.json();
+            dataToProcess = data.equipments;
+            Swal.close();
+        } catch (error) {
+            handleApiError(error, "Xuất file Excel");
+            return;
+        }
+    }
+
+    if (dataToProcess.length === 0) {
         Swal.fire('Thông báo', 'Không có dữ liệu để xuất.', 'info');
         return;
     }
 
+    // Xử lý và tạo file Excel (giữ nguyên logic cũ)
     const statusMap = { active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng hoạt động' };
-    const dataToExport = currentFullDeptList.map(item => ({
+    const dataToExport = dataToProcess.map(item => ({
         'Tên Thiết Bị': item.name,
         'Số Serial': item.serial,
         'Hãng Sản Xuất': item.manufacturer,
@@ -811,13 +853,7 @@
     const colWidths = headers.map(header => ({ wch: Math.max(header.length, ...dataToExport.map(row => (row[header] || '').toString().length)) + 2 }));
     worksheet["!cols"] = colWidths;
     
-    const searchTerm = dom.searchInput.value.trim();
-    let fileNameBase = `DS-Thiet-bi_${departments[dom.departmentSelect.value] || 'Tat-ca-cac-khoa'}`;
-    if (searchTerm) {
-        fileNameBase = `Ket-qua-tim-kiem_${searchTerm.replace(/ /g, '_')}`;
-    }
-    const fileName = `${fileNameBase}_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.xlsx`;
-    
+    const fileName = `${reportTitle.replace(/[^\w]/g, '')}_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.xlsx`;
     XLSX.writeFile(workbook, fileName);
 });
 
