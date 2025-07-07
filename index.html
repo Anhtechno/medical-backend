@@ -259,6 +259,9 @@
                     <div id="reports-view-container" class="view-container">
     <div class="main-header">
         <h1 class="view-title">Báo cáo & Thống kê</h1>
+        <div class="header-actions">
+            <button id="printReportBtn" class="action-button" style="display: none; background-color: var(--info-color);"><i class="fas fa-print"></i> In Báo cáo</button>
+        </div>
     </div>
     
     <div class="report-filters" style="background-color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #eee;">
@@ -2038,11 +2041,16 @@ dom.viewReportBtn.addEventListener('click', async () => {
         document.getElementById('report-resolved-incidents').textContent = data.resolvedIncidents;
         const resolutionRate = data.totalIncidents > 0 ? ((data.resolvedIncidents / data.totalIncidents) * 100).toFixed(1) : 0;
         document.getElementById('report-resolution-rate').textContent = `${resolutionRate}%`;
-
         renderDepartmentChart(data.incidentsByDepartment);
-
         dom.reportResults.style.display = 'block';
         Swal.close();
+
+        // --- LOGIC MỚI ĐỂ HIỂN THỊ NÚT IN ---
+        const printBtn = document.getElementById('printReportBtn');
+        printBtn.style.display = 'inline-flex'; // Hiển thị nút
+        // Gắn sự kiện click để gọi hàm in với dữ liệu vừa lấy được
+        printBtn.onclick = () => printMonthlyReport(data, startDate, endDate); 
+        // ------------------------------------
 
     } catch (error) {
         handleApiError(error, "Tạo báo cáo");
@@ -2221,7 +2229,91 @@ document.getElementById('bulkPrintQrBtn').addEventListener('click', async () => 
         handleApiError(error, "Tạo file in hàng loạt");
     }
 });
+        // LOGIC IN BÁO CÁO (TÍNH NĂNG MỚI)
+// ========================================================
+function printMonthlyReport(reportData, startDate, endDate) {
+    // Lấy ảnh của biểu đồ
+    const chartImage = departmentChartInstance ? departmentChartInstance.toBase64Image() : '';
 
+    // Tạo bảng HTML cho danh sách khoa phòng
+    let departmentRows = '';
+    reportData.incidentsByDepartment.forEach(dept => {
+        departmentRows += `<tr><td>${dept.departmentName}</td><td>${dept.count}</td></tr>`;
+    });
+    if (reportData.incidentsByDepartment.length === 0) {
+        departmentRows = '<tr><td colspan="2">Không có dữ liệu.</td></tr>';
+    }
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Báo cáo Sự cố từ ${startDate} đến ${endDate}</title>
+                <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+                <style>
+                    @page { size: A4; margin: 1.5cm; }
+                    body { font-family: 'Roboto', sans-serif; color: #333; }
+                    h1 { text-align: center; color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+                    h2 { color: #343a40; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 30px;}
+                    .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; text-align: center; margin: 20px 0; }
+                    .summary-card { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee; }
+                    .summary-card .value { font-size: 28px; font-weight: bold; color: #007bff; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+                    th { background-color: #f2f2f2; }
+                    .chart-container { text-align: center; margin-top: 30px; }
+                    .chart-container img { max-width: 90%; }
+                </style>
+            </head>
+            <body>
+                <h1>BÁO CÁO TÌNH HÌNH SỰ CỐ THIẾT BỊ</h1>
+                <p style="text-align: center;">Thời gian: Từ ngày ${startDate} đến ngày ${endDate}</p>
+                
+                <h2>I. Tóm tắt số liệu</h2>
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <p>Tổng Sự Cố</p>
+                        <p class="value">${reportData.totalIncidents}</p>
+                    </div>
+                    <div class="summary-card">
+                        <p>Đã Giải Quyết</p>
+                        <p class="value">${reportData.resolvedIncidents}</p>
+                    </div>
+                    <div class="summary-card">
+                        <p>Tỷ Lệ Giải Quyết</p>
+                        <p class="value">${reportData.totalIncidents > 0 ? ((reportData.resolvedIncidents / reportData.totalIncidents) * 100).toFixed(1) : 0}%</p>
+                    </div>
+                </div>
+
+                <h2>II. Thống kê theo Khoa/Phòng</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tên Khoa/Phòng</th>
+                            <th>Số lượng Sự cố</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${departmentRows}
+                    </tbody>
+                </table>
+                
+                <div class="chart-container">
+                    <h2>III. Biểu đồ trực quan</h2>
+                    <img src="${chartImage}" alt="Biểu đồ thống kê">
+                </div>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
+    
+    // Đợi ảnh và CSS tải xong rồi mới in
+    setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+    }, 500);
+}
+    
         checkAuth();
     });
 </script>
