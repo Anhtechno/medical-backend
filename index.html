@@ -261,19 +261,26 @@
         <h1 class="view-title">Báo cáo & Thống kê</h1>
     </div>
     
-    <div class="report-filters" style="display: flex; gap: 20px; align-items: center; background-color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #eee;">
+    <div class="report-filters" style="background-color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #eee;">
+    <div style="display: flex; gap: 20px; align-items: flex-end;">
         <div class="form-group" style="margin-bottom: 0;">
-            <label for="reportMonthSelect" style="font-weight: 500;">Chọn Tháng</label>
-            <select id="reportMonthSelect"></select>
+            <label for="reportStartDate" style="font-weight: 500;">Từ ngày</label>
+            <input type="date" id="reportStartDate">
         </div>
         <div class="form-group" style="margin-bottom: 0;">
-            <label for="reportYearSelect" style="font-weight: 500;">Chọn Năm</label>
-            <select id="reportYearSelect"></select>
+            <label for="reportEndDate" style="font-weight: 500;">Đến ngày</label>
+            <input type="date" id="reportEndDate">
         </div>
-        <button id="viewReportBtn" class="action-button" style="align-self: flex-end; background-color: var(--success-color);">
+        <button id="viewReportBtn" class="action-button" style="background-color: var(--success-color);">
             <i class="fas fa-chart-bar"></i> Xem Báo cáo
         </button>
     </div>
+    <div class="preset-dates" style="margin-top: 15px; display:flex; gap: 10px;">
+        <button class="action-button preset-btn" data-range="this-month" style="background-color: #6c757d; padding: 6px 12px; font-size: 12px;">Tháng này</button>
+        <button class="action-button preset-btn" data-range="last-month" style="background-color: #6c757d; padding: 6px 12px; font-size: 12px;">Tháng trước</button>
+        <button class="action-button preset-btn" data-range="this-year" style="background-color: #6c757d; padding: 6px 12px; font-size: 12px;">Năm nay</button>
+    </div>
+</div>
 
     <div id="report-results" style="display: none;">
         <div class="stats-cards">
@@ -450,8 +457,8 @@
             notificationDropdown: document.getElementById('notificationDropdown'),
             notificationList: document.getElementById('notificationList'),
             reportsView: document.getElementById('reports-view-container'),
-            reportMonthSelect: document.getElementById('reportMonthSelect'),
-            reportYearSelect: document.getElementById('reportYearSelect'),
+            reportStartDate: document.getElementById('reportStartDate'),
+            reportEndDate: document.getElementById('reportEndDate'),
             viewReportBtn: document.getElementById('viewReportBtn'),
             reportResults: document.getElementById('report-results'),
         };
@@ -1994,47 +2001,39 @@ fileInput.addEventListener('change', (event) => {
 let departmentChartInstance = null;
 
 function renderReportsView() {
-    // Populate tháng
-    const currentMonth = new Date().getMonth() + 1;
-    dom.reportMonthSelect.innerHTML = '';
-    for(let i = 1; i <= 12; i++) {
-        const option = document.createElement('option');
-        option.value = i;
-        option.textContent = `Tháng ${i}`;
-        if (i === currentMonth) option.selected = true;
-        dom.reportMonthSelect.appendChild(option);
-    }
-
-    // Populate năm
-    const currentYear = new Date().getFullYear();
-    dom.reportYearSelect.innerHTML = '';
-    for(let i = currentYear; i >= 2020; i--) {
-        const option = document.createElement('option');
-        option.value = i;
-        option.textContent = `Năm ${i}`;
-        dom.reportYearSelect.appendChild(option);
-    }
+    // Đặt ngày mặc định là ngày đầu tháng và ngày hiện tại
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    // Định dạng lại cho đúng với input type="date" (YYYY-MM-DD)
+    dom.reportStartDate.value = firstDayOfMonth.toISOString().split('T')[0];
+    dom.reportEndDate.value = today.toISOString().split('T')[0];
 }
 
 dom.viewReportBtn.addEventListener('click', async () => {
-    const year = dom.reportYearSelect.value;
-    const month = dom.reportMonthSelect.value;
+    const startDate = dom.reportStartDate.value;
+    const endDate = dom.reportEndDate.value;
+
+    if (!startDate || !endDate) {
+        Swal.fire('Lỗi', 'Vui lòng chọn đầy đủ ngày bắt đầu và kết thúc.', 'warning');
+        return;
+    }
 
     Swal.fire({
-        title: `Đang tạo báo cáo cho Tháng ${month}/${year}...`,
+        title: `Đang tạo báo cáo từ ${startDate} đến ${endDate}...`,
         allowOutsideClick: false,
         didOpen: () => { Swal.showLoading(); }
     });
 
     try {
-        const response = await fetchWithAuth(`${API_BASE_URL}/api/reports/monthly-summary?year=${year}&month=${month}`);
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/reports/monthly-summary?startDate=${startDate}&endDate=${endDate}`);
         if(!response.ok) {
             const errData = await response.json();
             throw new Error(errData.message);
         }
         const data = await response.json();
 
-        // Hiển thị kết quả
+        // Hiển thị kết quả (logic này giữ nguyên)
         document.getElementById('report-total-incidents').textContent = data.totalIncidents;
         document.getElementById('report-resolved-incidents').textContent = data.resolvedIncidents;
         const resolutionRate = data.totalIncidents > 0 ? ((data.resolvedIncidents / data.totalIncidents) * 100).toFixed(1) : 0;
@@ -2048,6 +2047,31 @@ dom.viewReportBtn.addEventListener('click', async () => {
     } catch (error) {
         handleApiError(error, "Tạo báo cáo");
     }
+});
+
+// Thêm logic cho các nút chọn nhanh
+document.querySelectorAll('.preset-btn').forEach(button => {
+    button.addEventListener('click', () => {
+        const range = button.dataset.range;
+        const today = new Date();
+        let startDate, endDate;
+
+        if (range === 'this-month') {
+            startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            endDate = today;
+        } else if (range === 'last-month') {
+            startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        } else if (range === 'this-year') {
+            startDate = new Date(today.getFullYear(), 0, 1);
+            endDate = today;
+        }
+        
+        dom.reportStartDate.value = startDate.toISOString().split('T')[0];
+        dom.reportEndDate.value = endDate.toISOString().split('T')[0];
+        // Tự động bấm nút xem báo cáo
+        dom.viewReportBtn.click();
+    });
 });
 
 function renderDepartmentChart(chartData) {

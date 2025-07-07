@@ -671,41 +671,37 @@ app.post('/api/public/incidents', async (req, res) => {
 // =================================================================
 app.get('/api/reports/monthly-summary', authenticateToken, isAdmin, async (req, res) => {
     try {
-        const { year, month } = req.query;
+        const { startDate, endDate } = req.query;
 
-        if (!year || !month) {
-            return res.status(400).json({ message: 'Vui lòng cung cấp đủ năm và tháng.' });
+        if (!startDate || !endDate) {
+            return res.status(400).json({ message: 'Vui lòng cung cấp ngày bắt đầu và ngày kết thúc.' });
         }
 
-        const a_year = parseInt(year);
-        const a_month = parseInt(month) - 1; // Tháng trong JavaScript bắt đầu từ 0
+        // Tạo đối tượng Date và đặt thời gian về đầu và cuối ngày để đảm bảo lấy trọn vẹn dữ liệu
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
 
-        const startDate = new Date(a_year, a_month, 1);
-        const endDate = new Date(a_year, a_month + 1, 1);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
 
         const results = await Incident.aggregate([
             {
-                // 1. Lọc tất cả các sự cố trong tháng và năm được chọn
                 $match: {
                     createdAt: {
-                        $gte: startDate,
-                        $lt: endDate
+                        $gte: start,
+                        $lte: end
                     }
                 }
             },
             {
-                // 2. Sử dụng $facet để chạy nhiều pipeline tổng hợp song song
                 $facet: {
-                    // Pipeline A: Đếm tổng số sự cố
                     "totalIncidents": [
                         { $count: "count" }
                     ],
-                    // Pipeline B: Đếm số sự cố đã được giải quyết
                     "resolvedIncidents": [
                         { $match: { status: 'resolved' } },
                         { $count: "count" }
                     ],
-                    // Pipeline C: Thống kê số sự cố theo từng khoa
                     "incidentsByDepartment": [
                         {
                             $group: {
@@ -721,7 +717,6 @@ app.get('/api/reports/monthly-summary', authenticateToken, isAdmin, async (req, 
             }
         ]);
         
-        // 3. Xử lý kết quả trả về cho gọn gàng
         const summary = {
             totalIncidents: results[0].totalIncidents[0] ? results[0].totalIncidents[0].count : 0,
             resolvedIncidents: results[0].resolvedIncidents[0] ? results[0].resolvedIncidents[0].count : 0,
@@ -735,7 +730,7 @@ app.get('/api/reports/monthly-summary', authenticateToken, isAdmin, async (req, 
         res.json(summary);
 
     } catch (error) {
-        console.error("Lỗi khi tạo báo cáo tháng:", error);
+        console.error("Lỗi khi tạo báo cáo:", error);
         res.status(500).json({ message: 'Lỗi server khi tạo báo cáo.' });
     }
 });
