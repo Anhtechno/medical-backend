@@ -660,7 +660,7 @@
                 <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>
             `;
         } else { // Nếu là user thì hiển thị nút Ghi Nhật ký
-            actionButtons = `<button class="action-button log-usage-btn" data-id="${item._id}" data-name="${item.name}" style="background-color: var(--info-color);"><i class="fas-regular fa-file-pen"></i> Ghi Nhật ký</button>`;
+            actionButtons = `<button class="action-button log-usage-btn" data-id="${item._id}" data-name="${item.name}" style="background-color: var(--info-color);"><i class="fas fa-file-pen"></i> Ghi Nhật ký</button>`;
         }
 
         row.innerHTML = `<td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td><td>${item.name}</td><td>${item.serial}</td> ${isGlobalSearch ? `<td>${departments[itemDept] || 'N/A'}</td>` : ''} <td>${item.manufacturer || 'N/A'}</td><td>${item.year}</td><td><span class="status ${item.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span></td><td class="action-btn-group">${actionButtons}</td>`;
