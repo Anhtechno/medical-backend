@@ -285,6 +285,44 @@
     </div>
 </div>
 
+    <div id="user-dashboard-view-container" class="view-container">
+    <div class="main-header">
+        <h1 class="view-title">Bảng điều khiển Khoa</h1>
+        <div class="header-actions">
+            <button class="action-button" id="userReportIncidentBtn" style="background-color: var(--danger-color);">
+                <i class="fas fa-triangle-exclamation"></i> Báo hỏng Thiết bị
+            </button>
+        </div>
+    </div>
+
+    <div class="stats-cards">
+        <div class="stat-card total">
+            <h3>Tổng Thiết Bị</h3>
+            <div class="value" id="user-total-equipment">0</div>
+        </div>
+        <div class="stat-card maintenance">
+            <h3>Cần Chú Ý</h3>
+            <div class="value" id="user-attention-equipment">0</div>
+        </div>
+        <div class="stat-card active">
+            <h3>Đang Hoạt Động</h3>
+            <div class="value" id="user-active-equipment">0</div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 25px; margin-top: 30px;">
+        <div style="background-color: #fff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+             <h3 style="text-align: center; margin-bottom: 20px; color: var(--dark-color);">Tình trạng Thiết bị Khoa</h3>
+            <canvas id="userEquipmentStatusChart"></canvas>
+        </div>
+        <div style="background-color: #fff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+            <h3 style="margin-bottom: 20px; color: var(--dark-color);">Lịch Bảo trì Sắp tới</h3>
+            <ul id="userUpcomingMaintenanceList" style="list-style: none; padding: 0;">
+                </ul>
+        </div>
+    </div>
+</div>
+
     <div id="report-results" style="display: none;">
         <div class="stats-cards">
             <div class="stat-card total">
@@ -499,6 +537,8 @@
             usageLogForm: document.getElementById('usageLogForm'),
             closeUsageLogModalBtn: document.getElementById('closeUsageLogModalBtn'),
             cancelUsageLogBtn: document.getElementById('cancelUsageLogBtn'),
+            userDashboardView: document.getElementById('user-dashboard-view-container'),
+            userReportIncidentBtn: document.getElementById('userReportIncidentBtn'),
         };
         
         const saveToken = (token) => localStorage.setItem('authToken', token);
@@ -955,36 +995,46 @@
         });
 
         function switchView(viewName, param = null) {
-            dom.sidebarNavLinks.forEach(link => {
-                const linkView = link.dataset.view;
-                if (linkView === viewName || (linkView === 'equipment' && viewName === 'profile')) {
-                    link.classList.add('active');
-                } else {
-                    link.classList.remove('active');
-                }
-            });
+    let parentView = viewName;
+    if (viewName === 'profile') {
+        parentView = 'equipment';
+    } else if (viewName === 'userDashboard') {
+        parentView = 'userDashboard'; // Tự nó là view chính
+    }
 
-            dom.viewContainers.forEach(container => container.style.display = 'none');
-            
-            if (viewName !== 'equipment' && viewName !== 'profile') {
-                dom.sidebarFilters.forEach(f => f.classList.remove('active'));
-            } else {
-                setActiveSidebarFilter(currentStatusFilter);
-            }
-
-            const viewToShow = dom[viewName + 'View'];
-            if (viewToShow) {
-                viewToShow.style.display = 'block';
-                document.getElementById('equipment-filters').style.display = (viewName === 'equipment' || viewName === 'profile') ? 'block' : 'none';
-                
-                if (viewName === 'dashboard') renderDashboardView();
-                if (viewName === 'incidents') renderIncidentView();
-                if (viewName === 'maintenance') renderMaintenanceView();
-                if (viewName === 'profile') renderProfileView(param);
-                if (viewName === 'users') renderUsersView();
-                if (viewName === 'reports') renderReportsView();
-            }
+    dom.sidebarNavLinks.forEach(link => {
+        const linkView = link.dataset.view;
+        // Logic mới để làm sáng menu đúng hơn
+        if (linkView === 'equipment' && (viewName === 'equipment' || viewName === 'profile')) {
+            link.classList.add('active');
+        } else {
+            link.classList.toggle('active', linkView === viewName);
         }
+    });
+
+    dom.viewContainers.forEach(container => container.style.display = 'none');
+    
+    if (viewName !== 'equipment' && viewName !== 'profile') {
+        dom.sidebarFilters.forEach(f => f.classList.remove('active'));
+    } else {
+        setActiveSidebarFilter(currentStatusFilter);
+    }
+
+    const viewToShow = dom[viewName + 'View'];
+    if (viewToShow) {
+        viewToShow.style.display = 'block';
+        document.getElementById('equipment-filters').style.display = (viewName === 'equipment' || viewName === 'profile') ? 'block' : 'none';
+        
+        // Gọi các hàm render tương ứng
+        if (viewName === 'dashboard') renderDashboardView();
+        if (viewName === 'incidents') renderIncidentView();
+        if (viewName === 'maintenance') renderMaintenanceView();
+        if (viewName === 'profile') renderProfileView(param);
+        if (viewName === 'users') renderUsersView();
+        if (viewName === 'reports') renderReportsView();
+        if (viewName === 'userDashboard') renderUserDashboard(); // <-- Gọi hàm mới
+    }
+}
         
         async function renderIncidentView() {
             try {
@@ -1852,16 +1902,23 @@
         });
 
         async function checkAuth() {
-            const token = getToken();
-            if (!token) { showLoginView(); return; }
-            userProfile = getUserProfile();
-            if(!userProfile || !userProfile.role) { logout(); return; }
-            try {
-                await loadInitialData();
-                showMainAppView();
-                switchView('dashboard'); 
-            } catch (error) { logout(); }
+        const token = getToken();
+        if (!token) { showLoginView(); return; }
+        userProfile = getUserProfile();
+        if(!userProfile || !userProfile.role) { logout(); return; }
+        try {
+        await loadInitialData();
+        showMainAppView();
+        
+        // Phân luồng hiển thị sau khi đăng nhập
+        if (userProfile.role === 'admin') {
+            switchView('dashboard'); 
+        } else {
+            switchView('userDashboard');
         }
+
+    } catch (error) { logout(); }
+}
 
         dom.loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -2439,6 +2496,76 @@ function renderUsageLogHistory(logs) {
         logBody.appendChild(row);
     });
 }
+
+          // LOGIC CHO DASHBOARD CỦA USER
+// ========================================================
+let userChartInstance = null;
+
+async function renderUserDashboard() {
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/dashboards/user`);
+        if (!response.ok) throw new Error("Không thể tải dữ liệu dashboard.");
+        const data = await response.json();
+
+        // Cập nhật thẻ KPI
+        document.getElementById('user-total-equipment').textContent = data.totalEquipment || 0;
+        document.getElementById('user-attention-equipment').textContent = data.incidentsInProgressCount || 0;
+        document.getElementById('user-active-equipment').textContent = data.equipmentStatusStats.active || 0;
+
+        // Vẽ biểu đồ
+        renderUserEquipmentChart(data.equipmentStatusStats);
+
+        // Hiển thị lịch bảo trì
+        renderUserUpcomingMaintenance(data.upcomingMaintenance);
+
+    } catch (error) {
+        handleApiError(error, "Tải dữ liệu Dashboard");
+    }
+}
+
+function renderUserEquipmentChart(stats) {
+    const ctx = document.getElementById('userEquipmentStatusChart').getContext('2d');
+    const chartData = {
+        labels: ['Hoạt động', 'Bảo trì', 'Ngừng hoạt động'],
+        datasets: [{
+            data: [stats.active || 0, stats.maintenance || 0, stats.inactive || 0],
+            backgroundColor: ['rgba(40, 167, 69, 0.8)', 'rgba(255, 193, 7, 0.8)', 'rgba(220, 53, 69, 0.8)'],
+            borderColor: ['#fff'],
+            borderWidth: 2
+        }]
+    };
+    if (userChartInstance) { userChartInstance.destroy(); }
+    userChartInstance = new Chart(ctx, {
+        type: 'pie', data: chartData,
+        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+
+function renderUserUpcomingMaintenance(schedules) {
+    const listElement = document.getElementById('userUpcomingMaintenanceList');
+    listElement.innerHTML = '';
+    if (!schedules || schedules.length === 0) {
+        listElement.innerHTML = '<li style="padding: 10px;">Không có lịch bảo trì nào sắp tới.</li>';
+        return;
+    }
+    schedules.forEach(item => {
+        const li = document.createElement('li');
+        li.style.borderBottom = '1px solid #eee';
+        li.style.padding = '12px 5px';
+        li.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 500;">${item.equipmentName}</span>
+                <span style="font-size: 14px; color: #555;">${new Date(item.scheduleDate).toLocaleDateString('vi-VN')}</span>
+            </div>
+        `;
+        listElement.appendChild(li);
+    });
+}
+
+// Gắn sự kiện cho nút Báo hỏng nhanh
+dom.userReportIncidentBtn.addEventListener('click', () => {
+    switchView('incidents');
+});     
 
         checkAuth();
     });
