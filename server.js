@@ -89,6 +89,23 @@ const Maintenance = mongoose.models.Maintenance || mongoose.model('Maintenance',
 
 const departments = { 'bvsk_tw_2b': 'Phòng Bảo vệ sức khỏe Trung ương 2B', 'cap_cuu': 'Khoa Cấp cứu', 'kham_benh': 'Khoa Khám bệnh', 'kham_benh_yc': 'Khoa Khám bệnh theo yêu cầu', 'noi_than_loc_mau': 'Khoa Nội thận – Lọc máu', 'dinh_duong_ls': 'Khoa Dinh dưỡng lâm sàng', 'phuc_hoi_cn': 'Khoa Phục hồi chức năng', 'icu': 'Khoa Hồi sức tích cực – Chống độc', 'phau_thuat_gmhs': 'Khoa Phẫu thuật – Gây mê hồi sức', 'ngoai_ctch': 'Khoa Ngoại chấn thương chỉnh hình', 'ngoai_tieu_hoa': 'Khoa Ngoại tiêu hoá', 'ngoai_gan_mat': 'Khoa Ngoại gan mật', 'noi_tiet': 'Khoa Nội tiết', 'ngoai_tim_mach_ln': 'Khoa Ngoại tim mạch – Lồng ngực', 'noi_tim_mach': 'Khoa Nội tim mạch', 'tim_mach_cc_ct': 'Khoa Tim mạch cấp cứu và can thiệp', 'noi_than_kinh': 'Khoa Nội thần kinh', 'loan_nhip_tim': 'Khoa Loạn nhịp tim', 'ngoai_than_kinh': 'Khoa Ngoại thần kinh', 'ngoai_than_tn': 'Khoa Ngoại thận – Tiết niệu', 'dieu_tri_cbcc': 'Khoa Điều trị Cán bộ cao cấp', 'noi_cxk': 'Khoa Nội cơ xương khớp', 'noi_dieu_tri_yc': 'Khoa Nội điều trị theo yêu cầu', 'noi_tieu_hoa_2': 'Khoa Nội tiêu hoá', 'noi_ho_hap': 'Khoa Nội hô hấp', 'mat': 'Khoa Mắt', 'tai_mui_hong': 'Khoa Tai mũi họng', 'pt_hm_thtm': 'Khoa Phẫu thuật hàm mặt – Tạo hình thẩm mỹ', 'ung_buou': 'Khoa Ung bướu', 'noi_nhiem': 'Khoa Nội nhiễm', 'y_hoc_co_truyen': 'Khoa Y học cổ truyền', 'ngoai_dieu_tri_yc': 'Khoa Ngoại điều trị theo yêu cầu', 'da_lieu_md_du': 'Khoa Da liễu – Miễn dịch – Dị ứng' };
 
+const usageLogSchema = new mongoose.Schema({
+    equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment', required: true },
+    equipmentName: { type: String, required: true }, // Thêm tên và serial để tiện tra cứu
+    serial: { type: String, required: true },
+    departmentKey: { type: String, required: true },
+    loggedBy: { type: String, required: true },
+    status: { 
+        type: String, 
+        required: true,
+        enum: ['operational', 'minor_issue', 'not_in_use'] 
+        // operational: Hoạt động tốt
+        // minor_issue: Có vấn đề nhỏ
+        // not_in_use: Không sử dụng
+    },
+    notes: { type: String, default: '' },
+}, { timestamps: true });
+const UsageLog = mongoose.models.UsageLog || mongoose.model('UsageLog', usageLogSchema);
 
 // 6. API XÁC THỰC
 app.post('/api/auth/register', async (req, res) => {
@@ -732,6 +749,53 @@ app.get('/api/reports/monthly-summary', authenticateToken, isAdmin, async (req, 
     } catch (error) {
         console.error("Lỗi khi tạo báo cáo:", error);
         res.status(500).json({ message: 'Lỗi server khi tạo báo cáo.' });
+    }
+});
+
+// 10.10. API CHO NHẬT KÝ SỬ DỤNG (TÍNH NĂNG MỚI)
+// =================================================================
+
+// API để khoa/phòng tạo một nhật ký sử dụng mới
+app.post('/api/logs', authenticateToken, async (req, res) => {
+    try {
+        const { equipmentId, status, notes } = req.body;
+        if (!equipmentId || !status) {
+            return res.status(400).json({ message: "Thiếu thông tin thiết bị hoặc trạng thái." });
+        }
+
+        const equipment = await Equipment.findById(equipmentId);
+        if (!equipment) {
+            return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+        }
+
+        const newLog = new UsageLog({
+            equipmentId: equipment._id,
+            equipmentName: equipment.name,
+            serial: equipment.serial,
+            departmentKey: req.user.departmentKey, // Lấy từ token của người dùng đang đăng nhập
+            loggedBy: req.user.username, // Lấy từ token của người dùng đang đăng nhập
+            status,
+            notes
+        });
+
+        await newLog.save();
+        res.status(201).json({ message: "Ghi nhật ký thành công!", log: newLog });
+
+    } catch (error) {
+        console.error("Lỗi khi tạo nhật ký sử dụng:", error);
+        res.status(500).json({ message: 'Lỗi server khi tạo nhật ký.' });
+    }
+});
+
+// API để admin xem lịch sử nhật ký của một thiết bị cụ thể
+app.get('/api/logs/equipment/:equipmentId', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { equipmentId } = req.params;
+        const logs = await UsageLog.find({ equipmentId: equipmentId }).sort({ createdAt: -1 });
+        res.json(logs);
+    } catch (error) {
+        console.error("Lỗi khi lấy lịch sử nhật ký:", error);
+        res.status(500).json({ message: 'Lỗi server khi lấy lịch sử nhật ký.' });
     }
 });
 

@@ -399,6 +399,37 @@
         <div class="modal" id="addEquipmentModal"><div class="modal-content"><div class="modal-header"><h2 id="modalTitle">Thêm Thiết Bị Mới</h2><button class="close-btn" id="closeModalBtn">×</button></div><form id="equipmentForm"><input type="hidden" id="edit-serial"><div class="form-row"><div class="form-group"><label for="equipmentName">Tên Thiết Bị *</label><input type="text" id="equipmentName" placeholder="Ví dụ: Máy thở đa năng" required></div><div class="form-group"><label for="serialNumber">Số Serial *</label><input type="text" id="serialNumber" placeholder="Ví dụ: XYZ-12345" required></div></div><div class="form-row"><div class="form-group"><label for="manufacturer">Hãng Sản Xuất *</label><input type="text" id="manufacturer" placeholder="Ví dụ: Siemens" required></div><div class="form-group"><label for="purchaseDate">Năm Đưa Vào Sử Dụng *</label><input type="number" id="purchaseDate" min="1950" max="2099" placeholder="Ví dụ: 2023" required></div></div><div class="form-group"><label for="accessories">Phụ Kiện</label><input type="text" id="accessories" placeholder="Nhập phụ kiện kèm theo (cách nhau bởi dấu phẩy)"></div><div class="form-group"><label for="status">Tình Trạng *</label><select id="status" required><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Ngừng hoạt động</option></select></div><div class="form-group"><label for="description">Mô Tả / Ghi Chú</label><textarea id="description" rows="3" placeholder="Nhập mô tả hoặc ghi chú về thiết bị"></textarea></div><div class="form-group"><label>Hình Ảnh Thiết Bị</label><div class="image-upload" id="imageUpload"><i class="fas fa-cloud-upload-alt"></i><p>Nhấn để tải lên hoặc kéo thả ảnh vào đây</p><input type="file" id="imageInput" accept="image/*" style="display: none;"><img id="imagePreview" class="image-preview" src="#" alt="Xem trước hình ảnh"></div></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Thiết Bị</button></div></form></div></div>
         <div class="modal" id="maintenanceModal"><div class="modal-content"><div class="modal-header"><h2 id="maintenanceModalTitle">Lên Lịch Bảo Trì Mới</h2><button class="close-btn" id="closeMaintenanceModalBtn">×</button></div><form id="maintenanceForm"><input type="hidden" id="maintenance-edit-id"><div class="form-group"><label for="maintenanceEquipmentSelect">Chọn Thiết Bị Cần Bảo Trì *</label><select id="maintenanceEquipmentSelect" required></select></div><div class="form-row"><div class="form-group"><label for="scheduleDate">Ngày Lên Lịch *</label><input type="date" id="scheduleDate" required></div><div class="form-group"><label for="maintenanceType">Loại Bảo Trì</label><select id="maintenanceType"><option value="ad-hoc">Đột xuất</option><option value="periodic">Định kỳ</option></select></div></div><div class="form-group"><label for="maintenanceNotes">Ghi Chú Ban Đầu</label><textarea id="maintenanceNotes" rows="3" placeholder="Nhập ghi chú hoặc yêu cầu công việc..."></textarea></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelMaintenanceBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Lịch Trình</button></div></form></div></div>
         <div class="modal" id="userModal"><div class="modal-content"><div class="modal-header"><h2 id="userModalTitle">Thêm Người dùng mới</h2><button class="close-btn" id="closeUserModalBtn">×</button></div><form id="userForm"><input type="hidden" id="edit-userId"><div class="form-group"><label for="userUsername">Tên đăng nhập *</label><input type="text" id="userUsername" required></div><div class="form-group"><label for="userPassword">Mật khẩu *</label><input type="password" id="userPassword"><small id="passwordHelp" style="color: #888; font-size: 12px; margin-top: 5px;">Bắt buộc khi tạo mới. Để trống nếu không muốn thay đổi mật khẩu khi sửa.</small></div><div class="form-group"><label for="userDepartment">Gán vào Khoa/Phòng *</label><select id="userDepartment" required></select></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelUserBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Người dùng</button></div></form></div></div>
+        <div class="modal" id="usageLogModal">
+    <div class="modal-content" style="max-width: 550px;">
+        <div class="modal-header">
+            <h2 id="usageLogModalTitle">Ghi Nhật ký Sử dụng Tuần</h2>
+            <button class="close-btn" id="closeUsageLogModalBtn">×</button>
+        </div>
+        <form id="usageLogForm">
+            <input type="hidden" id="log-equipment-id">
+            <div class="form-group">
+                <label>Thiết bị</label>
+                <input type="text" id="log-equipment-name" readonly style="background-color: #e9ecef; font-weight: bold;">
+            </div>
+            <div class="form-group">
+                <label for="logStatus">Tình trạng hoạt động trong tuần *</label>
+                <select id="logStatus" required>
+                    <option value="operational">Hoạt động tốt, bình thường</option>
+                    <option value="minor_issue">Có vấn đề nhỏ (VD: hơi ồn, khởi động chậm...)</option>
+                    <option value="not_in_use">Không sử dụng trong tuần</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="logNotes">Ghi chú (nếu có)</label>
+                <textarea id="logNotes" rows="3" placeholder="Nhập các ghi chú chi tiết về tình trạng thiết bị..."></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="cancel-btn" id="cancelUsageLogBtn">Hủy Bỏ</button>
+                <button type="submit" class="save-btn">Lưu Nhật ký</button>
+            </div>
+        </form>
+    </div>
+</div>
         <footer><div class="container"><p>© 2025 Hệ Thống Quản Lý Trang Thiết Bị Y Tế. Tối ưu hóa cho hoạt động bệnh viện.</p></div></footer>
     </div>
     
@@ -464,6 +495,10 @@
             reportEndDate: document.getElementById('reportEndDate'),
             viewReportBtn: document.getElementById('viewReportBtn'),
             reportResults: document.getElementById('report-results'),
+            usageLogModal: document.getElementById('usageLogModal'),
+            usageLogForm: document.getElementById('usageLogForm'),
+            closeUsageLogModalBtn: document.getElementById('closeUsageLogModalBtn'),
+            cancelUsageLogBtn: document.getElementById('cancelUsageLogBtn'),
         };
         
         const saveToken = (token) => localStorage.setItem('authToken', token);
@@ -604,29 +639,34 @@
         }
         
         function updateEquipmentTable(list, isGlobalSearch = false) {
-            dom.equipmentTableBody.innerHTML = '';
-            document.getElementById('departmentColumnHeader').style.display = isGlobalSearch ? '' : 'none';
-            const colspan = isGlobalSearch ? 8 : 7;
-            if (list.length === 0) {
-                dom.equipmentTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 30px;">Không có thiết bị nào phù hợp.</td></tr>`;
-                return;
-            }
-            list.forEach(item => {
-                const row = document.createElement('tr');
-                const itemDept = item.department || dom.departmentSelect.value;
-                row.className = `status-${item.status}`;
-                let actionButtons = '';
-                if (userProfile.role === 'admin') {
-                    actionButtons = `
-                        <button class="action-button view-btn" data-serial="${item.serial}" style="background-color: var(--success-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-eye"></i></button>
-                        <button class="edit-btn" data-serial="${item.serial}"><i class="fas fa-edit"></i></button>
-                        <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>
-                    `;
-                }
-                row.innerHTML = `<td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td><td>${item.name}</td><td>${item.serial}</td> ${isGlobalSearch ? `<td>${departments[itemDept] || 'N/A'}</td>` : ''} <td>${item.manufacturer || 'N/A'}</td><td>${item.year}</td><td><span class="status ${item.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span></td><td class="action-btn-group">${actionButtons}</td>`;
-                dom.equipmentTableBody.appendChild(row);
-            });
+        dom.equipmentTableBody.innerHTML = '';
+        document.getElementById('departmentColumnHeader').style.display = isGlobalSearch ? '' : 'none';
+        const colspan = isGlobalSearch ? 8 : 7;
+        if (list.length === 0) {
+        dom.equipmentTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 30px;">Không có thiết bị nào phù hợp.</td></tr>`;
+        return;
+    }
+    list.forEach(item => {
+        const row = document.createElement('tr');
+        const itemDept = item.department || dom.departmentSelect.value;
+        row.className = `status-${item.status}`;
+        let actionButtons = '';
+
+        // Phân quyền hiển thị nút bấm
+        if (userProfile.role === 'admin') {
+            actionButtons = `
+                <button class="action-button view-btn" data-serial="${item.serial}" style="background-color: var(--success-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-eye"></i></button>
+                <button class="edit-btn" data-serial="${item.serial}"><i class="fas fa-edit"></i></button>
+                <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>
+            `;
+        } else { // Nếu là user thì hiển thị nút Ghi Nhật ký
+            actionButtons = `<button class="action-button log-usage-btn" data-id="${item._id}" data-name="${item.name}" style="background-color: var(--info-color);"><i class="fas-regular fa-file-pen"></i> Ghi Nhật ký</button>`;
         }
+
+        row.innerHTML = `<td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td><td>${item.name}</td><td>${item.serial}</td> ${isGlobalSearch ? `<td>${departments[itemDept] || 'N/A'}</td>` : ''} <td>${item.manufacturer || 'N/A'}</td><td>${item.year}</td><td><span class="status ${item.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span></td><td class="action-btn-group">${actionButtons}</td>`;
+        dom.equipmentTableBody.appendChild(row);
+    });
+}
         
         function updateStats(stats = {}) {
             const totalInDept = (stats.active || 0) + (stats.maintenance || 0) + (stats.inactive || 0);
@@ -791,6 +831,12 @@
                         }
                     }
                 });
+            }
+
+            else if (target.classList.contains('log-usage-btn')) {
+        const equipmentId = target.dataset.id;
+        const equipmentName = target.dataset.name;
+        openUsageLogModal({ _id: equipmentId, name: equipmentName });
             }
         });
         
@@ -1554,11 +1600,12 @@
     profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
 
     try {
+        // Lấy thông tin chính của thiết bị
         const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${decodeURIComponent(serial)}`);
         if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
         const data = await response.json();
 
-        // Cập nhật lại cấu trúc HTML để có 3 cột rõ ràng
+        // Cập nhật HTML để có thêm bảng "Nhật ký Sử dụng"
         profileView.innerHTML = `
             <div class="main-header">
                 <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
@@ -1567,40 +1614,45 @@
                     <button id="back-to-list-btn" class="action-button"><i class="fas fa-arrow-left"></i> Quay lại</button>
                 </div>
             </div>
-            <div id="profile-content" style="display: grid; grid-template-columns: 280px 1.2fr 1.5fr; gap: 25px;">
-                <div id="profile-info-card" style="text-align: center;">
-                    <div id="qrcode-container" style="width: 250px; margin: 0 auto; padding: 15px; border: 1px solid #ddd; background: white; margin-bottom: 20px;">
+            <div id="profile-content" style="display: grid; grid-template-columns: 280px 1fr; gap: 25px;">
+                <div id="profile-info-card">
+                    <div id="qrcode-container" style="width: 250px; margin: 0 auto; padding: 15px; border: 1px solid #ddd; background: white; margin-bottom: 20px; text-align:center;">
                         </div>
-                </div>
-
-                <div id="profile-details">
-                    <h3 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 2px solid var(--light-color); padding-bottom: 10px;">Thông tin chi tiết</h3>
-                    <div style="font-size: 15px; line-height: 2.2;">
-                        <p><strong>Tên thiết bị:</strong> ${data.details.name}</p>
-                        <p><strong>Số Serial:</strong> ${data.details.serial}</p>
-                        <p><strong>Hãng sản xuất:</strong> ${data.details.manufacturer}</p>
-                        <p><strong>Năm sử dụng:</strong> ${data.details.year}</p>
-                        <p><strong>Khoa:</strong> ${departments[data.details.department]}</p>
-                        <p><strong>Tình trạng:</strong> <span class="status ${data.details.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[data.details.status]}</span></p>
-                        <p><strong>Phụ kiện:</strong> ${data.details.accessories || 'Không có'}</p>
-                        <p><strong>Mô tả:</strong> ${data.details.description || 'Không có'}</p>
+                    <div id="profile-details">
+                        <h3 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Thông tin chi tiết</h3>
+                        <div style="font-size: 15px; line-height: 2.2;">
+                            <p><strong>Số Serial:</strong> ${data.details.serial}</p>
+                            <p><strong>Hãng sản xuất:</strong> ${data.details.manufacturer}</p>
+                            <p><strong>Năm sử dụng:</strong> ${data.details.year}</p>
+                            <p><strong>Khoa:</strong> ${departments[data.details.department]}</p>
+                            <p><strong>Tình trạng:</strong> <span class="status ${data.details.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[data.details.status]}</span></p>
+                        </div>
                     </div>
                 </div>
                 
                 <div id="profile-history">
                     <h3 style="margin-bottom: 15px; border-bottom: 2px solid var(--light-color); padding-bottom: 10px;">Lịch sử Hoạt động</h3>
                     <div>
-                        <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Sự cố (${data.incidents.length})</h4>
-                        <div style="max-height: 250px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                        <h4 style="margin-bottom: 10px; font-weight: 500;">Nhật ký Sử dụng hàng tuần</h4>
+                        <div style="max-height: 220px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;">
+                            <table class="generic-table">
+                                <thead><tr><th>Ngày Ghi</th><th>Người Ghi</th><th>Tình Trạng</th><th>Ghi Chú</th></tr></thead>
+                                <tbody id="usage-log-tbody"><tr><td colspan="4" style="text-align:center;">Đang tải...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Sự cố</h4>
+                        <div style="max-height: 220px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;">
                             <table class="generic-table">
                                 <thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead>
                                 <tbody id="profile-incidents-tbody"></tbody>
                             </table>
                         </div>
                     </div>
-                    <div style="margin-top: 20px;">
-                        <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Bảo trì (${data.maintenanceHistory.length})</h4>
-                        <div style="max-height: 250px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
+                    <div>
+                        <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Bảo trì</h4>
+                        <div style="max-height: 220px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
                             <table class="generic-table">
                                 <thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Trạng thái</th></tr></thead>
                                 <tbody id="profile-maintenance-tbody"></tbody>
@@ -1610,28 +1662,30 @@
                 </div>
             </div>`;
         
+        // --- LOGIC MỚI: TẢI VÀ HIỂN THỊ NHẬT KÝ SỬ DỤNG ---
+        const logResponse = await fetchWithAuth(`${API_BASE_URL}/api/logs/equipment/${data.details._id}`);
+        const logs = await logResponse.json();
+        renderUsageLogHistory(logs);
+        // ----------------------------------------------------
+
         // Tạo QR Code
         const qrCodeContainer = document.getElementById('qrcode-container');
         new QRCode(qrCodeContainer, {
             text: `https://resilient-dieffenbachia-5881b7.netlify.app/report.html?serial=${encodeURIComponent(data.details.serial)}`,
-            width: 220,
-            height: 220,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
+            width: 220, height: 220, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H
         });
         
         // Gắn sự kiện cho các nút
         document.getElementById('back-to-list-btn').addEventListener('click', () => switchView('equipment'));
         document.getElementById('print-qr-btn').addEventListener('click', () => {
             const qrImageSrc = qrCodeContainer.querySelector('img').src;
-            const departmentName = departments[data.details.department];
-            printQRCode(qrImageSrc, data.details.name, data.details.serial, departmentName);
+            printQRCode(qrImageSrc, data.details.name, data.details.serial, departments[data.details.department]);
         });
 
-        // Đổ dữ liệu vào các bảng lịch sử
+        // Đổ dữ liệu vào các bảng lịch sử (giữ nguyên)
         const incidentBody = document.getElementById('profile-incidents-tbody');
         if (data.incidents.length > 0) {
+            incidentBody.innerHTML = '';
             data.incidents.forEach(inc => {
                 const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
                 incidentBody.innerHTML += `<tr><td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td></tr>`;
@@ -1640,6 +1694,7 @@
 
         const maintenanceBody = document.getElementById('profile-maintenance-tbody');
         if (data.maintenanceHistory.length > 0) {
+             maintenanceBody.innerHTML = '';
              const statusMap = { scheduled: 'Đã lên lịch', in_progress: 'Đang tiến hành', completed: 'Hoàn thành', canceled: 'Đã hủy' };
              data.maintenanceHistory.forEach(main => {
                 maintenanceBody.innerHTML += `<tr><td>${new Date(main.scheduleDate).toLocaleDateString('vi-VN')}</td><td>${main.completionDate ? new Date(main.completionDate).toLocaleDateString('vi-VN') : 'Chưa có'}</td><td><span class="status ${main.status}">${statusMap[main.status]}</span></td></tr>`;
@@ -2313,7 +2368,78 @@ function printMonthlyReport(reportData, startDate, endDate) {
         printWindow.close();
     }, 500);
 }
-    
+        // LOGIC CHO MODAL GHI NHẬT KÝ SỬ DỤNG
+// ========================================================
+function openUsageLogModal(equipment) {
+    dom.usageLogForm.reset();
+    document.getElementById('log-equipment-id').value = equipment._id;
+    document.getElementById('log-equipment-name').value = equipment.name;
+    dom.usageLogModal.style.display = 'flex';
+}
+
+function closeUsageLogModal() {
+    dom.usageLogModal.style.display = 'none';
+}
+
+dom.closeUsageLogModalBtn.addEventListener('click', closeUsageLogModal);
+dom.cancelUsageLogBtn.addEventListener('click', closeUsageLogModal);
+window.addEventListener('click', (e) => {
+    if (e.target === dom.usageLogModal) closeUsageLogModal();
+});
+
+dom.usageLogForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        equipmentId: document.getElementById('log-equipment-id').value,
+        status: document.getElementById('logStatus').value,
+        notes: document.getElementById('logNotes').value
+    };
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/logs`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.message);
+        }
+        Swal.fire('Thành công', 'Đã ghi lại nhật ký sử dụng cho thiết bị.', 'success');
+        closeUsageLogModal();
+    } catch (error) {
+        handleApiError(error, "Ghi nhật ký");
+    }
+});
+
+        // Dán hàm này vào cuối thẻ script
+function renderUsageLogHistory(logs) {
+    const logBody = document.getElementById('usage-log-tbody');
+    if (!logBody) return; 
+    logBody.innerHTML = '';
+
+    if (logs.length === 0) {
+        logBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Chưa có nhật ký sử dụng.</td></tr>';
+        return;
+    }
+
+    const statusMap = {
+        operational: 'Hoạt động tốt',
+        minor_issue: 'Có vấn đề nhỏ',
+        not_in_use: 'Không sử dụng'
+    };
+
+    logs.forEach(log => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${new Date(log.createdAt).toLocaleDateString('vi-VN')}</td>
+            <td>${log.loggedBy}</td>
+            <td>${statusMap[log.status] || log.status}</td>
+            <td>${log.notes || ''}</td>
+        `;
+        logBody.appendChild(row);
+    });
+}
+
         checkAuth();
     });
 </script>
