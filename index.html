@@ -679,10 +679,10 @@
         }
         
         function updateEquipmentTable(list, isGlobalSearch = false) {
-        dom.equipmentTableBody.innerHTML = '';
-        document.getElementById('departmentColumnHeader').style.display = isGlobalSearch ? '' : 'none';
-        const colspan = isGlobalSearch ? 8 : 7;
-        if (list.length === 0) {
+    dom.equipmentTableBody.innerHTML = '';
+    document.getElementById('departmentColumnHeader').style.display = isGlobalSearch ? '' : 'none';
+    const colspan = isGlobalSearch ? 8 : 7;
+    if (list.length === 0) {
         dom.equipmentTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 30px;">Không có thiết bị nào phù hợp.</td></tr>`;
         return;
     }
@@ -692,15 +692,18 @@
         row.className = `status-${item.status}`;
         let actionButtons = '';
 
-        // Phân quyền hiển thị nút bấm
         if (userProfile.role === 'admin') {
             actionButtons = `
                 <button class="action-button view-btn" data-serial="${item.serial}" style="background-color: var(--success-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-eye"></i></button>
                 <button class="edit-btn" data-serial="${item.serial}"><i class="fas fa-edit"></i></button>
                 <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>
             `;
-        } else { // Nếu là user thì hiển thị nút Ghi Nhật ký
-            actionButtons = `<button class="action-button log-usage-btn" data-id="${item._id}" data-name="${item.name}" style="background-color: var(--info-color);"><i class="fas fa-file-pen"></i> Ghi Nhật ký</button>`;
+        } else {
+            // THÊM NÚT BÁO HỎNG MỚI VÀO ĐÂY
+            actionButtons = `
+                <button class="action-button report-issue-btn" data-serial="${item.serial}" style="background-color: var(--danger-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-triangle-exclamation"></i> Báo hỏng</button>
+                <button class="action-button log-usage-btn" data-id="${item._id}" data-name="${item.name}" style="background-color: var(--info-color); padding: 6px 10px; font-size: 14px;"><i class="far fa-file-alt"></i> Ghi Nhật ký</button>
+            `;
         }
 
         row.innerHTML = `<td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td><td>${item.name}</td><td>${item.serial}</td> ${isGlobalSearch ? `<td>${departments[itemDept] || 'N/A'}</td>` : ''} <td>${item.manufacturer || 'N/A'}</td><td>${item.year}</td><td><span class="status ${item.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span></td><td class="action-btn-group">${actionButtons}</td>`;
@@ -828,57 +831,73 @@
         });
 
         dom.equipmentTableBody.addEventListener('click', async (e) => {
-            const target = e.target.closest('button');
-            if (!target) return;
-            const serial = target.dataset.serial;
-            
-            if (target.classList.contains('view-btn')) {
-                switchView('profile', encodeURIComponent(serial));
-            } 
-            else if (target.classList.contains('edit-btn')) {
+    const target = e.target.closest('button');
+    if (!target) return;
+    
+    // Logic cho nút của Admin (giữ nguyên)
+    if (target.classList.contains('view-btn')) {
+        const serial = target.dataset.serial;
+        switchView('profile', encodeURIComponent(serial));
+    } 
+    else if (target.classList.contains('edit-btn')) {
+        const serial = target.dataset.serial;
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${encodeURIComponent(serial)}`);
+            if (!response.ok) throw new Error("Không tìm thấy thông tin thiết bị để sửa.");
+            const itemData = await response.json();
+            if (itemData) openModal('edit', itemData);
+        } catch(error) { handleApiError(error, 'Lấy thông tin sửa'); }
+    } 
+    else if (target.classList.contains('delete-btn')) {
+        const serial = target.dataset.serial;
+        const deptKey = target.dataset.dept;
+        if (!deptKey) return;
+        
+        Swal.fire({
+            title: 'Bạn chắc chắn không?',
+            text: `Bạn sẽ không thể hoàn tác hành động xóa thiết bị có serial "${serial}"!`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Vâng, xóa nó!',
+            cancelButtonText: 'Hủy bỏ'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
                 try {
-                    const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${encodeURIComponent(serial)}`);
-                    if (!response.ok) throw new Error("Không tìm thấy thông tin thiết bị để sửa.");
-                    const itemData = await response.json();
-                    if (itemData) openModal('edit', itemData);
-                } catch(error) { handleApiError(error, 'Lấy thông tin sửa'); }
-            } 
-            else if (target.classList.contains('delete-btn')) {
-                const deptKey = target.dataset.dept;
-                if (!deptKey) return;
-                
-                Swal.fire({
-                    title: 'Bạn chắc chắn không?',
-                    text: `Bạn sẽ không thể hoàn tác hành động xóa thiết bị có serial "${serial}"!`,
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    cancelButtonColor: '#3085d6',
-                    confirmButtonText: 'Vâng, xóa nó!',
-                    cancelButtonText: 'Hủy bỏ'
-                }).then(async (result) => {
-                    if (result.isConfirmed) {
-                        try {
-                            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${encodeURIComponent(serial)}`, { method: 'DELETE' });
-                            if (!response.ok) {
-                              const err = await response.json();
-                              throw new Error(err.message);
-                            }
-                            Swal.fire('Đã xóa!', 'Thiết bị đã được xóa thành công.', 'success');
-                            await fetchAndDisplayEquipment(dom.departmentSelect.value, 1); 
-                        } catch (error) { 
-                            handleApiError(error, 'Xóa thiết bị'); 
-                        }
-                    }
-                });
+                    const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${encodeURIComponent(serial)}`, { method: 'DELETE' });
+                    if (!response.ok) { const err = await response.json(); throw new Error(err.message); }
+                    Swal.fire('Đã xóa!', 'Thiết bị đã được xóa thành công.', 'success');
+                    await fetchAndDisplayEquipment(dom.departmentSelect.value, 1); 
+                } catch (error) { 
+                    handleApiError(error, 'Xóa thiết bị'); 
+                }
             }
-
-            else if (target.classList.contains('log-usage-btn')) {
+        });
+    }
+    
+    // Logic cho nút của User (Ghi Nhật ký)
+    else if (target.classList.contains('log-usage-btn')) {
         const equipmentId = target.dataset.id;
         const equipmentName = target.dataset.name;
         openUsageLogModal({ _id: equipmentId, name: equipmentName });
+    }
+    // LOGIC MỚI CHO NÚT BÁO HỎNG CỦA USER
+    else if (target.classList.contains('report-issue-btn')) {
+        const serial = target.dataset.serial;
+        
+        // 1. Chuyển sang trang báo cáo sự cố
+        switchView('incidents');
+        
+        // 2. Chờ một chút để view được render xong
+        setTimeout(() => {
+            // 3. Tự động chọn đúng thiết bị trong dropdown
+            if (dom.incidentEquipmentSelect) {
+                dom.incidentEquipmentSelect.value = serial;
             }
-        });
+        }, 100); // 100ms là đủ để DOM cập nhật
+    }
+});
         
         dom.exportExcelBtn.addEventListener('click', async () => {
     const searchTerm = dom.searchInput.value.trim();
