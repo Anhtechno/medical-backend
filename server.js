@@ -803,10 +803,14 @@ app.get('/api/logs/equipment/:equipmentId', authenticateToken, isAdmin, async (r
 // 10.11. API CHO DASHBOARD CỦA USER (TÍNH NĂNG MỚI)
 // =================================================================
 app.get('/api/dashboards/user', authenticateToken, async (req, res) => {
-    // API này không cần isAdmin, chỉ cần người dùng đã đăng nhập
     try {
         const departmentKey = req.user.departmentKey;
+        
+        // --- LOG DEBUG ---
+        console.log(`--- [DEBUG] Bắt đầu lấy dữ liệu Dashboard cho khoa: ${departmentKey} ---`);
+        
         if (!departmentKey) {
+            console.log('--- [DEBUG] Lỗi: User không có departmentKey.');
             return res.status(400).json({ message: 'Tài khoản không được gán vào khoa nào.' });
         }
 
@@ -815,37 +819,44 @@ app.get('/api/dashboards/user', authenticateToken, async (req, res) => {
             incidentsInProgressCount,
             upcomingMaintenance
         ] = await Promise.all([
-            // 1. Lấy thống kê trạng thái thiết bị của khoa
             Equipment.aggregate([
                 { $match: { department: departmentKey } },
                 { $group: { _id: '$status', count: { $sum: 1 } } }
             ]),
-            // 2. Đếm số sự cố đang chờ hoặc đang xử lý của khoa
             Incident.countDocuments({ departmentKey: departmentKey, status: { $in: ['new', 'in_progress'] } }),
-            // 3. Lấy 5 lịch bảo trì sắp tới của khoa
             Maintenance.find({ 
                 departmentKey: departmentKey,
                 status: { $in: ['scheduled', 'in_progress'] },
                 scheduleDate: { $gte: new Date() }
             }).sort({ scheduleDate: 1 }).limit(5).lean()
         ]);
+        
+        // --- LOG DEBUG ---
+        console.log('[DEBUG] Kết quả Equipment.aggregate:', JSON.stringify(equipmentStats));
+        console.log('[DEBUG] Kết quả Incident.countDocuments:', incidentsInProgressCount);
+        console.log('[DEBUG] Kết quả Maintenance.find:', JSON.stringify(upcomingMaintenance));
 
-        // Xử lý dữ liệu thống kê
         const formattedStats = equipmentStats.reduce((acc, curr) => {
             if (curr._id) acc[curr._id] = curr.count;
             return acc;
         }, { active: 0, maintenance: 0, inactive: 0 });
         const totalEquipment = formattedStats.active + formattedStats.maintenance + formattedStats.inactive;
 
-        res.json({
+        const responsePayload = {
             totalEquipment,
             incidentsInProgressCount,
             equipmentStatusStats: formattedStats,
             upcomingMaintenance
-        });
+        };
+        
+        // --- LOG DEBUG ---
+        console.log('[DEBUG] Dữ liệu gửi về cho frontend:', JSON.stringify(responsePayload));
+        console.log('--- [DEBUG] Kết thúc ---');
+        
+        res.json(responsePayload);
 
     } catch (error) {
-        console.error("Lỗi khi lấy dữ liệu dashboard cho user:", error);
+        console.error("--- [DEBUG] LỖI TRONG QUÁ TRÌNH XỬ LÝ ---:", error);
         res.status(500).json({ message: 'Lỗi server khi tạo dashboard.' });
     }
 });
