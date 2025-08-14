@@ -694,7 +694,6 @@ app.get('/api/reports/monthly-summary', authenticateToken, isAdmin, async (req, 
             return res.status(400).json({ message: 'Vui lòng cung cấp ngày bắt đầu và ngày kết thúc.' });
         }
 
-        // Tạo đối tượng Date và đặt thời gian về đầu và cuối ngày để đảm bảo lấy trọn vẹn dữ liệu
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
 
@@ -732,7 +731,7 @@ app.get('/api/reports/monthly-summary', authenticateToken, isAdmin, async (req, 
                     ]
                 }
             }
-        ]);
+        ]); // <--- Đã sửa lỗi ở đây
         
         const summary = {
             totalIncidents: results[0].totalIncidents[0] ? results[0].totalIncidents[0].count : 0,
