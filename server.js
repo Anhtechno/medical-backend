@@ -860,6 +860,27 @@ app.get('/api/dashboards/user', authenticateToken, async (req, res) => {
     }
 });
 
+// =================================================================
+// 10.12. API DEBUG (CHẨN ĐOÁN LỖI)
+// =================================================================
+app.get('/api/debug/list-departments', async (req, res) => {
+    try {
+        console.log("--- [DEBUG] Bắt đầu chạy API chẩn đoán ---");
+        // Lấy ra tất cả các giá trị 'department' duy nhất trong collection 'equipments'
+        const distinctDepartments = await Equipment.distinct('department');
+        
+        console.log("--- [DEBUG] Các mã khoa tìm thấy trong database:", distinctDepartments);
+        res.json({
+            message: "Đây là danh sách tất cả các mã khoa (department key) mà server tìm thấy trong collection 'equipments'.",
+            foundDepartments: distinctDepartments
+        });
+
+    } catch (error) {
+        console.error("--- [DEBUG] Lỗi khi chạy API chẩn đoán ---:", error);
+        res.status(500).json({ message: 'Lỗi server khi chạy chẩn đoán.' });
+    }
+});
+
 // 11. KHỞI ĐỘNG SERVER
 app.listen(PORT, () => {
     console.log(`Backend đang chạy tại địa chỉ: http://localhost:${PORT}`);
