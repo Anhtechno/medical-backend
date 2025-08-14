@@ -257,6 +257,43 @@
                     </div>
                     
                     <div id="reports-view-container" class="view-container">
+                        <div id="user-dashboard-view-container" class="view-container">
+    <div class="main-header">
+        <h1 class="view-title">Bảng điều khiển Khoa</h1>
+        <div class="header-actions">
+            <button class="action-button" id="userReportIncidentBtn" style="background-color: var(--danger-color);">
+                <i class="fas fa-triangle-exclamation"></i> Báo hỏng Thiết bị
+            </button>
+        </div>
+    </div>
+
+    <div class="stats-cards">
+        <div class="stat-card total">
+            <h3>Tổng Thiết Bị</h3>
+            <div class="value" id="user-total-equipment">0</div>
+        </div>
+        <div class="stat-card maintenance">
+            <h3>Cần Chú Ý</h3>
+            <div class="value" id="user-attention-equipment">0</div>
+        </div>
+        <div class="stat-card active">
+            <h3>Đang Hoạt Động</h3>
+            <div class="value" id="user-active-equipment">0</div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 25px; margin-top: 30px;">
+        <div style="background-color: #fff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+             <h3 style="text-align: center; margin-bottom: 20px; color: var(--dark-color);">Tình trạng Thiết bị Khoa</h3>
+            <canvas id="userEquipmentStatusChart"></canvas>
+        </div>
+        <div style="background-color: #fff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+            <h3 style="margin-bottom: 20px; color: var(--dark-color);">Lịch Bảo trì Sắp tới</h3>
+            <ul id="userUpcomingMaintenanceList" style="list-style: none; padding: 0;">
+                </ul>
+        </div>
+    </div>
+</div>
     <div class="main-header">
         <h1 class="view-title">Báo cáo & Thống kê</h1>
         <div class="header-actions">
@@ -2576,6 +2613,7 @@ function renderUserUpcomingMaintenance(schedules) {
 dom.userReportIncidentBtn.addEventListener('click', () => {
     switchView('incidents');
 });     
+
 
         checkAuth();
     });

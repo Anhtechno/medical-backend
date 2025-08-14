@@ -799,6 +799,7 @@ app.get('/api/logs/equipment/:equipmentId', authenticateToken, isAdmin, async (r
     }
 });
 
+// =================================================================
 // 10.11. API CHO DASHBOARD CỦA USER (TÍNH NĂNG MỚI)
 // =================================================================
 app.get('/api/dashboards/user', authenticateToken, async (req, res) => {
