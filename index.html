@@ -834,7 +834,7 @@
     const target = e.target.closest('button');
     if (!target) return;
     
-    // Logic cho nút của Admin (giữ nguyên)
+    // Logic cho các nút của Admin
     if (target.classList.contains('view-btn')) {
         const serial = target.dataset.serial;
         switchView('profile', encodeURIComponent(serial));
@@ -876,26 +876,17 @@
         });
     }
     
-    // Logic cho nút của User (Ghi Nhật ký)
+    // Logic cho các nút của User
     else if (target.classList.contains('log-usage-btn')) {
         const equipmentId = target.dataset.id;
         const equipmentName = target.dataset.name;
         openUsageLogModal({ _id: equipmentId, name: equipmentName });
     }
-    // LOGIC MỚI CHO NÚT BÁO HỎNG CỦA USER
+    // SỬA LẠI LOGIC CHO NÚT BÁO HỎNG
     else if (target.classList.contains('report-issue-btn')) {
         const serial = target.dataset.serial;
-        
-        // 1. Chuyển sang trang báo cáo sự cố
-        switchView('incidents');
-        
-        // 2. Chờ một chút để view được render xong
-        setTimeout(() => {
-            // 3. Tự động chọn đúng thiết bị trong dropdown
-            if (dom.incidentEquipmentSelect) {
-                dom.incidentEquipmentSelect.value = serial;
-            }
-        }, 100); // 100ms là đủ để DOM cập nhật
+        // Gọi switchView và truyền trực tiếp serial, không cần setTimeout
+        switchView('incidents', serial);
     }
 });
         
@@ -1014,21 +1005,13 @@
         });
 
         function switchView(viewName, param = null) {
-    let parentView = viewName;
-    if (viewName === 'profile') {
-        parentView = 'equipment';
-    } else if (viewName === 'userDashboard') {
-        parentView = 'userDashboard'; // Tự nó là view chính
-    }
-
     dom.sidebarNavLinks.forEach(link => {
         const linkView = link.dataset.view;
-        // Logic mới để làm sáng menu đúng hơn
-        if (linkView === 'equipment' && (viewName === 'equipment' || viewName === 'profile')) {
-            link.classList.add('active');
-        } else {
-            link.classList.toggle('active', linkView === viewName);
+        let isActive = linkView === viewName;
+        if (viewName === 'profile' && linkView === 'equipment') {
+            isActive = true;
         }
+        link.classList.toggle('active', isActive);
     });
 
     dom.viewContainers.forEach(container => container.style.display = 'none');
@@ -1044,56 +1027,64 @@
         viewToShow.style.display = 'block';
         document.getElementById('equipment-filters').style.display = (viewName === 'equipment' || viewName === 'profile') ? 'block' : 'none';
         
-        // Gọi các hàm render tương ứng
         if (viewName === 'dashboard') renderDashboardView();
-        if (viewName === 'incidents') renderIncidentView();
+        if (viewName === 'incidents') renderIncidentView(param); // Truyền param (serial) vào đây
         if (viewName === 'maintenance') renderMaintenanceView();
         if (viewName === 'profile') renderProfileView(param);
         if (viewName === 'users') renderUsersView();
         if (viewName === 'reports') renderReportsView();
-        if (viewName === 'userDashboard') renderUserDashboard(); // <-- Gọi hàm mới
+        if (viewName === 'userDashboard') renderUserDashboard();
     }
 }
         
-        async function renderIncidentView() {
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/incidents`);
-                if (!response.ok) throw new Error("Không thể tải danh sách sự cố");
-                const incidents = await response.json();
+        async function renderIncidentView(serialToSelect = null) {
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/incidents`);
+        if (!response.ok) throw new Error("Không thể tải danh sách sự cố");
+        const incidents = await response.json();
 
-                if (userProfile.role === 'admin') {
-                    dom.adminIncidentView.style.display = 'block';
-                    dom.userIncidentView.style.display = 'none';
-                    renderIncidentTableAdmin(incidents);
-                } else {
-                    dom.adminIncidentView.style.display = 'none';
-                    dom.userIncidentView.style.display = 'block';
-                    await populateIncidentFormEquipmentSelect();
-                    renderIncidentTableUser(incidents);
-                    
-                    const userDeptName = departments[userProfile.departmentKey];
-                    document.getElementById('incident-department').value = userDeptName;
-                    const today = new Date();
-                    document.getElementById('incident-date').value = today.toLocaleDateString('vi-VN');
-                }
-            } catch (error) {
-                handleApiError(error, "Tải dữ liệu sự cố");
-            }
+        if (userProfile.role === 'admin') {
+            dom.adminIncidentView.style.display = 'block';
+            dom.userIncidentView.style.display = 'none';
+            renderIncidentTableAdmin(incidents);
+        } else {
+            dom.adminIncidentView.style.display = 'none';
+            dom.userIncidentView.style.display = 'block';
+            await populateIncidentFormEquipmentSelect(serialToSelect); // Truyền serial xuống đây
+            renderIncidentTableUser(incidents);
+            
+            const userDeptName = departments[userProfile.departmentKey];
+            document.getElementById('incident-department').value = userDeptName;
+            const today = new Date();
+            document.getElementById('incident-date').value = today.toLocaleDateString('vi-VN');
         }
+    } catch (error) {
+        handleApiError(error, "Tải dữ liệu sự cố");
+    }
+}
         
-        async function populateIncidentFormEquipmentSelect() {
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${userProfile.departmentKey}?limit=1000`);
-            const data = await response.json();
-            const equipmentList = data.equipments;
+        async function populateIncidentFormEquipmentSelect(serialToSelect = null) {
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${userProfile.departmentKey}?limit=1000`);
+        const data = await response.json();
+        const equipmentList = data.equipments;
 
-            dom.incidentEquipmentSelect.innerHTML = '<option value="">-- Chọn thiết bị --</option>';
-            equipmentList.forEach(eq => {
-                const option = document.createElement('option');
-                option.value = eq.serial;
-                option.textContent = `${eq.name} (Serial: ${eq.serial})`;
-                dom.incidentEquipmentSelect.appendChild(option);
-            });
+        dom.incidentEquipmentSelect.innerHTML = '<option value="">-- Chọn thiết bị --</option>';
+        equipmentList.forEach(eq => {
+            const option = document.createElement('option');
+            option.value = eq.serial;
+            option.textContent = `${eq.name} (Serial: ${eq.serial})`;
+            dom.incidentEquipmentSelect.appendChild(option);
+        });
+
+        // Tự động chọn đúng serial nếu được truyền vào
+        if (serialToSelect) {
+            dom.incidentEquipmentSelect.value = serialToSelect;
         }
+    } catch (error) {
+        handleApiError(error, "Tải danh sách thiết bị cho form sự cố");
+    }
+}
 
         function renderIncidentTableAdmin(incidents) {
     const tableBody = dom.incidentTableBodyAdmin;
