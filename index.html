@@ -498,9 +498,12 @@
                 <label for="logNotes">Ghi chú (nếu có)</label>
                 <textarea id="logNotes" rows="3" placeholder="Nhập các ghi chú chi tiết về tình trạng thiết bị..."></textarea>
             </div>
-            <div class="form-actions">
-                <button type="button" class="cancel-btn" id="cancelUsageLogBtn">Hủy Bỏ</button>
-                <button type="submit" class="save-btn">Lưu Nhật ký</button>
+            <div class="form-actions" style="flex-direction: column; align-items: stretch; gap: 10px;">
+                <button type="submit" class="save-btn">Lưu chỉ cho thiết bị này</button>
+                <button type="button" id="bulkLogSubmitBtn" class="action-button" style="background-color: var(--success-color);"><i class="fas fa-check-double"></i> Áp dụng cho tất cả thiết bị còn lại</button>
+                <button type="button" id="bulkLogExceptBtn" class="action-button" style="background-color: #6c757d;" disabled title="Tính năng sẽ được phát triển ở giai đoạn sau">
+                    <i class="fas fa-tasks"></i> Áp dụng, trừ một vài thiết bị...
+                </button>
             </div>
         </form>
     </div>
@@ -2616,6 +2619,45 @@ dom.userReportIncidentBtn.addEventListener('click', () => {
     switchView('incidents');
 });     
 
+// LOGIC CHO GHI NHẬT KÝ HÀNG LOẠT
+// ========================================================
+document.getElementById('bulkLogSubmitBtn').addEventListener('click', () => {
+    const status = document.getElementById('logStatus').value;
+    const notes = document.getElementById('logNotes').value;
+
+    Swal.fire({
+        title: 'Xác nhận Ghi hàng loạt?',
+        text: `Bạn có chắc muốn áp dụng tình trạng "${status === 'operational' ? 'Hoạt động tốt' : (status === 'minor_issue' ? 'Có vấn đề nhỏ' : 'Không sử dụng')}" cho tất cả thiết bị còn lại trong khoa?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Vâng, xác nhận!',
+        cancelButtonText: 'Hủy'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Đang xử lý...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading() }
+            });
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
+                    method: 'POST',
+                    body: JSON.stringify({ status, notes })
+                });
+                const resultData = await response.json();
+                if (!response.ok) throw new Error(resultData.message);
+
+                await Swal.fire('Thành công!', resultData.message, 'success');
+                closeUsageLogModal();
+                fetchAndDisplayEquipment(dom.departmentSelect.value, 1); // Tải lại danh sách để xóa các dấu '!'
+            } catch (error) {
+                handleApiError(error, "Ghi nhật ký hàng loạt");
+            }
+        }
+    });
+});
 
         checkAuth();
     });
