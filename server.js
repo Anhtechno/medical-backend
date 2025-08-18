@@ -906,70 +906,7 @@ app.get('/api/debug/list-departments', async (req, res) => {
     }
 });
 
-// =================================================================
-// 10.13. API GHI NHẬT KÝ HÀNG LOẠT (TÍNH NĂNG MỚI)
-// =================================================================
-app.post('/api/logs/bulk', authenticateToken, async (req, res) => {
-    try {
-        const { status, notes } = req.body;
-        const { departmentKey, username } = req.user;
 
-        if (!status) {
-            return res.status(400).json({ message: "Thiếu thông tin trạng thái." });
-        }
-
-        // 1. Xác định tuần hiện tại
-        const now = new Date();
-        const dayOfWeek = now.getDay();
-        const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        const startOfWeek = new Date(now.setDate(diff));
-        startOfWeek.setHours(0, 0, 0, 0);
-
-        // 2. Lấy ID của tất cả thiết bị trong khoa
-        const allEquipmentInDept = await Equipment.find({ department: departmentKey }).select('_id');
-        const allEquipmentIds = allEquipmentInDept.map(eq => eq._id.toString());
-
-        // 3. Lấy ID của các thiết bị đã được ghi nhật ký trong tuần này
-        const loggedThisWeek = await UsageLog.find({
-            departmentKey: departmentKey,
-            createdAt: { $gte: startOfWeek }
-        }).select('equipmentId');
-        const loggedEquipmentIds = loggedThisWeek.map(log => log.equipmentId.toString());
-
-        // 4. Lọc ra danh sách các thiết bị CHƯA được ghi nhật ký
-        const unloggedEquipmentIds = allEquipmentIds.filter(id => !loggedEquipmentIds.includes(id));
-
-        if (unloggedEquipmentIds.length === 0) {
-            return res.status(200).json({ message: "Tất cả thiết bị trong khoa đã được ghi nhật ký.", count: 0 });
-        }
-
-        // 5. Lấy thông tin chi tiết của các thiết bị chưa được ghi nhật ký
-        const equipmentsToLog = await Equipment.find({ '_id': { $in: unloggedEquipmentIds } });
-
-        // 6. Chuẩn bị dữ liệu để ghi hàng loạt
-        const logsToInsert = equipmentsToLog.map(eq => ({
-            equipmentId: eq._id,
-            equipmentName: eq.name,
-            serial: eq.serial,
-            departmentKey: departmentKey,
-            loggedBy: username,
-            status: status,
-            notes: notes
-        }));
-        
-        // 7. Thực hiện ghi hàng loạt
-        await UsageLog.insertMany(logsToInsert);
-
-        res.status(201).json({ 
-            message: `Đã ghi nhật ký hàng loạt thành công cho ${logsToInsert.length} thiết bị.`,
-            count: logsToInsert.length 
-        });
-
-    } catch (error) {
-        console.error("Lỗi khi ghi nhật ký hàng loạt:", error);
-        res.status(500).json({ message: 'Lỗi server khi ghi nhật ký hàng loạt.' });
-    }
-});
 
 // 11. KHỞI ĐỘNG SERVER
 app.listen(PORT, () => {
