@@ -166,33 +166,58 @@ app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
         if (req.user.role === 'user' && req.user.departmentKey !== deptKey) {
             return res.status(403).json({ message: "Không có quyền xem dữ liệu của khoa này." });
         }
+        
+        // --- LOGIC MỚI: TÍNH TOÁN ĐẦU TUẦN ---
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+        const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Lấy ngày đầu tuần (Thứ 2)
+        const startOfWeek = new Date(now.setDate(diff));
+        startOfWeek.setHours(0, 0, 0, 0);
+        // ------------------------------------
+
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const status = req.query.status;
         const skip = (page - 1) * limit;
-        const queryForPagination = { department: deptKey };
+        
+        const query = { department: deptKey };
         if (status && status !== 'all') {
-            queryForPagination.status = status;
+            query.status = status;
         }
-        const equipmentsPromise = Equipment.find(queryForPagination).sort({ name: 1 }).skip(skip).limit(limit);
-        const totalItemsPromise = Equipment.countDocuments(queryForPagination);
-        const statsPromise = Equipment.aggregate([
-            { $match: { department: deptKey } }, 
-            { $group: { _id: '$status', count: { $sum: 1 } } } 
+
+        const [equipments, totalItems, statsResult, loggedThisWeek] = await Promise.all([
+            Equipment.find(query).sort({ name: 1 }).skip(skip).limit(limit).lean(),
+            Equipment.countDocuments(query),
+            Equipment.aggregate([ { $match: { department: deptKey } }, { $group: { _id: '$status', count: { $sum: 1 } } } ]),
+            // --- LOGIC MỚI: LẤY DANH SÁCH THIẾT BỊ ĐÃ GHI NHẬT KÝ TUẦN NÀY ---
+            UsageLog.find({
+                departmentKey: deptKey,
+                createdAt: { $gte: startOfWeek }
+            }).select('equipmentId -_id') // Chỉ lấy ID thiết bị
         ]);
-        const [equipments, totalItems, statsResult] = await Promise.all([
-            equipmentsPromise,
-            totalItemsPromise,
-            statsPromise
-        ]);
+        
+        // Tạo một set để tra cứu nhanh các ID đã ghi nhật ký
+        const loggedEquipmentIds = new Set(loggedThisWeek.map(log => log.equipmentId.toString()));
+        
+        // Thêm trường 'needsLog' vào mỗi thiết bị
+        const equipmentsWithLogStatus = equipments.map(eq => ({
+            ...eq,
+            needsLog: !loggedEquipmentIds.has(eq._id.toString())
+        }));
+
         const stats = statsResult.reduce((acc, curr) => {
             if (curr._id) { acc[curr._id] = curr.count; }
             return acc;
         }, {});
+        
         const totalPages = Math.ceil(totalItems / limit);
+        
         res.json({
-            equipments, totalPages, currentPage: page,
-            totalItems, stats 
+            equipments: equipmentsWithLogStatus, // Trả về danh sách đã được cập nhật
+            totalPages, 
+            currentPage: page,
+            totalItems, 
+            stats 
         });
     } catch (error) {
         console.error("Lỗi khi lấy dữ liệu equipment:", error);

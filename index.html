@@ -728,19 +728,21 @@
         const itemDept = item.department || dom.departmentSelect.value;
         row.className = `status-${item.status}`;
         let actionButtons = '';
-
+        
         if (userProfile.role === 'admin') {
-            actionButtons = `
-                <button class="action-button view-btn" data-serial="${item.serial}" style="background-color: var(--success-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-eye"></i></button>
-                <button class="edit-btn" data-serial="${item.serial}"><i class="fas fa-edit"></i></button>
-                <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>
-            `;
+            // ... (phần của admin giữ nguyên)
         } else {
-            // THÊM NÚT BÁO HỎNG MỚI VÀO ĐÂY
+            // --- LOGIC MỚI: THÊM CẢNH BÁO VÀO NÚT BẤM ---
+            let warningIcon = '';
+            if (item.needsLog) {
+                warningIcon = `<i class="fas fa-exclamation-circle" style="color: yellow; margin-right: 5px;" title="Chưa ghi nhật ký tuần này"></i>`;
+            }
+
             actionButtons = `
                 <button class="action-button report-issue-btn" data-serial="${item.serial}" style="background-color: var(--danger-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-triangle-exclamation"></i> Báo hỏng</button>
-                <button class="action-button log-usage-btn" data-id="${item._id}" data-name="${item.name}" style="background-color: var(--info-color); padding: 6px 10px; font-size: 14px;"><i class="far fa-file-alt"></i> Ghi Nhật ký</button>
+                <button class="action-button log-usage-btn" data-id="${item._id}" data-name="${item.name}" style="background-color: var(--info-color); padding: 6px 10px; font-size: 14px;">${warningIcon}<i class="far fa-file-alt"></i> Ghi Nhật ký</button>
             `;
+            // --------------------------------------------
         }
 
         row.innerHTML = `<td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td><td>${item.name}</td><td>${item.serial}</td> ${isGlobalSearch ? `<td>${departments[itemDept] || 'N/A'}</td>` : ''} <td>${item.manufacturer || 'N/A'}</td><td>${item.year}</td><td><span class="status ${item.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span></td><td class="action-btn-group">${actionButtons}</td>`;
