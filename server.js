@@ -911,7 +911,7 @@ app.get('/api/debug/list-departments', async (req, res) => {
 // =================================================================
 app.post('/api/logs/bulk', authenticateToken, async (req, res) => {
     try {
-        const { status, notes } = req.body;
+        const { status, notes, excludeIds = [] } = req.body; // Thêm `excludeIds` để nhận danh sách loại trừ
         const { departmentKey, username } = req.user;
 
         if (!status) {
@@ -936,25 +936,22 @@ app.post('/api/logs/bulk', authenticateToken, async (req, res) => {
         }).select('equipmentId');
         const loggedEquipmentIds = loggedThisWeek.map(log => log.equipmentId.toString());
 
-        // 4. Lọc ra danh sách các thiết bị CHƯA được ghi nhật ký
-        const unloggedEquipmentIds = allEquipmentIds.filter(id => !loggedEquipmentIds.includes(id));
+        // 4. Lọc ra danh sách các thiết bị CHƯA được ghi nhật ký VÀ KHÔNG NẰM TRONG DANH SÁCH LOẠI TRỪ
+        const unloggedEquipmentIds = allEquipmentIds.filter(id => 
+            !loggedEquipmentIds.includes(id) && !excludeIds.includes(id)
+        );
 
         if (unloggedEquipmentIds.length === 0) {
-            return res.status(200).json({ message: "Tất cả thiết bị trong khoa đã được ghi nhật ký.", count: 0 });
+            return res.status(200).json({ message: "Không có thiết bị nào phù hợp để ghi nhật ký hàng loạt.", count: 0 });
         }
 
-        // 5. Lấy thông tin chi tiết của các thiết bị chưa được ghi nhật ký
+        // 5. Lấy thông tin chi tiết của các thiết bị cần ghi nhật ký
         const equipmentsToLog = await Equipment.find({ '_id': { $in: unloggedEquipmentIds } });
 
         // 6. Chuẩn bị dữ liệu để ghi hàng loạt
         const logsToInsert = equipmentsToLog.map(eq => ({
-            equipmentId: eq._id,
-            equipmentName: eq.name,
-            serial: eq.serial,
-            departmentKey: departmentKey,
-            loggedBy: username,
-            status: status,
-            notes: notes
+            equipmentId: eq._id, equipmentName: eq.name, serial: eq.serial,
+            departmentKey: departmentKey, loggedBy: username, status: status, notes: notes
         }));
         
         // 7. Thực hiện ghi hàng loạt

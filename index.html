@@ -474,9 +474,26 @@
         <div class="modal" id="addEquipmentModal"><div class="modal-content"><div class="modal-header"><h2 id="modalTitle">Thêm Thiết Bị Mới</h2><button class="close-btn" id="closeModalBtn">×</button></div><form id="equipmentForm"><input type="hidden" id="edit-serial"><div class="form-row"><div class="form-group"><label for="equipmentName">Tên Thiết Bị *</label><input type="text" id="equipmentName" placeholder="Ví dụ: Máy thở đa năng" required></div><div class="form-group"><label for="serialNumber">Số Serial *</label><input type="text" id="serialNumber" placeholder="Ví dụ: XYZ-12345" required></div></div><div class="form-row"><div class="form-group"><label for="manufacturer">Hãng Sản Xuất *</label><input type="text" id="manufacturer" placeholder="Ví dụ: Siemens" required></div><div class="form-group"><label for="purchaseDate">Năm Đưa Vào Sử Dụng *</label><input type="number" id="purchaseDate" min="1950" max="2099" placeholder="Ví dụ: 2023" required></div></div><div class="form-group"><label for="accessories">Phụ Kiện</label><input type="text" id="accessories" placeholder="Nhập phụ kiện kèm theo (cách nhau bởi dấu phẩy)"></div><div class="form-group"><label for="status">Tình Trạng *</label><select id="status" required><option value="active">Hoạt động</option><option value="maintenance">Bảo trì</option><option value="inactive">Ngừng hoạt động</option></select></div><div class="form-group"><label for="description">Mô Tả / Ghi Chú</label><textarea id="description" rows="3" placeholder="Nhập mô tả hoặc ghi chú về thiết bị"></textarea></div><div class="form-group"><label>Hình Ảnh Thiết Bị</label><div class="image-upload" id="imageUpload"><i class="fas fa-cloud-upload-alt"></i><p>Nhấn để tải lên hoặc kéo thả ảnh vào đây</p><input type="file" id="imageInput" accept="image/*" style="display: none;"><img id="imagePreview" class="image-preview" src="#" alt="Xem trước hình ảnh"></div></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Thiết Bị</button></div></form></div></div>
         <div class="modal" id="maintenanceModal"><div class="modal-content"><div class="modal-header"><h2 id="maintenanceModalTitle">Lên Lịch Bảo Trì Mới</h2><button class="close-btn" id="closeMaintenanceModalBtn">×</button></div><form id="maintenanceForm"><input type="hidden" id="maintenance-edit-id"><div class="form-group"><label for="maintenanceEquipmentSelect">Chọn Thiết Bị Cần Bảo Trì *</label><select id="maintenanceEquipmentSelect" required></select></div><div class="form-row"><div class="form-group"><label for="scheduleDate">Ngày Lên Lịch *</label><input type="date" id="scheduleDate" required></div><div class="form-group"><label for="maintenanceType">Loại Bảo Trì</label><select id="maintenanceType"><option value="ad-hoc">Đột xuất</option><option value="periodic">Định kỳ</option></select></div></div><div class="form-group"><label for="maintenanceNotes">Ghi Chú Ban Đầu</label><textarea id="maintenanceNotes" rows="3" placeholder="Nhập ghi chú hoặc yêu cầu công việc..."></textarea></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelMaintenanceBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Lịch Trình</button></div></form></div></div>
         <div class="modal" id="userModal"><div class="modal-content"><div class="modal-header"><h2 id="userModalTitle">Thêm Người dùng mới</h2><button class="close-btn" id="closeUserModalBtn">×</button></div><form id="userForm"><input type="hidden" id="edit-userId"><div class="form-group"><label for="userUsername">Tên đăng nhập *</label><input type="text" id="userUsername" required></div><div class="form-group"><label for="userPassword">Mật khẩu *</label><input type="password" id="userPassword"><small id="passwordHelp" style="color: #888; font-size: 12px; margin-top: 5px;">Bắt buộc khi tạo mới. Để trống nếu không muốn thay đổi mật khẩu khi sửa.</small></div><div class="form-group"><label for="userDepartment">Gán vào Khoa/Phòng *</label><select id="userDepartment" required></select></div><div class="form-actions"><button type="button" class="cancel-btn" id="cancelUserBtn">Hủy Bỏ</button><button type="submit" class="save-btn">Lưu Người dùng</button></div></form></div></div>
+        <div class="modal" id="bulkLogExceptionModal">
+           <div class="modal-content" style="max-width: 600px;">
+             <div class="modal-header">
+            <h2>Chọn các thiết bị cần GHI NHẬT KÝ RIÊNG</h2>
+            <button class="close-btn" id="closeBulkLogExceptionModalBtn">×</button>
+        </div>
+        <div class="form-group">
+            <p style="font-size: 14px; color: #6c757d;">Đánh dấu vào các thiết bị có tình trạng khác biệt. Các thiết bị không được chọn sẽ được áp dụng nhật ký hàng loạt.</p>
+        </div>
+        <div id="exception-list-container" style="max-height: 40vh; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
+            </div>
+        <div class="form-actions">
+            <button type="button" class="cancel-btn" id="cancelBulkLogExceptionBtn">Hủy Bỏ</button>
+            <button type="button" id="confirmBulkLogExceptionBtn" class="save-btn">Xác nhận</button>
+        </div>
+    </div>
+</div>
         <div class="modal" id="usageLogModal">
-    <div class="modal-content" style="max-width: 550px;">
-        <div class="modal-header">
+           <div class="modal-content" style="max-width: 550px;">
+             <div class="modal-header">
             <h2 id="usageLogModalTitle">Ghi Nhật ký Sử dụng Tuần</h2>
             <button class="close-btn" id="closeUsageLogModalBtn">×</button>
         </div>
@@ -501,7 +518,7 @@
             <div class="form-actions" style="flex-direction: column; align-items: stretch; gap: 10px;">
                 <button type="submit" class="save-btn">Lưu chỉ cho thiết bị này</button>
                 <button type="button" id="bulkLogSubmitBtn" class="action-button" style="background-color: var(--success-color);"><i class="fas fa-check-double"></i> Áp dụng cho tất cả thiết bị còn lại</button>
-                <button type="button" id="bulkLogExceptBtn" class="action-button" style="background-color: #6c757d;" disabled title="Tính năng sẽ được phát triển ở giai đoạn sau">
+                <button type="button" id="bulkLogExceptBtn" class="action-button" style="background-color: #6c757d;"title="Chọn các thiết bị sẽ được ghi nhật ký riêng">
                     <i class="fas fa-tasks"></i> Áp dụng, trừ một vài thiết bị...
                 </button>
             </div>
@@ -2718,6 +2735,92 @@ document.getElementById('bulkLogSubmitBtn').addEventListener('click', () => {
                 await Swal.fire('Thành công!', resultData.message, 'success');
                 closeUsageLogModal();
                 fetchAndDisplayEquipment(dom.departmentSelect.value, 1); // Tải lại danh sách để xóa các dấu '!'
+            } catch (error) {
+                handleApiError(error, "Ghi nhật ký hàng loạt");
+            }
+        }
+    });
+});
+
+// ========================================================
+// LOGIC CHO GHI NHẬT KÝ HÀNG LOẠT (NGOẠI TRỪ)
+// ========================================================
+const bulkLogExceptBtn = document.getElementById('bulkLogExceptBtn');
+const bulkLogExceptionModal = document.getElementById('bulkLogExceptionModal');
+const closeBulkLogExceptionModalBtn = document.getElementById('closeBulkLogExceptionModalBtn');
+const cancelBulkLogExceptionBtn = document.getElementById('cancelBulkLogExceptionBtn');
+const confirmBulkLogExceptionBtn = document.getElementById('confirmBulkLogExceptionBtn');
+const exceptionListContainer = document.getElementById('exception-list-container');
+
+function closeBulkLogExceptionModal() {
+    bulkLogExceptionModal.style.display = 'none';
+}
+
+closeBulkLogExceptionModalBtn.addEventListener('click', closeBulkLogExceptionModal);
+cancelBulkLogExceptionBtn.addEventListener('click', closeBulkLogExceptionModal);
+
+bulkLogExceptBtn.addEventListener('click', async () => {
+    Swal.fire({
+        title: 'Đang tải danh sách thiết bị...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading() }
+    });
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${userProfile.departmentKey}?limit=10000`);
+        if (!response.ok) throw new Error("Không thể tải danh sách thiết bị.");
+        const data = await response.json();
+        
+        exceptionListContainer.innerHTML = '';
+        data.equipments.forEach(eq => {
+            const itemHtml = `
+                <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                    <input type="checkbox" id="exc-${eq._id}" value="${eq._id}" style="width: 20px; height: 20px; margin-right: 15px;">
+                    <label for="exc-${eq._id}" style="font-weight: 500;">${eq.name} <span style="color: #6c757d;">(Serial: ${eq.serial})</span></label>
+                </div>
+            `;
+            exceptionListContainer.innerHTML += itemHtml;
+        });
+
+        Swal.close();
+        bulkLogExceptionModal.style.display = 'flex';
+
+    } catch (error) {
+        handleApiError(error, "Tải danh sách thiết bị");
+    }
+});
+
+confirmBulkLogExceptionBtn.addEventListener('click', () => {
+    const status = document.getElementById('logStatus').value;
+    const notes = document.getElementById('logNotes').value;
+    const excludeIds = [];
+    document.querySelectorAll('#exception-list-container input[type="checkbox"]:checked').forEach(checkbox => {
+        excludeIds.push(checkbox.value);
+    });
+
+    closeBulkLogExceptionModal();
+
+    Swal.fire({
+        title: 'Xác nhận Ghi hàng loạt?',
+        text: `Áp dụng cho tất cả thiết bị còn lại, ngoại trừ ${excludeIds.length} thiết bị đã chọn?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Vâng, xác nhận!',
+        cancelButtonText: 'Hủy'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            Swal.fire({ title: 'Đang xử lý...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
+                    method: 'POST',
+                    body: JSON.stringify({ status, notes, excludeIds })
+                });
+                const resultData = await response.json();
+                if (!response.ok) throw new Error(resultData.message);
+                
+                await Swal.fire('Thành công!', resultData.message, 'success');
+                closeUsageLogModal();
+                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
             } catch (error) {
                 handleApiError(error, "Ghi nhật ký hàng loạt");
             }
