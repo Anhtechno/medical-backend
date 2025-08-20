@@ -596,6 +596,12 @@
             cancelUsageLogBtn: document.getElementById('cancelUsageLogBtn'),
             userDashboardView: document.getElementById('user-dashboard-view-container'),
             userReportIncidentBtn: document.getElementById('userReportIncidentBtn'),
+            bulkLogExceptBtn: document.getElementById('bulkLogExceptBtn'),
+            bulkLogExceptionModal: document.getElementById('bulkLogExceptionModal'),
+            closeBulkLogExceptionModalBtn: document.getElementById('closeBulkLogExceptionModalBtn'),
+            cancelBulkLogExceptionBtn: document.getElementById('cancelBulkLogExceptionBtn'),
+            confirmBulkLogExceptionBtn: document.getElementById('confirmBulkLogExceptionBtn'),
+            exceptionListContainer: document.getElementById('exception-list-container'),
         };
         
         const saveToken = (token) => localStorage.setItem('authToken', token);
@@ -2756,10 +2762,10 @@ function closeBulkLogExceptionModal() {
     bulkLogExceptionModal.style.display = 'none';
 }
 
-closeBulkLogExceptionModalBtn.addEventListener('click', closeBulkLogExceptionModal);
-cancelBulkLogExceptionBtn.addEventListener('click', closeBulkLogExceptionModal);
+dom.closeBulkLogExceptionModalBtn.addEventListener('click', closeBulkLogExceptionModal);
+dom.cancelBulkLogExceptionBtn.addEventListener('click', closeBulkLogExceptionModal);
 
-bulkLogExceptBtn.addEventListener('click', async () => {
+dom.bulkLogExceptBtn.addEventListener('click', async () => {
     Swal.fire({
         title: 'Đang tải danh sách thiết bị...',
         allowOutsideClick: false,
@@ -2771,7 +2777,7 @@ bulkLogExceptBtn.addEventListener('click', async () => {
         if (!response.ok) throw new Error("Không thể tải danh sách thiết bị.");
         const data = await response.json();
         
-        exceptionListContainer.innerHTML = '';
+        dom.exceptionListContainer.innerHTML = '';
         data.equipments.forEach(eq => {
             const itemHtml = `
                 <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
@@ -2779,15 +2785,53 @@ bulkLogExceptBtn.addEventListener('click', async () => {
                     <label for="exc-${eq._id}" style="font-weight: 500;">${eq.name} <span style="color: #6c757d;">(Serial: ${eq.serial})</span></label>
                 </div>
             `;
-            exceptionListContainer.innerHTML += itemHtml;
+            dom.exceptionListContainer.innerHTML += itemHtml;
         });
 
         Swal.close();
-        bulkLogExceptionModal.style.display = 'flex';
+        dom.bulkLogExceptionModal.style.display = 'flex';
 
     } catch (error) {
         handleApiError(error, "Tải danh sách thiết bị");
     }
+});
+
+dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
+    const status = document.getElementById('logStatus').value;
+    const notes = document.getElementById('logNotes').value;
+    const excludeIds = [];
+    document.querySelectorAll('#exception-list-container input[type="checkbox"]:checked').forEach(checkbox => {
+        excludeIds.push(checkbox.value);
+    });
+
+    closeBulkLogExceptionModal();
+
+    Swal.fire({
+        title: 'Xác nhận Ghi hàng loạt?',
+        text: `Áp dụng cho tất cả thiết bị còn lại, ngoại trừ ${excludeIds.length} thiết bị đã chọn?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Vâng, xác nhận!',
+        cancelButtonText: 'Hủy'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            Swal.fire({ title: 'Đang xử lý...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
+                    method: 'POST',
+                    body: JSON.stringify({ status, notes, excludeIds })
+                });
+                const resultData = await response.json();
+                if (!response.ok) throw new Error(resultData.message);
+                
+                await Swal.fire('Thành công!', resultData.message, 'success');
+                closeUsageLogModal();
+                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+            } catch (error) {
+                handleApiError(error, "Ghi nhật ký hàng loạt");
+            }
+        }
+    });
 });
 
 confirmBulkLogExceptionBtn.addEventListener('click', () => {
