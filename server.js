@@ -911,7 +911,7 @@ app.get('/api/debug/list-departments', async (req, res) => {
 // =================================================================
 app.post('/api/logs/bulk', authenticateToken, async (req, res) => {
     try {
-        const { status, notes, excludeIds = [] } = req.body; // Thêm `excludeIds` để nhận danh sách loại trừ
+        const { status, notes, excludeIds = [] } = req.body; // Thêm excludeIds
         const { departmentKey, username } = req.user;
 
         if (!status) {
@@ -936,7 +936,7 @@ app.post('/api/logs/bulk', authenticateToken, async (req, res) => {
         }).select('equipmentId');
         const loggedEquipmentIds = loggedThisWeek.map(log => log.equipmentId.toString());
 
-        // 4. Lọc ra danh sách các thiết bị CHƯA được ghi nhật ký VÀ KHÔNG NẰM TRONG DANH SÁCH LOẠI TRỪ
+        // 4. Lọc ra danh sách các thiết bị CHƯA được ghi nhật ký VÀ KHÔNG BỊ LOẠI TRỪ
         const unloggedEquipmentIds = allEquipmentIds.filter(id => 
             !loggedEquipmentIds.includes(id) && !excludeIds.includes(id)
         );
@@ -945,16 +945,13 @@ app.post('/api/logs/bulk', authenticateToken, async (req, res) => {
             return res.status(200).json({ message: "Không có thiết bị nào phù hợp để ghi nhật ký hàng loạt.", count: 0 });
         }
 
-        // 5. Lấy thông tin chi tiết của các thiết bị cần ghi nhật ký
         const equipmentsToLog = await Equipment.find({ '_id': { $in: unloggedEquipmentIds } });
 
-        // 6. Chuẩn bị dữ liệu để ghi hàng loạt
         const logsToInsert = equipmentsToLog.map(eq => ({
             equipmentId: eq._id, equipmentName: eq.name, serial: eq.serial,
             departmentKey: departmentKey, loggedBy: username, status: status, notes: notes
         }));
         
-        // 7. Thực hiện ghi hàng loạt
         await UsageLog.insertMany(logsToInsert);
 
         res.status(201).json({ 
