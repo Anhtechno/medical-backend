@@ -2503,7 +2503,7 @@ function printMonthlyReport(reportData, startDate, endDate) {
         printWindow.close();
     }, 500);
 }
-        // LOGIC CHO MODAL GHI NHẬT KÝ SỬ DỤNG
+// LOGIC CHO MODAL GHI NHẬT KÝ SỬ DỤNG
 // ========================================================
 function openUsageLogModal(equipment) {
     dom.usageLogForm.reset();
@@ -2751,12 +2751,6 @@ document.getElementById('bulkLogSubmitBtn').addEventListener('click', () => {
 // ========================================================
 // LOGIC CHO GHI NHẬT KÝ HÀNG LOẠT (NGOẠI TRỪ)
 // ========================================================
-const bulkLogExceptBtn = document.getElementById('bulkLogExceptBtn');
-const bulkLogExceptionModal = document.getElementById('bulkLogExceptionModal');
-const closeBulkLogExceptionModalBtn = document.getElementById('closeBulkLogExceptionModalBtn');
-const cancelBulkLogExceptionBtn = document.getElementById('cancelBulkLogExceptionBtn');
-const confirmBulkLogExceptionBtn = document.getElementById('confirmBulkLogExceptionBtn');
-const exceptionListContainer = document.getElementById('exception-list-container');
 
 function closeBulkLogExceptionModal() {
     bulkLogExceptionModal.style.display = 'none';
@@ -2837,43 +2831,7 @@ dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
     });
 });
 
-dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
-    const status = document.getElementById('logStatus').value;
-    const notes = document.getElementById('logNotes').value;
-    const excludeIds = [];
-    document.querySelectorAll('#exception-list-container input[type="checkbox"]:checked').forEach(checkbox => {
-        excludeIds.push(checkbox.value);
-    });
 
-    closeBulkLogExceptionModal();
-
-    Swal.fire({
-        title: 'Xác nhận Ghi hàng loạt?',
-        text: `Áp dụng cho tất cả thiết bị còn lại, ngoại trừ ${excludeIds.length} thiết bị đã chọn?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Vâng, xác nhận!',
-        cancelButtonText: 'Hủy'
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            Swal.fire({ title: 'Đang xử lý...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
-                    method: 'POST',
-                    body: JSON.stringify({ status, notes, excludeIds })
-                });
-                const resultData = await response.json();
-                if (!response.ok) throw new Error(resultData.message);
-                
-                await Swal.fire('Thành công!', resultData.message, 'success');
-                closeUsageLogModal();
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
-            } catch (error) {
-                handleApiError(error, "Ghi nhật ký hàng loạt");
-            }
-        }
-    });
-});
 
 confirmBulkLogExceptionBtn.addEventListener('click', () => {
     const status = document.getElementById('logStatus').value;
