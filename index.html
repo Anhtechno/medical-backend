@@ -2764,6 +2764,9 @@ function closeBulkLogExceptionModal() {
 
 dom.closeBulkLogExceptionModalBtn.addEventListener('click', closeBulkLogExceptionModal);
 dom.cancelBulkLogExceptionBtn.addEventListener('click', closeBulkLogExceptionModal);
+window.addEventListener('click', (e) => {
+    if (e.target === dom.bulkLogExceptionModal) closeBulkLogExceptionModal();
+});
 
 dom.bulkLogExceptBtn.addEventListener('click', async () => {
     Swal.fire({
@@ -2794,6 +2797,44 @@ dom.bulkLogExceptBtn.addEventListener('click', async () => {
     } catch (error) {
         handleApiError(error, "Tải danh sách thiết bị");
     }
+});
+
+dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
+    const status = document.getElementById('logStatus').value;
+    const notes = document.getElementById('logNotes').value;
+    const excludeIds = [];
+    document.querySelectorAll('#exception-list-container input[type="checkbox"]:checked').forEach(checkbox => {
+        excludeIds.push(checkbox.value);
+    });
+
+    closeBulkLogExceptionModal();
+
+    Swal.fire({
+        title: 'Xác nhận Ghi hàng loạt?',
+        text: `Áp dụng cho tất cả thiết bị còn lại, ngoại trừ ${excludeIds.length} thiết bị đã chọn?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Vâng, xác nhận!',
+        cancelButtonText: 'Hủy'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            Swal.fire({ title: 'Đang xử lý...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
+                    method: 'POST',
+                    body: JSON.stringify({ status, notes, excludeIds })
+                });
+                const resultData = await response.json();
+                if (!response.ok) throw new Error(resultData.message);
+                
+                await Swal.fire('Thành công!', resultData.message, 'success');
+                closeUsageLogModal();
+                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+            } catch (error) {
+                handleApiError(error, "Ghi nhật ký hàng loạt");
+            }
+        }
+    });
 });
 
 dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
