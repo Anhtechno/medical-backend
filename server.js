@@ -1021,35 +1021,46 @@ app.get('/api/documents/:equipmentId', authenticateToken, isAdmin, async (req, r
 // Upload một tài liệu mới
 app.post('/api/documents/upload/:equipmentId', authenticateToken, isAdmin, upload.single('document'), async (req, res) => {
     try {
+        // --- LOG DEBUG ---
+        console.log("--- [DEBUG] BẮT ĐẦU XỬ LÝ UPLOAD ---");
+        console.log("[DEBUG] req.file object nhận được:", JSON.stringify(req.file, null, 2));
+        
         const { equipmentId } = req.params;
         const { documentType } = req.body;
         
         if (!req.file) {
+            console.log("[DEBUG] Lỗi: req.file không tồn tại.");
             return res.status(400).json({ message: 'Không có file nào được tải lên.' });
         }
 
-        // --- LOGIC SỬA LỖI ĐƯỜNG LINK ---
         let finalUrl = req.file.path;
-        // Nếu file là PDF và đường link đang bị sai (chứa /image/upload)
+        
+        console.log("[DEBUG] URL gốc từ Cloudinary:", finalUrl);
+
         if (req.file.mimetype === 'application/pdf' && finalUrl.includes('/image/upload')) {
-            // Tự động sửa lại thành /raw/upload
+            console.log("[DEBUG] Đã phát hiện PDF và URL sai -> Đang tiến hành sửa...");
             finalUrl = finalUrl.replace('/image/upload', '/raw/upload');
+            console.log("[DEBUG] URL sau khi sửa:", finalUrl);
+        } else {
+            console.log("[DEBUG] Không phải file PDF hoặc URL đã đúng, không cần sửa.");
         }
 
         const newDocument = new Document({
             equipmentId: equipmentId,
             fileName: req.file.originalname,
-            fileUrl: req.file.path, // URL từ Cloudinary
+            fileUrl: finalUrl,
             cloudinaryId: req.file.filename,
             documentType: documentType,
             uploadedBy: req.user.username
         });
 
         await newDocument.save();
+        console.log("[DEBUG] Đã lưu tài liệu vào DB thành công.");
+        console.log("--- [DEBUG] KẾT THÚC XỬ LÝ UPLOAD ---");
         res.status(201).json(newDocument);
 
     } catch (error) {
-        console.error("Lỗi khi upload tài liệu:", error);
+        console.error("--- [DEBUG] LỖI TRONG QUÁ TRÌNH UPLOAD ---:", error);
         res.status(500).json({ message: 'Lỗi server khi upload tài liệu.' });
     }
 });
