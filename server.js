@@ -13,6 +13,7 @@ const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 
+
 // Cấu hình Cloudinary bằng các biến môi trường chúng ta đã thêm
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -29,7 +30,7 @@ const storage = new CloudinaryStorage({
     },
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ storage: multer.memoryStorage() });
 
 // 2. KHỞI TẠO ỨNG DỤNG VÀ CÁC BIẾN MÔI TRƯỜNG
 const app = express();
@@ -1018,48 +1019,47 @@ app.get('/api/documents/:equipmentId', authenticateToken, isAdmin, async (req, r
 });
 
 // Upload một tài liệu mới
+// Thay thế toàn bộ hàm app.post('/api/documents/upload...) cũ bằng hàm này
 app.post('/api/documents/upload/:equipmentId', authenticateToken, isAdmin, upload.single('document'), async (req, res) => {
     try {
-        // --- LOG DEBUG ---
-        console.log("--- [DEBUG] BẮT ĐẦU XỬ LÝ UPLOAD ---");
-        console.log("[DEBUG] req.file object nhận được:", JSON.stringify(req.file, null, 2));
-        
         const { equipmentId } = req.params;
         const { documentType } = req.body;
         
         if (!req.file) {
-            console.log("[DEBUG] Lỗi: req.file không tồn tại.");
             return res.status(400).json({ message: 'Không có file nào được tải lên.' });
         }
 
-        let finalUrl = req.file.path;
-        
-        console.log("[DEBUG] URL gốc từ Cloudinary:", finalUrl);
-
-        if (req.file.mimetype === 'application/pdf' && finalUrl.includes('/image/upload')) {
-            console.log("[DEBUG] Đã phát hiện PDF và URL sai -> Đang tiến hành sửa...");
-            finalUrl = finalUrl.replace('/image/upload', '/raw/upload');
-            console.log("[DEBUG] URL sau khi sửa:", finalUrl);
-        } else {
-            console.log("[DEBUG] Không phải file PDF hoặc URL đã đúng, không cần sửa.");
-        }
+        // Tải file lên Cloudinary từ bộ nhớ đệm (buffer)
+        const uploadResult = await new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    folder: 'equipment_documents',
+                    resource_type: 'auto'
+                },
+                (error, result) => {
+                    if (error) {
+                        return reject(error);
+                    }
+                    resolve(result);
+                }
+            );
+            uploadStream.end(req.file.buffer);
+        });
 
         const newDocument = new Document({
             equipmentId: equipmentId,
             fileName: req.file.originalname,
-            fileUrl: finalUrl,
-            cloudinaryId: req.file.filename,
+            fileUrl: uploadResult.secure_url, // Lấy URL an toàn và chính xác từ kết quả
+            cloudinaryId: uploadResult.public_id,
             documentType: documentType,
             uploadedBy: req.user.username
         });
 
         await newDocument.save();
-        console.log("[DEBUG] Đã lưu tài liệu vào DB thành công.");
-        console.log("--- [DEBUG] KẾT THÚC XỬ LÝ UPLOAD ---");
         res.status(201).json(newDocument);
 
     } catch (error) {
-        console.error("--- [DEBUG] LỖI TRONG QUÁ TRÌNH UPLOAD ---:", error);
+        console.error("Lỗi khi upload tài liệu:", error);
         res.status(500).json({ message: 'Lỗi server khi upload tài liệu.' });
     }
 });
