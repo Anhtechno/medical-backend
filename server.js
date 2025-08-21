@@ -29,8 +29,8 @@ const storage = new CloudinaryStorage({
         public_id: (req, file) => {
             // Lấy tên file gốc không bao gồm phần mở rộng
             const fileName = file.originalname.split('.').slice(0, -1).join('.');
-            // Thay thế tất cả các ký tự đặc biệt và khoảng trắng bằng dấu gạch ngang
-            const safeFileName = fileName.replace(/[^a-zA-Z0-9]/g, '-');
+            // Thay thế tất cả các ký tự không an toàn bằng dấu gạch ngang
+            const safeFileName = fileName.replace(/[^a-zA-Z0-9-_\.]/g, '_');
             return `${Date.now()}-${safeFileName}`;
         }
     },
