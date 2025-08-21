@@ -26,7 +26,8 @@ const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
         folder: 'equipment_documents',
-        resource_type: "auto" // Bắt buộc Cloudinary phải tự động nhận diện loại file
+        resource_type: 'auto',
+        access_mode: 'public' // Thêm dòng này để ra lệnh công khai file
     },
 });
 
