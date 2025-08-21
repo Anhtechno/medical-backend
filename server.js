@@ -26,9 +26,7 @@ const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
         folder: 'equipment_documents',
-        resource_type: "auto",
-        // THAY ĐỔI QUAN TRỌNG: SỬ DỤNG UPLOAD PRESET
-        upload_preset: 'hoso_congkhai' 
+        resource_type: "auto" // Bắt buộc Cloudinary phải tự động nhận diện loại file
     },
 });
 
