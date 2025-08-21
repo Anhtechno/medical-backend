@@ -1728,12 +1728,10 @@
     profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
 
     try {
-        // Lấy thông tin chính của thiết bị
         const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${decodeURIComponent(serial)}`);
         if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
         const data = await response.json();
 
-        // Cập nhật HTML để có thêm bảng "Nhật ký Sử dụng"
         profileView.innerHTML = `
             <div class="main-header">
                 <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
@@ -1744,8 +1742,7 @@
             </div>
             <div id="profile-content" style="display: grid; grid-template-columns: 280px 1fr; gap: 25px;">
                 <div id="profile-info-card">
-                    <div id="qrcode-container" style="width: 250px; margin: 0 auto; padding: 15px; border: 1px solid #ddd; background: white; margin-bottom: 20px; text-align:center;">
-                        </div>
+                    <div id="qrcode-container" style="width: 250px; margin: 0 auto; padding: 15px; border: 1px solid #ddd; background: white; margin-bottom: 20px; text-align:center;"></div>
                     <div id="profile-details">
                         <h3 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Thông tin chi tiết</h3>
                         <div style="font-size: 15px; line-height: 2.2;">
@@ -1759,33 +1756,47 @@
                 </div>
                 
                 <div id="profile-history">
-                    <h3 style="margin-bottom: 15px; border-bottom: 2px solid var(--light-color); padding-bottom: 10px;">Lịch sử Hoạt động</h3>
+                    <h3 style="margin-bottom: 15px; border-bottom: 2px solid var(--light-color); padding-bottom: 10px;">Lịch sử & Hồ sơ</h3>
                     <div>
-                        <h4 style="margin-bottom: 10px; font-weight: 500;">Nhật ký Sử dụng hàng tuần</h4>
-                        <div style="max-height: 220px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;">
-                            <table class="generic-table">
-                                <thead><tr><th>Ngày Ghi</th><th>Người Ghi</th><th>Tình Trạng</th><th>Ghi Chú</th></tr></thead>
-                                <tbody id="usage-log-tbody"><tr><td colspan="4" style="text-align:center;">Đang tải...</td></tr></tbody>
+                        <h4 style="margin-bottom: 10px; font-weight: 500;">Quản lý Hồ sơ & Tài liệu</h4>
+                        <div class="document-section">
+                            <form id="documentUploadForm">
+                                <input type="hidden" id="doc-equipment-id" value="${data.details._id}">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Loại tài liệu</label>
+                                        <select id="documentType">
+                                            <option value="contract">Hợp đồng</option>
+                                            <option value="co">CO (Chứng nhận xuất xứ)</option>
+                                            <option value="cq">CQ (Chứng nhận chất lượng)</option>
+                                            <option value="inspection">Kiểm định</option>
+                                            <option value="other">Khác</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Chọn file (PDF, ảnh)</label>
+                                        <input type="file" id="documentFile" required>
+                                    </div>
+                                </div>
+                                <button type="submit" class="action-button" style="width: 100%; justify-content: center;"><i class="fas fa-upload"></i> Tải lên</button>
+                            </form>
+                            <table class="generic-table" style="margin-top: 15px;">
+                                <thead><tr><th>Loại</th><th>Tên File</th><th>Ngày Tải Lên</th><th>Hành Động</th></tr></thead>
+                                <tbody id="document-list-tbody"></tbody>
                             </table>
                         </div>
+                    </div>
+                    <div>
+                        <h4 style="margin-top: 20px; margin-bottom: 10px; font-weight: 500;">Nhật ký Sử dụng hàng tuần</h4>
+                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;"><table class="generic-table"><thead><tr><th>Ngày Ghi</th><th>Người Ghi</th><th>Tình Trạng</th><th>Ghi Chú</th></tr></thead><tbody id="usage-log-tbody"></tbody></table></div>
                     </div>
                     <div>
                         <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Sự cố</h4>
-                        <div style="max-height: 220px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;">
-                            <table class="generic-table">
-                                <thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead>
-                                <tbody id="profile-incidents-tbody"></tbody>
-                            </table>
-                        </div>
+                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;"><table class="generic-table"><thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead><tbody id="profile-incidents-tbody"></tbody></table></div>
                     </div>
                     <div>
                         <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Bảo trì</h4>
-                        <div style="max-height: 220px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;">
-                            <table class="generic-table">
-                                <thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Trạng thái</th></tr></thead>
-                                <tbody id="profile-maintenance-tbody"></tbody>
-                            </table>
-                        </div>
+                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;"><table class="generic-table"><thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Trạng thái</th></tr></thead><tbody id="profile-maintenance-tbody"></tbody></table></div>
                     </div>
                 </div>
             </div>`;
@@ -1809,6 +1820,10 @@
             const qrImageSrc = qrCodeContainer.querySelector('img').src;
             printQRCode(qrImageSrc, data.details.name, data.details.serial, departments[data.details.department]);
         });
+
+        // Gắn sự kiện cho form upload và danh sách tài liệu
+        document.getElementById('documentUploadForm').addEventListener('submit', handleDocumentUpload);
+        document.getElementById('document-list-tbody').addEventListener('click', handleDocumentDelete);
 
         // Đổ dữ liệu vào các bảng lịch sử (giữ nguyên)
         const incidentBody = document.getElementById('profile-incidents-tbody');
@@ -2831,6 +2846,109 @@ dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
     });
 });
 
+// ========================================================
+// LOGIC CHO QUẢN LÝ TÀI LIỆU
+// ========================================================
+
+function renderDocumentList(documents) {
+    const tableBody = document.getElementById('document-list-tbody');
+    tableBody.innerHTML = '';
+    if (!documents || documents.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Chưa có tài liệu nào.</td></tr>`;
+        return;
+    }
+
+    const typeMap = { contract: 'Hợp đồng', co: 'CO', cq: 'CQ', inspection: 'Kiểm định', other: 'Khác' };
+    documents.forEach(doc => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${typeMap[doc.documentType] || 'Không rõ'}</td>
+            <td><a href="${doc.fileUrl}" target="_blank" title="Mở file">${doc.fileName} <i class="fas fa-external-link-alt" style="font-size: 12px;"></i></a></td>
+            <td>${new Date(doc.createdAt).toLocaleDateString('vi-VN')}</td>
+            <td class="action-btn-group">
+                <button class="delete-btn doc-delete-btn" data-id="${doc._id}"><i class="fas fa-trash"></i></button>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+async function handleDocumentUpload(e) {
+    e.preventDefault();
+    const equipmentId = document.getElementById('doc-equipment-id').value;
+    const documentType = document.getElementById('documentType').value;
+    const fileInput = document.getElementById('documentFile');
+
+    if (!fileInput.files[0]) {
+        Swal.fire('Lỗi', 'Vui lòng chọn một file để tải lên.', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('document', fileInput.files[0]);
+    formData.append('documentType', documentType);
+    
+    Swal.fire({ title: 'Đang tải lên...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+
+    try {
+        // Lưu ý: fetchWithAuth cần được điều chỉnh để không tự set 'Content-Type' cho FormData
+        const token = getToken();
+        const headers = {};
+        if (token) { headers['Authorization'] = `Bearer ${token}`; }
+
+        const response = await fetch(`${API_BASE_URL}/api/documents/upload/${equipmentId}`, {
+            method: 'POST',
+            headers: headers, // Không có 'Content-Type'
+            body: formData,
+        });
+
+        if (response.status === 401 || response.status === 403) { logout(); throw new Error('Phiên đăng nhập hết hạn.'); }
+        
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+
+        Swal.fire('Thành công', 'Tải tài liệu lên thành công!', 'success');
+        fileInput.value = ''; // Reset input
+        // Tải lại danh sách tài liệu
+        const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
+        const newDocs = await newDocsResponse.json();
+        renderDocumentList(newDocs);
+
+    } catch (error) {
+        handleApiError(error, "Tải tài liệu");
+    }
+}
+
+function handleDocumentDelete(e) {
+    const deleteBtn = e.target.closest('.doc-delete-btn');
+    if (!deleteBtn) return;
+
+    const documentId = deleteBtn.dataset.id;
+    const equipmentId = document.getElementById('doc-equipment-id').value;
+
+    Swal.fire({
+        title: 'Bạn chắc chắn muốn xóa?',
+        text: "Tài liệu này sẽ bị xóa vĩnh viễn cả trên server!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Vâng, xóa nó!',
+        cancelButtonText: 'Hủy'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                await fetchWithAuth(`${API_BASE_URL}/api/documents/${documentId}`, { method: 'DELETE' });
+                Swal.fire('Đã xóa!', 'Tài liệu đã được xóa.', 'success');
+                // Tải lại danh sách tài liệu
+                const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
+                const newDocs = await newDocsResponse.json();
+                renderDocumentList(newDocs);
+            } catch (error) {
+                handleApiError(error, "Xóa tài liệu");
+            }
+        }
+    });
+}
         checkAuth();
     });
 </script>

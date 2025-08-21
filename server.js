@@ -9,6 +9,28 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const multer = require('multer');
+
+// Cấu hình Cloudinary bằng các biến môi trường chúng ta đã thêm
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Thiết lập nơi lưu trữ file cho multer
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'equipment_documents', // Tên thư mục trên Cloudinary
+        format: async (req, file) => 'pdf', // Cho phép định dạng pdf (có thể mở rộng sau)
+        public_id: (req, file) => `${Date.now()}-${file.originalname}`, 
+    },
+});
+
+const upload = multer({ storage: storage });
 
 // 2. KHỞI TẠO ỨNG DỤNG VÀ CÁC BIẾN MÔI TRƯỜNG
 const app = express();
@@ -106,6 +128,20 @@ const usageLogSchema = new mongoose.Schema({
     notes: { type: String, default: '' },
 }, { timestamps: true });
 const UsageLog = mongoose.models.UsageLog || mongoose.model('UsageLog', usageLogSchema);
+
+const documentSchema = new mongoose.Schema({
+    equipmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment', required: true },
+    fileName: { type: String, required: true },
+    fileUrl: { type: String, required: true },
+    cloudinaryId: { type: String, required: true }, // Để sau này có thể xóa file trên Cloudinary
+    documentType: { 
+        type: String, 
+        required: true,
+        enum: ['contract', 'co', 'cq', 'inspection', 'other'] 
+    },
+    uploadedBy: { type: String, required: true }
+}, { timestamps: true });
+const Document = mongoose.models.Document || mongoose.model('Document', documentSchema);
 
 // 6. API XÁC THỰC
 app.post('/api/auth/register', async (req, res) => {
@@ -965,6 +1001,70 @@ app.post('/api/logs/bulk', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error("Lỗi khi ghi nhật ký hàng loạt:", error);
         res.status(500).json({ message: 'Lỗi server khi ghi nhật ký hàng loạt.' });
+    }
+});
+
+// 10.14. API QUẢN LÝ TÀI LIỆU (TÍNH NĂNG MỚI)
+// =================================================================
+
+// Lấy danh sách tài liệu của một thiết bị
+app.get('/api/documents/:equipmentId', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { equipmentId } = req.params;
+        const documents = await Document.find({ equipmentId: equipmentId }).sort({ createdAt: -1 });
+        res.json(documents);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi lấy danh sách tài liệu.' });
+    }
+});
+
+// Upload một tài liệu mới
+app.post('/api/documents/upload/:equipmentId', authenticateToken, isAdmin, upload.single('document'), async (req, res) => {
+    try {
+        const { equipmentId } = req.params;
+        const { documentType } = req.body;
+        
+        if (!req.file) {
+            return res.status(400).json({ message: 'Không có file nào được tải lên.' });
+        }
+
+        const newDocument = new Document({
+            equipmentId: equipmentId,
+            fileName: req.file.originalname,
+            fileUrl: req.file.path, // URL từ Cloudinary
+            cloudinaryId: req.file.filename,
+            documentType: documentType,
+            uploadedBy: req.user.username
+        });
+
+        await newDocument.save();
+        res.status(201).json(newDocument);
+
+    } catch (error) {
+        console.error("Lỗi khi upload tài liệu:", error);
+        res.status(500).json({ message: 'Lỗi server khi upload tài liệu.' });
+    }
+});
+
+// Xóa một tài liệu
+app.delete('/api/documents/:documentId', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { documentId } = req.params;
+        const docToDelete = await Document.findById(documentId);
+
+        if (!docToDelete) {
+            return res.status(404).json({ message: 'Không tìm thấy tài liệu.' });
+        }
+
+        // Xóa file trên Cloudinary
+        await cloudinary.uploader.destroy(docToDelete.cloudinaryId);
+        
+        // Xóa bản ghi trong database
+        await Document.findByIdAndDelete(documentId);
+
+        res.json({ message: 'Xóa tài liệu thành công.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server khi xóa tài liệu.' });
     }
 });
 
