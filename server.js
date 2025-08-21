@@ -1028,6 +1028,14 @@ app.post('/api/documents/upload/:equipmentId', authenticateToken, isAdmin, uploa
             return res.status(400).json({ message: 'Không có file nào được tải lên.' });
         }
 
+        // --- LOGIC SỬA LỖI ĐƯỜNG LINK ---
+        let finalUrl = req.file.path;
+        // Nếu file là PDF và đường link đang bị sai (chứa /image/upload)
+        if (req.file.mimetype === 'application/pdf' && finalUrl.includes('/image/upload')) {
+            // Tự động sửa lại thành /raw/upload
+            finalUrl = finalUrl.replace('/image/upload', '/raw/upload');
+        }
+
         const newDocument = new Document({
             equipmentId: equipmentId,
             fileName: req.file.originalname,
