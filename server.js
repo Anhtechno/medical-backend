@@ -24,9 +24,15 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
-        folder: 'equipment_documents', // Tên thư mục trên Cloudinary
-        resource_type: "auto", // <-- THAY ĐỔI QUAN TRỌNG: Tự động nhận diện loại file
-        public_id: (req, file) => `${Date.now()}-${file.originalname.split('.').slice(0, -1).join('.')}`, 
+        folder: 'equipment_documents',
+        resource_type: "auto",
+        public_id: (req, file) => {
+            // Lấy tên file gốc không bao gồm phần mở rộng
+            const fileName = file.originalname.split('.').slice(0, -1).join('.');
+            // Thay thế tất cả các ký tự đặc biệt và khoảng trắng bằng dấu gạch ngang
+            const safeFileName = fileName.replace(/[^a-zA-Z0-9]/g, '-');
+            return `${Date.now()}-${safeFileName}`;
+        }
     },
 });
 
