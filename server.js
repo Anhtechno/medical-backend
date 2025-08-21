@@ -25,8 +25,8 @@ const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
         folder: 'equipment_documents', // Tên thư mục trên Cloudinary
-        format: async (req, file) => 'pdf', // Cho phép định dạng pdf (có thể mở rộng sau)
-        public_id: (req, file) => `${Date.now()}-${file.originalname}`, 
+        resource_type: "auto", // <-- THAY ĐỔI QUAN TRỌNG: Tự động nhận diện loại file
+        public_id: (req, file) => `${Date.now()}-${file.originalname.split('.').slice(0, -1).join('.')}`, 
     },
 });
 
