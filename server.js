@@ -21,18 +21,14 @@ cloudinary.config({
 });
 
 // Thiết lập nơi lưu trữ file cho multer
+// Thay thế toàn bộ khối const storage cũ bằng phiên bản này
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
         folder: 'equipment_documents',
         resource_type: "auto",
-        public_id: (req, file) => {
-            // Lấy tên file gốc không bao gồm phần mở rộng
-            const fileName = file.originalname.split('.').slice(0, -1).join('.');
-            // Thay thế tất cả các ký tự không an toàn bằng dấu gạch ngang
-            const safeFileName = fileName.replace(/[^a-zA-Z0-9-_\.]/g, '_');
-            return `${Date.now()}-${safeFileName}`;
-        }
+        // THAY ĐỔI QUAN TRỌNG: SỬ DỤNG UPLOAD PRESET
+        upload_preset: 'hoso_congkhai' 
     },
 });
 
