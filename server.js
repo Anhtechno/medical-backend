@@ -25,9 +25,7 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
-        folder: 'equipment_documents',
-        resource_type: 'auto',
-        access_mode: 'public' // Thêm dòng này để ra lệnh công khai file
+        upload_preset: 'documents_upload' // Chỉ cần đúng dòng này
     },
 });
 
