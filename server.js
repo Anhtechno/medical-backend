@@ -23,12 +23,7 @@ cloudinary.config({
 
 // Thiết lập nơi lưu trữ file cho multer
 // Thay thế toàn bộ khối const storage cũ bằng phiên bản này
-const storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-        upload_preset: 'documents_upload' // Chỉ cần đúng dòng này
-    },
-});
+
 
 const upload = multer({ storage: multer.memoryStorage() });
 
