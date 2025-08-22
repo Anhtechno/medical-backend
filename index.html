@@ -2861,12 +2861,12 @@ dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
 
 function renderDocumentList(documents) {
     const tableBody = document.getElementById('document-list-tbody');
+    if (!tableBody) return;
     tableBody.innerHTML = '';
     if (!documents || documents.length === 0) {
         tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Chưa có tài liệu nào.</td></tr>`;
         return;
     }
-
     const typeMap = { contract: 'Hợp đồng', co: 'CO', cq: 'CQ', inspection: 'Kiểm định', other: 'Khác' };
     documents.forEach(doc => {
         const row = document.createElement('tr');
@@ -2892,7 +2892,6 @@ async function handleDocumentUpload(e) {
         Swal.fire('Lỗi', 'Vui lòng chọn một file để tải lên.', 'warning');
         return;
     }
-
     const formData = new FormData();
     formData.append('document', fileInput.files[0]);
     formData.append('documentType', documentType);
@@ -2900,29 +2899,23 @@ async function handleDocumentUpload(e) {
     Swal.fire({ title: 'Đang tải lên...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
 
     try {
-        // Lưu ý: fetchWithAuth cần được điều chỉnh để không tự set 'Content-Type' cho FormData
         const token = getToken();
         const headers = {};
         if (token) { headers['Authorization'] = `Bearer ${token}`; }
-
         const response = await fetch(`${API_BASE_URL}/api/documents/upload/${equipmentId}`, {
             method: 'POST',
-            headers: headers, // Không có 'Content-Type'
+            headers: headers,
             body: formData,
         });
-
         if (response.status === 401 || response.status === 403) { logout(); throw new Error('Phiên đăng nhập hết hạn.'); }
-        
         const result = await response.json();
         if (!response.ok) throw new Error(result.message);
 
         Swal.fire('Thành công', 'Tải tài liệu lên thành công!', 'success');
-        fileInput.value = ''; // Reset input
-        // Tải lại danh sách tài liệu
+        fileInput.value = '';
         const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
         const newDocs = await newDocsResponse.json();
         renderDocumentList(newDocs);
-
     } catch (error) {
         handleApiError(error, "Tải tài liệu");
     }
@@ -2931,13 +2924,11 @@ async function handleDocumentUpload(e) {
 function handleDocumentDelete(e) {
     const deleteBtn = e.target.closest('.doc-delete-btn');
     if (!deleteBtn) return;
-
     const documentId = deleteBtn.dataset.id;
     const equipmentId = document.getElementById('doc-equipment-id').value;
-
     Swal.fire({
         title: 'Bạn chắc chắn muốn xóa?',
-        text: "Tài liệu này sẽ bị xóa vĩnh viễn cả trên server!",
+        text: "Tài liệu này sẽ bị xóa vĩnh viễn!",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
@@ -2948,7 +2939,6 @@ function handleDocumentDelete(e) {
             try {
                 await fetchWithAuth(`${API_BASE_URL}/api/documents/${documentId}`, { method: 'DELETE' });
                 Swal.fire('Đã xóa!', 'Tài liệu đã được xóa.', 'success');
-                // Tải lại danh sách tài liệu
                 const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
                 const newDocs = await newDocsResponse.json();
                 renderDocumentList(newDocs);
@@ -2958,6 +2948,18 @@ function handleDocumentDelete(e) {
         }
     });
 }
+// Gắn event listener một lần duy nhất bằng event delegation
+dom.profileView.addEventListener('submit', (e) => {
+    if (e.target && e.target.id === 'documentUploadForm') {
+        handleDocumentUpload(e);
+    }
+});
+dom.profileView.addEventListener('click', (e) => {
+    if (e.target && e.target.closest('.doc-delete-btn')) {
+        handleDocumentDelete(e);
+    }
+});
+
         checkAuth();
     });
 </script>
