@@ -2777,82 +2777,94 @@ document.getElementById('bulkLogSubmitBtn').addEventListener('click', () => {
 // ========================================================
 
 function closeBulkLogExceptionModal() {
-    dom.bulkLogExceptionModal.style.display = 'none';
+    if (dom.bulkLogExceptionModal) {
+        dom.bulkLogExceptionModal.style.display = 'none';
+    }
 }
 
-dom.closeBulkLogExceptionModalBtn.addEventListener('click', closeBulkLogExceptionModal);
-dom.cancelBulkLogExceptionBtn.addEventListener('click', closeBulkLogExceptionModal);
-window.addEventListener('click', (e) => {
-    if (e.target === dom.bulkLogExceptionModal) closeBulkLogExceptionModal();
-});
-
-dom.bulkLogExceptBtn.addEventListener('click', async () => {
-    Swal.fire({
-        title: 'Đang tải danh sách thiết bị...',
-        allowOutsideClick: false,
-        didOpen: () => { Swal.showLoading() }
-    });
-
-    try {
-        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${userProfile.departmentKey}?limit=10000`);
-        if (!response.ok) throw new Error("Không thể tải danh sách thiết bị.");
-        const data = await response.json();
-        
-        dom.exceptionListContainer.innerHTML = '';
-        data.equipments.forEach(eq => {
-            const itemHtml = `
-                <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
-                    <input type="checkbox" id="exc-${eq._id}" value="${eq._id}" style="width: 20px; height: 20px; margin-right: 15px;">
-                    <label for="exc-${eq._id}" style="font-weight: 500;">${eq.name} <span style="color: #6c757d;">(Serial: ${eq.serial})</span></label>
-                </div>
-            `;
-            dom.exceptionListContainer.innerHTML += itemHtml;
+// Chỉ gán sự kiện nếu các nút tồn tại
+if (dom.closeBulkLogExceptionModalBtn) {
+    dom.closeBulkLogExceptionModalBtn.addEventListener('click', closeBulkLogExceptionModal);
+}
+if (dom.cancelBulkLogExceptionBtn) {
+    dom.cancelBulkLogExceptionBtn.addEventListener('click', closeBulkLogExceptionModal);
+}
+if (dom.bulkLogExceptBtn) {
+    dom.bulkLogExceptBtn.addEventListener('click', async () => {
+        Swal.fire({
+            title: 'Đang tải danh sách thiết bị...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading() }
         });
 
-        Swal.close();
-        dom.bulkLogExceptionModal.style.display = 'flex';
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${userProfile.departmentKey}?limit=10000`);
+            if (!response.ok) throw new Error("Không thể tải danh sách thiết bị.");
+            const data = await response.json();
+            
+            dom.exceptionListContainer.innerHTML = '';
+            data.equipments.forEach(eq => {
+                const itemHtml = `
+                    <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                        <input type="checkbox" id="exc-${eq._id}" value="${eq._id}" style="width: 20px; height: 20px; margin-right: 15px;">
+                        <label for="exc-${eq._id}" style="font-weight: 500;">${eq.name} <span style="color: #6c757d;">(Serial: ${eq.serial})</span></label>
+                    </div>
+                `;
+                dom.exceptionListContainer.innerHTML += itemHtml;
+            });
 
-    } catch (error) {
-        handleApiError(error, "Tải danh sách thiết bị");
-    }
-});
+            Swal.close();
+            dom.bulkLogExceptionModal.style.display = 'flex';
 
-dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
-    const status = document.getElementById('logStatus').value;
-    const notes = document.getElementById('logNotes').value;
-    const excludeIds = [];
-    document.querySelectorAll('#exception-list-container input[type="checkbox"]:checked').forEach(checkbox => {
-        excludeIds.push(checkbox.value);
-    });
-
-    closeBulkLogExceptionModal();
-
-    Swal.fire({
-        title: 'Xác nhận Ghi hàng loạt?',
-        text: `Áp dụng cho tất cả thiết bị còn lại, ngoại trừ ${excludeIds.length} thiết bị đã chọn?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Vâng, xác nhận!',
-        cancelButtonText: 'Hủy'
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            Swal.fire({ title: 'Đang xử lý...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
-                    method: 'POST',
-                    body: JSON.stringify({ status, notes, excludeIds })
-                });
-                const resultData = await response.json();
-                if (!response.ok) throw new Error(resultData.message);
-                
-                await Swal.fire('Thành công!', resultData.message, 'success');
-                closeUsageLogModal();
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
-            } catch (error) {
-                handleApiError(error, "Ghi nhật ký hàng loạt");
-            }
+        } catch (error) {
+            handleApiError(error, "Tải danh sách thiết bị");
         }
     });
+}
+if (dom.confirmBulkLogExceptionBtn) {
+    dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
+        const status = document.getElementById('logStatus').value;
+        const notes = document.getElementById('logNotes').value;
+        const excludeIds = [];
+        document.querySelectorAll('#exception-list-container input[type="checkbox"]:checked').forEach(checkbox => {
+            excludeIds.push(checkbox.value);
+        });
+
+        closeBulkLogExceptionModal();
+
+        Swal.fire({
+            title: 'Xác nhận Ghi hàng loạt?',
+            text: `Áp dụng cho tất cả thiết bị còn lại, ngoại trừ ${excludeIds.length} thiết bị đã chọn?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Vâng, xác nhận!',
+            cancelButtonText: 'Hủy'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                Swal.fire({ title: 'Đang xử lý...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+                try {
+                    const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
+                        method: 'POST',
+                        body: JSON.stringify({ status, notes, excludeIds })
+                    });
+                    const resultData = await response.json();
+                    if (!response.ok) throw new Error(resultData.message);
+                    
+                    await Swal.fire('Thành công!', resultData.message, 'success');
+                    closeUsageLogModal();
+                    fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+                } catch (error) {
+                    handleApiError(error, "Ghi nhật ký hàng loạt");
+                }
+            }
+        });
+    });
+}
+// Thêm event listener cho window để đóng modal khi click ra ngoài
+window.addEventListener('click', (e) => {
+    if (e.target === dom.bulkLogExceptionModal) {
+        closeBulkLogExceptionModal();
+    }
 });
 
 // ========================================================
