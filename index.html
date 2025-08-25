@@ -2921,9 +2921,8 @@ async function handleDocumentUpload(e) {
         if (!response.ok) throw new Error(result.message);
 
         Swal.fire('Thành công', 'Tải tài liệu lên thành công!', 'success');
-        fileInput.value = ''; // Reset input
+        fileInput.value = '';
         
-        // Tải lại danh sách tài liệu
         const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
         const newDocs = await newDocsResponse.json();
         renderDocumentList(newDocs);
@@ -2953,7 +2952,6 @@ function handleDocumentDelete(e) {
             try {
                 await fetchWithAuth(`${API_BASE_URL}/api/documents/${documentId}`, { method: 'DELETE' });
                 Swal.fire('Đã xóa!', 'Tài liệu đã được xóa.', 'success');
-                // Tải lại danh sách tài liệu
                 const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
                 const newDocs = await newDocsResponse.json();
                 renderDocumentList(newDocs);
