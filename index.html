@@ -2849,7 +2849,6 @@ dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
 
 function renderDocumentList(documents) {
     const tableBody = document.getElementById('document-list-tbody');
-    if (!tableBody) return;
     tableBody.innerHTML = '';
     if (!documents || documents.length === 0) {
         tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Chưa có tài liệu nào.</td></tr>`;
@@ -2863,7 +2862,7 @@ function renderDocumentList(documents) {
             <td>${typeMap[doc.documentType] || 'Không rõ'}</td>
             <td><a href="${doc.fileUrl}" target="_blank" title="Mở file">${doc.fileName} <i class="fas fa-external-link-alt" style="font-size: 12px;"></i></a></td>
             <td>${new Date(doc.createdAt).toLocaleDateString('vi-VN')}</td>
-            <td class="action-btn-group" style="text-align: center;">
+            <td class="action-btn-group">
                 <button class="delete-btn doc-delete-btn" data-id="${doc._id}"><i class="fas fa-trash"></i></button>
             </td>
         `;
@@ -2872,7 +2871,7 @@ function renderDocumentList(documents) {
 }
 
 async function handleDocumentUpload(e) {
-    e.preventDefault(); // Ngăn việc bị đăng xuất
+    e.preventDefault();
     const equipmentId = document.getElementById('doc-equipment-id').value;
     const documentType = document.getElementById('documentType').value;
     const fileInput = document.getElementById('documentFile');
@@ -2881,6 +2880,7 @@ async function handleDocumentUpload(e) {
         Swal.fire('Lỗi', 'Vui lòng chọn một file để tải lên.', 'warning');
         return;
     }
+
     const formData = new FormData();
     formData.append('document', fileInput.files[0]);
     formData.append('documentType', documentType);
@@ -2888,22 +2888,25 @@ async function handleDocumentUpload(e) {
     Swal.fire({ title: 'Đang tải lên...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
 
     try {
+        // Lưu ý: fetchWithAuth cần được điều chỉnh để không tự set 'Content-Type' cho FormData
         const token = getToken();
         const headers = {};
         if (token) { headers['Authorization'] = `Bearer ${token}`; }
+
         const response = await fetch(`${API_BASE_URL}/api/documents/upload/${equipmentId}`, {
             method: 'POST',
-            headers: headers,
+            headers: headers, // Không có 'Content-Type'
             body: formData,
         });
+
         if (response.status === 401 || response.status === 403) { logout(); throw new Error('Phiên đăng nhập hết hạn.'); }
         
         const result = await response.json();
         if (!response.ok) throw new Error(result.message);
 
         Swal.fire('Thành công', 'Tải tài liệu lên thành công!', 'success');
-        fileInput.value = '';
-        
+        fileInput.value = ''; // Reset input
+        // Tải lại danh sách tài liệu
         const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
         const newDocs = await newDocsResponse.json();
         renderDocumentList(newDocs);
@@ -2916,12 +2919,13 @@ async function handleDocumentUpload(e) {
 function handleDocumentDelete(e) {
     const deleteBtn = e.target.closest('.doc-delete-btn');
     if (!deleteBtn) return;
+
     const documentId = deleteBtn.dataset.id;
     const equipmentId = document.getElementById('doc-equipment-id').value;
 
     Swal.fire({
         title: 'Bạn chắc chắn muốn xóa?',
-        text: "Tài liệu này sẽ bị xóa vĩnh viễn!",
+        text: "Tài liệu này sẽ bị xóa vĩnh viễn cả trên server!",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
@@ -2932,6 +2936,7 @@ function handleDocumentDelete(e) {
             try {
                 await fetchWithAuth(`${API_BASE_URL}/api/documents/${documentId}`, { method: 'DELETE' });
                 Swal.fire('Đã xóa!', 'Tài liệu đã được xóa.', 'success');
+                // Tải lại danh sách tài liệu
                 const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
                 const newDocs = await newDocsResponse.json();
                 renderDocumentList(newDocs);
@@ -2941,18 +2946,6 @@ function handleDocumentDelete(e) {
         }
     });
 }
-
-// Gắn event listener một lần duy nhất bằng event delegation
-dom.profileView.addEventListener('submit', (e) => {
-    if (e.target && e.target.id === 'documentUploadForm') {
-        handleDocumentUpload(e);
-    }
-});
-dom.profileView.addEventListener('click', (e) => {
-    if (e.target && e.target.closest('.doc-delete-btn')) {
-        handleDocumentDelete(e);
-    }
-});
 
 
 
