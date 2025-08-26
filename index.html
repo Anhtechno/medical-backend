@@ -2859,9 +2859,12 @@ dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
 // LOGIC CHO QUẢN LÝ TÀI LIỆU
 // ========================================================
 
+// ========================================================
+// LOGIC CHO QUẢN LÝ TÀI LIỆU
+// ========================================================
+
 function renderDocumentList(documents) {
     const tableBody = document.getElementById('document-list-tbody');
-    if (!tableBody) return;
     tableBody.innerHTML = '';
     if (!documents || documents.length === 0) {
         tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Chưa có tài liệu nào.</td></tr>`;
@@ -2875,7 +2878,7 @@ function renderDocumentList(documents) {
             <td>${typeMap[doc.documentType] || 'Không rõ'}</td>
             <td><a href="${doc.fileUrl}" target="_blank" title="Mở file">${doc.fileName} <i class="fas fa-external-link-alt" style="font-size: 12px;"></i></a></td>
             <td>${new Date(doc.createdAt).toLocaleDateString('vi-VN')}</td>
-            <td class="action-btn-group" style="text-align: center;">
+            <td class="action-btn-group">
                 <button class="delete-btn doc-delete-btn" data-id="${doc._id}"><i class="fas fa-trash"></i></button>
             </td>
         `;
@@ -2884,7 +2887,7 @@ function renderDocumentList(documents) {
 }
 
 async function handleDocumentUpload(e) {
-    e.preventDefault(); // Ngăn việc bị đăng xuất
+    e.preventDefault();
     const equipmentId = document.getElementById('doc-equipment-id').value;
     const documentType = document.getElementById('documentType').value;
     const fileInput = document.getElementById('documentFile');
@@ -2901,13 +2904,14 @@ async function handleDocumentUpload(e) {
     Swal.fire({ title: 'Đang tải lên...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
 
     try {
+        // Lưu ý: fetchWithAuth cần được điều chỉnh để không tự set 'Content-Type' cho FormData
         const token = getToken();
         const headers = {};
         if (token) { headers['Authorization'] = `Bearer ${token}`; }
 
         const response = await fetch(`${API_BASE_URL}/api/documents/upload/${equipmentId}`, {
             method: 'POST',
-            headers: headers,
+            headers: headers, // Không có 'Content-Type'
             body: formData,
         });
 
@@ -2917,8 +2921,8 @@ async function handleDocumentUpload(e) {
         if (!response.ok) throw new Error(result.message);
 
         Swal.fire('Thành công', 'Tải tài liệu lên thành công!', 'success');
-        fileInput.value = '';
-        
+        fileInput.value = ''; // Reset input
+        // Tải lại danh sách tài liệu
         const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
         const newDocs = await newDocsResponse.json();
         renderDocumentList(newDocs);
@@ -2948,6 +2952,7 @@ function handleDocumentDelete(e) {
             try {
                 await fetchWithAuth(`${API_BASE_URL}/api/documents/${documentId}`, { method: 'DELETE' });
                 Swal.fire('Đã xóa!', 'Tài liệu đã được xóa.', 'success');
+                // Tải lại danh sách tài liệu
                 const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
                 const newDocs = await newDocsResponse.json();
                 renderDocumentList(newDocs);
@@ -2959,18 +2964,18 @@ function handleDocumentDelete(e) {
 }
 
 // Gắn event listener một lần duy nhất bằng event delegation
-if (dom.profileView) {
-    dom.profileView.addEventListener('submit', (e) => {
-        if (e.target && e.target.id === 'documentUploadForm') {
-            handleDocumentUpload(e);
-        }
-    });
-    dom.profileView.addEventListener('click', (e) => {
-        if (e.target && e.target.closest('.doc-delete-btn')) {
-            handleDocumentDelete(e);
-        }
-    });
-}
+dom.profileView.addEventListener('submit', (e) => {
+    if (e.target && e.target.id === 'documentUploadForm') {
+        handleDocumentUpload(e);
+    }
+});
+
+dom.profileView.addEventListener('click', (e) => {
+    if (e.target && e.target.closest('.doc-delete-btn')) {
+        handleDocumentDelete(e);
+    }
+});
+
 
         checkAuth();
     });
