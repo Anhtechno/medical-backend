@@ -2859,10 +2859,6 @@ dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
 // LOGIC CHO QUẢN LÝ TÀI LIỆU
 // ========================================================
 
-// ========================================================
-// LOGIC CHO QUẢN LÝ TÀI LIỆU
-// ========================================================
-
 function renderDocumentList(documents) {
     const tableBody = document.getElementById('document-list-tbody');
     if (!tableBody) return;
@@ -2888,7 +2884,7 @@ function renderDocumentList(documents) {
 }
 
 async function handleDocumentUpload(e) {
-    e.preventDefault(); // <-- DÒNG QUAN TRỌNG NHẤT, NGĂN VIỆC BỊ ĐĂNG XUẤT
+    e.preventDefault(); // Ngăn việc bị đăng xuất
     const equipmentId = document.getElementById('doc-equipment-id').value;
     const documentType = document.getElementById('documentType').value;
     const fileInput = document.getElementById('documentFile');
@@ -2963,16 +2959,18 @@ function handleDocumentDelete(e) {
 }
 
 // Gắn event listener một lần duy nhất bằng event delegation
-dom.profileView.addEventListener('submit', (e) => {
-    if (e.target && e.target.id === 'documentUploadForm') {
-        handleDocumentUpload(e);
-    }
-});
-dom.profileView.addEventListener('click', (e) => {
-    if (e.target && e.target.closest('.doc-delete-btn')) {
-        handleDocumentDelete(e);
-    }
-});
+if (dom.profileView) {
+    dom.profileView.addEventListener('submit', (e) => {
+        if (e.target && e.target.id === 'documentUploadForm') {
+            handleDocumentUpload(e);
+        }
+    });
+    dom.profileView.addEventListener('click', (e) => {
+        if (e.target && e.target.closest('.doc-delete-btn')) {
+            handleDocumentDelete(e);
+        }
+    });
+}
 
         checkAuth();
     });
