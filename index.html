@@ -1728,12 +1728,10 @@
     profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
 
     try {
-        // Lấy thông tin chính của thiết bị (chi tiết, lịch sử sự cố, lịch sử bảo trì)
         const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${decodeURIComponent(serial)}`);
         if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
         const data = await response.json();
 
-        // Dựng cấu trúc HTML cho toàn bộ trang hồ sơ
         profileView.innerHTML = `
             <div class="main-header">
                 <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
@@ -1759,10 +1757,9 @@
                 
                 <div id="profile-history">
                     <h3 style="margin-bottom: 15px; border-bottom: 2px solid var(--light-color); padding-bottom: 10px;">Lịch sử & Hồ sơ</h3>
-                    
                     <div>
                         <h4 style="margin-bottom: 10px; font-weight: 500;">Quản lý Hồ sơ & Tài liệu</h4>
-                        <div class="document-section" style="background-color: #fdfdfd; padding: 15px; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;">
+                        <div class="document-section">
                             <form id="documentUploadForm">
                                 <input type="hidden" id="doc-equipment-id" value="${data.details._id}">
                                 <div class="form-row">
@@ -1784,22 +1781,19 @@
                                 <button type="submit" class="action-button" style="width: 100%; justify-content: center;"><i class="fas fa-upload"></i> Tải lên</button>
                             </form>
                             <table class="generic-table" style="margin-top: 15px;">
-                                <thead><tr><th>Loại</th><th>Tên File</th><th>Ngày Tải Lên</th><th style="width: 80px; text-align: center;">Hành Động</th></tr></thead>
+                                <thead><tr><th>Loại</th><th>Tên File</th><th>Ngày Tải Lên</th><th>Hành Động</th></tr></thead>
                                 <tbody id="document-list-tbody"></tbody>
                             </table>
                         </div>
                     </div>
-
                     <div>
                         <h4 style="margin-top: 20px; margin-bottom: 10px; font-weight: 500;">Nhật ký Sử dụng hàng tuần</h4>
                         <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;"><table class="generic-table"><thead><tr><th>Ngày Ghi</th><th>Người Ghi</th><th>Tình Trạng</th><th>Ghi Chú</th></tr></thead><tbody id="usage-log-tbody"></tbody></table></div>
                     </div>
-                    
                     <div>
                         <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Sự cố</h4>
                         <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;"><table class="generic-table"><thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead><tbody id="profile-incidents-tbody"></tbody></table></div>
                     </div>
-                    
                     <div>
                         <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Bảo trì</h4>
                         <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;"><table class="generic-table"><thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Trạng thái</th></tr></thead><tbody id="profile-maintenance-tbody"></tbody></table></div>
@@ -1807,20 +1801,14 @@
                 </div>
             </div>`;
         
-        // --- Tải và hiển thị dữ liệu phụ ---
-        // Tải danh sách tài liệu
-        fetchWithAuth(`${API_BASE_URL}/api/documents/${data.details._id}`)
-            .then(res => res.json())
-            .then(docs => renderDocumentList(docs));
+        // --- LOGIC MỚI: TẢI VÀ HIỂN THỊ NHẬT KÝ SỬ DỤNG ---
+        const logResponse = await fetchWithAuth(`${API_BASE_URL}/api/logs/equipment/${data.details._id}`);
+        const logs = await logResponse.json();
+        renderUsageLogHistory(logs);
+        // ----------------------------------------------------
 
-        // Tải nhật ký sử dụng
-        fetchWithAuth(`${API_BASE_URL}/api/logs/equipment/${data.details._id}`)
-            .then(res => res.json())
-            .then(logs => renderUsageLogHistory(logs));
-
-        // Tạo mã QR Code
+        // Tạo QR Code
         const qrCodeContainer = document.getElementById('qrcode-container');
-        qrCodeContainer.innerHTML = '';
         new QRCode(qrCodeContainer, {
             text: `https://resilient-dieffenbachia-5881b7.netlify.app/report.html?serial=${encodeURIComponent(data.details.serial)}`,
             width: 220, height: 220, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H
@@ -1833,7 +1821,11 @@
             printQRCode(qrImageSrc, data.details.name, data.details.serial, departments[data.details.department]);
         });
 
-        // Hiển thị lịch sử sự cố
+        // Gắn sự kiện cho form upload và danh sách tài liệu
+        document.getElementById('documentUploadForm').addEventListener('submit', handleDocumentUpload);
+        document.getElementById('document-list-tbody').addEventListener('click', handleDocumentDelete);
+
+        // Đổ dữ liệu vào các bảng lịch sử (giữ nguyên)
         const incidentBody = document.getElementById('profile-incidents-tbody');
         if (data.incidents.length > 0) {
             incidentBody.innerHTML = '';
@@ -1843,7 +1835,6 @@
             });
         } else { incidentBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Không có lịch sử sự cố.</td></tr>'; }
 
-        // Hiển thị lịch sử bảo trì
         const maintenanceBody = document.getElementById('profile-maintenance-tbody');
         if (data.maintenanceHistory.length > 0) {
              maintenanceBody.innerHTML = '';
