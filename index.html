@@ -1728,10 +1728,12 @@
     profileView.innerHTML = '<p style="text-align:center; padding: 40px;">Đang tải hồ sơ thiết bị...</p>';
 
     try {
+        // Lấy thông tin chính của thiết bị (chi tiết, lịch sử sự cố, lịch sử bảo trì)
         const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/profile/${decodeURIComponent(serial)}`);
         if (!response.ok) throw new Error("Không thể tải hồ sơ thiết bị.");
         const data = await response.json();
 
+        // Dựng cấu trúc HTML cho toàn bộ trang hồ sơ (giữ nguyên như bản gốc của bạn)
         profileView.innerHTML = `
             <div class="main-header">
                 <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
@@ -1801,14 +1803,15 @@
                 </div>
             </div>`;
         
-        // --- LOGIC MỚI: TẢI VÀ HIỂN THỊ NHẬT KÝ SỬ DỤNG ---
-        const logResponse = await fetchWithAuth(`${API_BASE_URL}/api/logs/equipment/${data.details._id}`);
-        const logs = await logResponse.json();
-        renderUsageLogHistory(logs);
-        // ----------------------------------------------------
+        // --- PHẦN SỬA LỖI ---
+        // Tải và hiển thị dữ liệu phụ ngay sau khi vẽ xong giao diện
+        fetchWithAuth(`${API_BASE_URL}/api/documents/${data.details._id}`).then(res => res.json()).then(docs => renderDocumentList(docs));
+        fetchWithAuth(`${API_BASE_URL}/api/logs/equipment/${data.details._id}`).then(res => res.json()).then(logs => renderUsageLogHistory(logs));
+        // --------------------
 
-        // Tạo QR Code
+        // Tạo mã QR Code
         const qrCodeContainer = document.getElementById('qrcode-container');
+        qrCodeContainer.innerHTML = ''; // Xóa QR cũ để tránh lỗi
         new QRCode(qrCodeContainer, {
             text: `https://resilient-dieffenbachia-5881b7.netlify.app/report.html?serial=${encodeURIComponent(data.details.serial)}`,
             width: 220, height: 220, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H
@@ -1821,11 +1824,7 @@
             printQRCode(qrImageSrc, data.details.name, data.details.serial, departments[data.details.department]);
         });
 
-        // Gắn sự kiện cho form upload và danh sách tài liệu
-        document.getElementById('documentUploadForm').addEventListener('submit', handleDocumentUpload);
-        document.getElementById('document-list-tbody').addEventListener('click', handleDocumentDelete);
-
-        // Đổ dữ liệu vào các bảng lịch sử (giữ nguyên)
+        // Hiển thị lịch sử sự cố và bảo trì
         const incidentBody = document.getElementById('profile-incidents-tbody');
         if (data.incidents.length > 0) {
             incidentBody.innerHTML = '';
@@ -2850,12 +2849,9 @@ dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
 // LOGIC CHO QUẢN LÝ TÀI LIỆU
 // ========================================================
 
-// ========================================================
-// LOGIC CHO QUẢN LÝ TÀI LIỆU
-// ========================================================
-
 function renderDocumentList(documents) {
     const tableBody = document.getElementById('document-list-tbody');
+    if (!tableBody) return;
     tableBody.innerHTML = '';
     if (!documents || documents.length === 0) {
         tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Chưa có tài liệu nào.</td></tr>`;
@@ -2869,7 +2865,7 @@ function renderDocumentList(documents) {
             <td>${typeMap[doc.documentType] || 'Không rõ'}</td>
             <td><a href="${doc.fileUrl}" target="_blank" title="Mở file">${doc.fileName} <i class="fas fa-external-link-alt" style="font-size: 12px;"></i></a></td>
             <td>${new Date(doc.createdAt).toLocaleDateString('vi-VN')}</td>
-            <td class="action-btn-group">
+            <td class="action-btn-group" style="text-align: center;">
                 <button class="delete-btn doc-delete-btn" data-id="${doc._id}"><i class="fas fa-trash"></i></button>
             </td>
         `;
@@ -2878,7 +2874,7 @@ function renderDocumentList(documents) {
 }
 
 async function handleDocumentUpload(e) {
-    e.preventDefault();
+    e.preventDefault(); // Ngăn việc bị đăng xuất
     const equipmentId = document.getElementById('doc-equipment-id').value;
     const documentType = document.getElementById('documentType').value;
     const fileInput = document.getElementById('documentFile');
@@ -2887,7 +2883,6 @@ async function handleDocumentUpload(e) {
         Swal.fire('Lỗi', 'Vui lòng chọn một file để tải lên.', 'warning');
         return;
     }
-
     const formData = new FormData();
     formData.append('document', fileInput.files[0]);
     formData.append('documentType', documentType);
@@ -2895,25 +2890,22 @@ async function handleDocumentUpload(e) {
     Swal.fire({ title: 'Đang tải lên...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
 
     try {
-        // Lưu ý: fetchWithAuth cần được điều chỉnh để không tự set 'Content-Type' cho FormData
         const token = getToken();
         const headers = {};
         if (token) { headers['Authorization'] = `Bearer ${token}`; }
-
         const response = await fetch(`${API_BASE_URL}/api/documents/upload/${equipmentId}`, {
             method: 'POST',
-            headers: headers, // Không có 'Content-Type'
+            headers: headers,
             body: formData,
         });
-
         if (response.status === 401 || response.status === 403) { logout(); throw new Error('Phiên đăng nhập hết hạn.'); }
         
         const result = await response.json();
         if (!response.ok) throw new Error(result.message);
 
         Swal.fire('Thành công', 'Tải tài liệu lên thành công!', 'success');
-        fileInput.value = ''; // Reset input
-        // Tải lại danh sách tài liệu
+        fileInput.value = '';
+        
         const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
         const newDocs = await newDocsResponse.json();
         renderDocumentList(newDocs);
@@ -2926,13 +2918,12 @@ async function handleDocumentUpload(e) {
 function handleDocumentDelete(e) {
     const deleteBtn = e.target.closest('.doc-delete-btn');
     if (!deleteBtn) return;
-
     const documentId = deleteBtn.dataset.id;
     const equipmentId = document.getElementById('doc-equipment-id').value;
 
     Swal.fire({
         title: 'Bạn chắc chắn muốn xóa?',
-        text: "Tài liệu này sẽ bị xóa vĩnh viễn cả trên server!",
+        text: "Tài liệu này sẽ bị xóa vĩnh viễn!",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
@@ -2943,7 +2934,6 @@ function handleDocumentDelete(e) {
             try {
                 await fetchWithAuth(`${API_BASE_URL}/api/documents/${documentId}`, { method: 'DELETE' });
                 Swal.fire('Đã xóa!', 'Tài liệu đã được xóa.', 'success');
-                // Tải lại danh sách tài liệu
                 const newDocsResponse = await fetchWithAuth(`${API_BASE_URL}/api/documents/${equipmentId}`);
                 const newDocs = await newDocsResponse.json();
                 renderDocumentList(newDocs);
@@ -2953,6 +2943,18 @@ function handleDocumentDelete(e) {
         }
     });
 }
+
+// Gắn event listener một lần duy nhất bằng event delegation
+dom.profileView.addEventListener('submit', (e) => {
+    if (e.target && e.target.id === 'documentUploadForm') {
+        handleDocumentUpload(e);
+    }
+});
+dom.profileView.addEventListener('click', (e) => {
+    if (e.target && e.target.closest('.doc-delete-btn')) {
+        handleDocumentDelete(e);
+    }
+});
 
 
 
