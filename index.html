@@ -656,10 +656,17 @@
 }
         
         function handleNavLinkClick(e) {
-            e.preventDefault();
-            const viewName = e.currentTarget.dataset.view;
-            if (viewName) switchView(viewName);
-        }
+    e.preventDefault();
+    let viewName = e.currentTarget.dataset.view; // Lấy view_name từ link
+
+    // Logic điều hướng thông minh:
+    // Nếu link là "dashboard" VÀ vai trò người dùng là "user" -> đổi hướng sang "userDashboard"
+    if (viewName === 'dashboard' && userProfile.role === 'user') {
+        viewName = 'userDashboard';
+    }
+
+    if (viewName) switchView(viewName);
+}
 
         async function fetchWithAuth(url, options = {}) {
             const token = getToken();
