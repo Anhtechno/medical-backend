@@ -732,6 +732,7 @@ app.post('/api/equipment/batch-import/:deptKey', authenticateToken, isAdmin, asy
                 errors.push(`Serial '${err.err.op.serial}' đã tồn tại.`);
             });
         } else {
+            console.error("Lỗi nghiêm trọng khi nhập hàng loạt:", error);
             return res.status(500).json({ message: 'Đã có lỗi nghiêm trọng xảy ra.', details: error.message });
         }
     }
