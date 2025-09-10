@@ -500,6 +500,7 @@
         let currentFullDeptList = []; 
         let currentStatusFilter = 'all';
         let userProfile = {};
+        let userChartInstance = null;
         
         const dom = {
             loginContainer: document.getElementById('login-container'),
@@ -2628,7 +2629,7 @@ function renderUsageLogHistory(logs) {
 
           // LOGIC CHO DASHBOARD CỦA USER
 // ========================================================
-let userChartInstance = null;
+
 
 async function renderUserDashboard() {
     try {
