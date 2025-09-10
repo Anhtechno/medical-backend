@@ -2760,16 +2760,18 @@ dom.bulkLogExceptBtn.addEventListener('click', async () => {
     });
 
     try {
+        // Lấy danh sách TẤT CẢ thiết bị của khoa, không phân trang
         const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${userProfile.departmentKey}?limit=10000`);
         if (!response.ok) throw new Error("Không thể tải danh sách thiết bị.");
+        
         const data = await response.json();
         
-        dom.exceptionListContainer.innerHTML = '';
+        dom.exceptionListContainer.innerHTML = ''; // Xóa danh sách cũ
         data.equipments.forEach(eq => {
             const itemHtml = `
                 <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
                     <input type="checkbox" id="exc-${eq._id}" value="${eq._id}" style="width: 20px; height: 20px; margin-right: 15px;">
-                    <label for="exc-${eq._id}" style="font-weight: 500;">${eq.name} <span style="color: #6c757d;">(Serial: ${eq.serial})</span></label>
+                    <label for="exc-${eq._id}" style="font-weight: 500; cursor: pointer;">${eq.name} <span style="color: #6c757d;">(Serial: ${eq.serial})</span></label>
                 </div>
             `;
             dom.exceptionListContainer.innerHTML += itemHtml;
@@ -2806,14 +2808,14 @@ dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
             try {
                 const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
                     method: 'POST',
-                    body: JSON.stringify({ status, notes, excludeIds })
+                    body: JSON.stringify({ status, notes, excludeIds }) // Gửi kèm danh sách loại trừ
                 });
                 const resultData = await response.json();
                 if (!response.ok) throw new Error(resultData.message);
                 
                 await Swal.fire('Thành công!', resultData.message, 'success');
                 closeUsageLogModal();
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+                fetchAndDisplayEquipment(dom.departmentSelect.value, 1); // Tải lại danh sách để cập nhật dấu '!'
             } catch (error) {
                 handleApiError(error, "Ghi nhật ký hàng loạt");
             }
