@@ -342,11 +342,45 @@ app.get('/api/search', authenticateToken, async (req, res) => {
         const { q } = req.query;
         if (!q) return res.status(400).json({ message: "Cần có từ khóa tìm kiếm." });
         const searchTerm = q.toLowerCase();
-        let query = { $or: [ { name: { $regex: searchTerm, $options: 'i' } },{ serial: { $regex: searchTerm, $options: 'i' } },{ manufacturer: { $regex: searchTerm, $options: 'i' } }] };
-        if (req.user.role === 'user') { query.department = req.user.departmentKey; }
-        const results = await Equipment.find(query);
-        res.json(results);
-    } catch (error) { res.status(500).json({ message: 'Lỗi server khi tìm kiếm', error: error.message }); }
+
+        let query = { 
+            $or: [ 
+                { name: { $regex: searchTerm, $options: 'i' } },
+                { serial: { $regex: searchTerm, $options: 'i' } },
+                { manufacturer: { $regex: searchTerm, $options: 'i' } }
+            ] 
+        };
+
+        if (req.user.role === 'user') { 
+            query.department = req.user.departmentKey; 
+        }
+
+        const results = await Equipment.find(query).lean(); // Dùng .lean() để tăng tốc độ
+
+        // --- LOGIC ĐƯỢC THÊM VÀO ĐỂ SỬA LỖI ---
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        const startOfWeek = new Date(now.setDate(diff));
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const loggedThisWeek = await UsageLog.find({
+            createdAt: { $gte: startOfWeek }
+        }).select('equipmentId -_id');
+
+        const loggedEquipmentIds = new Set(loggedThisWeek.map(log => log.equipmentId.toString()));
+
+        const resultsWithLogStatus = results.map(eq => ({
+            ...eq,
+            needsLog: !loggedEquipmentIds.has(eq._id.toString())
+        }));
+        // --- KẾT THÚC PHẦN SỬA LỖI ---
+
+        res.json(resultsWithLogStatus); // Trả về kết quả đã có cờ needsLog
+
+    } catch (error) { 
+        res.status(500).json({ message: 'Lỗi server khi tìm kiếm', error: error.message }); 
+    }
 });
 
 app.get('/api/equipment/item/:serial', authenticateToken, async (req, res) => {
