@@ -909,28 +909,6 @@
     const target = e.target.closest('button');
     if (!target) return;
 
-    // Logic cho việc nhấn vào ảnh để phóng to
-const img = e.target.closest('.equipment-image');
-if (img) {
-    const modal = document.getElementById('image-zoom-modal');
-    const modalImg = document.getElementById('zoomed-image');
-    const captionText = document.getElementById('zoom-caption');
-    const closeSpan = document.getElementById('close-zoom-modal');
-
-    modal.style.display = "flex";
-    modalImg.src = img.src;
-    captionText.innerHTML = img.alt;
-
-    closeSpan.onclick = function() { 
-        modal.style.display = "none";
-    }
-    modal.onclick = function(event) {
-        if (event.target === modal) {
-             modal.style.display = "none";
-        }
-    }
-}
-    
     // Logic cho các nút của Admin
     if (target.classList.contains('view-btn')) {
         const serial = target.dataset.serial;
@@ -972,6 +950,28 @@ if (img) {
             }
         });
     }
+
+    // Logic cho việc nhấn vào ảnh để phóng to
+const img = e.target.closest('.equipment-image');
+if (img) {
+    const modal = document.getElementById('image-zoom-modal');
+    const modalImg = document.getElementById('zoomed-image');
+    const captionText = document.getElementById('zoom-caption');
+    const closeSpan = document.getElementById('close-zoom-modal');
+
+    modal.style.display = "flex";
+    modalImg.src = img.src;
+    captionText.innerHTML = img.alt;
+
+    closeSpan.onclick = function() { 
+        modal.style.display = "none";
+    }
+    modal.onclick = function(event) {
+        if (event.target === modal) {
+             modal.style.display = "none";
+        }
+    }
+}
     
     // Logic cho các nút của User
     else if (target.classList.contains('log-usage-btn')) {
