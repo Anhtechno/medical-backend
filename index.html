@@ -1716,12 +1716,13 @@
     <div id="profile-content" style="display: grid; grid-template-columns: 280px 1fr; gap: 25px;">
         <div id="profile-info-card">
             
-            <div class="profile-main-image-container">
-                <img src="${data.details.image || 'https://via.placeholder.com/250x180?text=No+Image'}" alt="Ảnh thiết bị">
+            <div class="qr-image-display">
+                <div class="profile-image-wrapper">
+                    <img src="${data.details.image || 'https://via.placeholder.com/150x150?text=No+Image'}" alt="Ảnh thiết bị">
+                </div>
+                <div id="qrcode-container" style="width: 150px; height: 150px; display: flex; justify-content: center; align-items: center; background: white; padding: 5px;"></div>
             </div>
-            <div id="qrcode-container" style="width: 250px; margin: 0 auto; padding: 15px; border: 1px solid #ddd; background: white; margin-bottom: 20px; text-align:center;"></div>
-            
-            <div id="profile-details">
+            <div id="profile-details" style="margin-top: 20px;">
                 <h3 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Thông tin chi tiết</h3>
                 <div style="font-size: 15px; line-height: 2.2;">
                     <p><strong>Số Serial:</strong> ${data.details.serial}</p>
@@ -2162,24 +2163,48 @@ fileInput.addEventListener('change', (event) => {
                         margin: 3mm 0;
                         font-size: 20pt;
                     }
-                    .profile-main-image-container {
-                    width: 100%; /* Giữ nguyên 100% để container co giãn */
-                    margin-bottom: 20px;
-                    text-align: center;
-                    /* Thêm padding để ảnh không sát viền quá */
-                    padding: 10px; 
-                    border: 1px solid #eee; /* Thêm viền nhẹ cho container */
-                    border-radius: 8px; /* Bo tròn góc */
-                    background-color: #fff; /* Nền trắng */
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.05); /* Thêm đổ bóng nhẹ */
-                    }
-                    .profile-main-image-container img {
-                    width: auto; /* Để ảnh giữ tỷ lệ */
-                    height: 180px; /* Giới hạn chiều cao cố định, làm ảnh nhỏ hơn */
-                    object-fit: contain; /* Đảm bảo ảnh hiển thị đầy đủ, không bị cắt */
-                    border-radius: 4px; /* Bo tròn góc ảnh */
-                    /* Bỏ border và background-color ở đây vì đã có ở container */
-                    }
+                    .qr-image-display {
+    display: flex; /* Dùng flexbox để ảnh và QR nằm cạnh nhau */
+    justify-content: space-between; /* Đẩy ảnh và QR ra hai bên */
+    align-items: center; /* Căn giữa theo chiều dọc */
+    width: 100%;
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: #f8f9fa; /* Nền xám nhạt */
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.profile-image-wrapper {
+    width: 150px; /* Chiều rộng cố định bằng QR */
+    height: 150px; /* Chiều cao cố định bằng QR */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: white; /* Nền trắng cho khung ảnh */
+    border-radius: 5px; /* Bo tròn góc */
+    border: 1px solid #eee; /* Viền nhẹ */
+    overflow: hidden; /* Đảm bảo ảnh không tràn ra ngoài khung */
+}
+
+.profile-image-wrapper img {
+    max-width: 100%; /* Ảnh sẽ co lại trong khung */
+    max-height: 100%; /* Ảnh sẽ co lại trong khung */
+    object-fit: contain; /* Đảm bảo ảnh hiển thị đầy đủ, không bị cắt */
+}
+
+/* Chỉnh lại QR code container để đồng bộ kích thước */
+#qrcode-container {
+    width: 150px; /* Đồng bộ với kích thước ảnh */
+    height: 150px; /* Đồng bộ với kích thước ảnh */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: white; /* Nền trắng cho QR */
+    padding: 5px; /* Giảm padding để QR code lớn hơn chút bên trong */
+    border-radius: 5px; /* Bo tròn góc */
+    border: 1px solid #eee; /* Viền nhẹ */
+}
                 </style>
             </head>
             <body>
