@@ -2753,6 +2753,8 @@ window.addEventListener('click', (e) => {
 });
 
 dom.bulkLogExceptBtn.addEventListener('click', async () => {
+    console.log('Nút "Áp dụng, trừ một vài thiết bị..." đã được nhấn!'); // Dòng code kiểm tra
+
     Swal.fire({
         title: 'Đang tải danh sách thiết bị...',
         allowOutsideClick: false,
@@ -2765,17 +2767,23 @@ dom.bulkLogExceptBtn.addEventListener('click', async () => {
         if (!response.ok) throw new Error("Không thể tải danh sách thiết bị.");
         
         const data = await response.json();
+        const equipments = data.equipments || []; // Đảm bảo equipments là một mảng
         
         dom.exceptionListContainer.innerHTML = ''; // Xóa danh sách cũ
-        data.equipments.forEach(eq => {
-            const itemHtml = `
-                <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
-                    <input type="checkbox" id="exc-${eq._id}" value="${eq._id}" style="width: 20px; height: 20px; margin-right: 15px;">
-                    <label for="exc-${eq._id}" style="font-weight: 500; cursor: pointer;">${eq.name} <span style="color: #6c757d;">(Serial: ${eq.serial})</span></label>
-                </div>
-            `;
-            dom.exceptionListContainer.innerHTML += itemHtml;
-        });
+        
+        if (equipments.length === 0) {
+            dom.exceptionListContainer.innerHTML = '<p>Không có thiết bị nào trong khoa này.</p>';
+        } else {
+            equipments.forEach(eq => {
+                const itemHtml = `
+                    <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                        <input type="checkbox" id="exc-${eq._id}" value="${eq._id}" style="width: 20px; height: 20px; margin-right: 15px;">
+                        <label for="exc-${eq._id}" style="font-weight: 500; cursor: pointer;">${eq.name} <span style="color: #6c757d;">(Serial: ${eq.serial})</span></label>
+                    </div>
+                `;
+                dom.exceptionListContainer.innerHTML += itemHtml;
+            });
+        }
 
         Swal.close();
         dom.bulkLogExceptionModal.style.display = 'flex';
