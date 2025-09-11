@@ -559,7 +559,6 @@
             usageLogModal: document.getElementById('usageLogModal'),
             usageLogForm: document.getElementById('usageLogForm'),
             closeUsageLogModalBtn: document.getElementById('closeUsageLogModalBtn'),
-            cancelUsageLogBtn: document.getElementById('cancelUsageLogBtn'),
             userDashboardView: document.getElementById('user-dashboard-view-container'),
             userReportIncidentBtn: document.getElementById('userReportIncidentBtn'),
             bulkLogExceptBtn: document.getElementById('bulkLogExceptBtn'),
@@ -2569,7 +2568,6 @@ document.getElementById('bulkLogSubmitBtn').addEventListener('click', () => {
 });
 
 dom.closeUsageLogModalBtn.addEventListener('click', closeUsageLogModal);
-dom.cancelUsageLogBtn.addEventListener('click', closeUsageLogModal);
 window.addEventListener('click', (e) => {
     if (e.target === dom.usageLogModal) closeUsageLogModal();
 });
