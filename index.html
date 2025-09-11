@@ -1717,7 +1717,7 @@
         <div id="profile-info-card">
             
             <div class="profile-main-image-container">
-                <img src="${data.details.image || 'https://via.placeholder.com/250x250?text=No+Image'}" alt="Ảnh thiết bị">
+                <img src="${data.details.image || 'https://via.placeholder.com/250x180?text=No+Image'}" alt="Ảnh thiết bị">
             </div>
             <div id="qrcode-container" style="width: 250px; margin: 0 auto; padding: 15px; border: 1px solid #ddd; background: white; margin-bottom: 20px; text-align:center;"></div>
             
@@ -2163,18 +2163,23 @@ fileInput.addEventListener('change', (event) => {
                         font-size: 20pt;
                     }
                     .profile-main-image-container {
-                     width: 100%;
-                     margin-bottom: 20px;
-                     text-align: center;
+                    width: 100%; /* Giữ nguyên 100% để container co giãn */
+                    margin-bottom: 20px;
+                    text-align: center;
+                    /* Thêm padding để ảnh không sát viền quá */
+                    padding: 10px; 
+                    border: 1px solid #eee; /* Thêm viền nhẹ cho container */
+                    border-radius: 8px; /* Bo tròn góc */
+                    background-color: #fff; /* Nền trắng */
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.05); /* Thêm đổ bóng nhẹ */
                     }
                     .profile-main-image-container img {
-                    max-width: 100%;
-                    max-height: 250px;
-                    object-fit: contain;
-                    border-radius: 8px;
-                    border: 1px solid #eee;
-                    background-color: #fff;
-                    }    
+                    width: auto; /* Để ảnh giữ tỷ lệ */
+                    height: 180px; /* Giới hạn chiều cao cố định, làm ảnh nhỏ hơn */
+                    object-fit: contain; /* Đảm bảo ảnh hiển thị đầy đủ, không bị cắt */
+                    border-radius: 4px; /* Bo tròn góc ảnh */
+                    /* Bỏ border và background-color ở đây vì đã có ở container */
+                    }
                 </style>
             </head>
             <body>
