@@ -1705,73 +1705,80 @@
         const data = await response.json();
 
         profileView.innerHTML = `
-            <div class="main-header">
-                <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
-                <div class="header-actions">
-                    <button id="print-qr-btn" class="action-button" style="background-color: var(--dark-color);"><i class="fas fa-print"></i> In Mã QR</button>
-                    <button id="back-to-list-btn" class="action-button"><i class="fas fa-arrow-left"></i> Quay lại</button>
+    <div class="main-header">
+        <h1 class="view-title">Hồ sơ: ${data.details.name}</h1>
+        <div class="header-actions">
+            <button id="print-qr-btn" class="action-button" style="background-color: var(--dark-color);"><i class="fas fa-print"></i> In Mã QR</button>
+            <button id="back-to-list-btn" class="action-button"><i class="fas fa-arrow-left"></i> Quay lại</button>
+        </div>
+    </div>
+
+    <div id="profile-content" style="display: grid; grid-template-columns: 280px 1fr; gap: 25px;">
+        <div id="profile-info-card">
+            
+            <div class="profile-main-image-container">
+                <img src="${data.details.image || 'https://via.placeholder.com/250x250?text=No+Image'}" alt="Ảnh thiết bị">
+            </div>
+            <div id="qrcode-container" style="width: 250px; margin: 0 auto; padding: 15px; border: 1px solid #ddd; background: white; margin-bottom: 20px; text-align:center;"></div>
+            
+            <div id="profile-details">
+                <h3 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Thông tin chi tiết</h3>
+                <div style="font-size: 15px; line-height: 2.2;">
+                    <p><strong>Số Serial:</strong> ${data.details.serial}</p>
+                    <p><strong>Hãng sản xuất:</strong> ${data.details.manufacturer}</p>
+                    <p><strong>Năm sử dụng:</strong> ${data.details.year}</p>
+                    <p><strong>Khoa:</strong> ${departments[data.details.department]}</p>
+                    <p><strong>Tình trạng:</strong> <span class="status ${data.details.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[data.details.status]}</span></p>
                 </div>
             </div>
-            <div id="profile-content" style="display: grid; grid-template-columns: 280px 1fr; gap: 25px;">
-                <div id="profile-info-card">
-                    <div id="qrcode-container" style="width: 250px; margin: 0 auto; padding: 15px; border: 1px solid #ddd; background: white; margin-bottom: 20px; text-align:center;"></div>
-                    <div id="profile-details">
-                        <h3 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Thông tin chi tiết</h3>
-                        <div style="font-size: 15px; line-height: 2.2;">
-                            <p><strong>Số Serial:</strong> ${data.details.serial}</p>
-                            <p><strong>Hãng sản xuất:</strong> ${data.details.manufacturer}</p>
-                            <p><strong>Năm sử dụng:</strong> ${data.details.year}</p>
-                            <p><strong>Khoa:</strong> ${departments[data.details.department]}</p>
-                            <p><strong>Tình trạng:</strong> <span class="status ${data.details.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[data.details.status]}</span></p>
+        </div>
+        
+        <div id="profile-history">
+            <h3 style="margin-bottom: 15px; border-bottom: 2px solid var(--light-color); padding-bottom: 10px;">Lịch sử & Hồ sơ</h3>
+            <div>
+                <h4 style="margin-bottom: 10px; font-weight: 500;">Quản lý Hồ sơ & Tài liệu</h4>
+                <div class="document-section">
+                    <form id="documentUploadForm">
+                        <input type="hidden" id="doc-equipment-id" value="${data.details._id}">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Loại tài liệu</label>
+                                <select id="documentType">
+                                    <option value="contract">Hợp đồng</option>
+                                    <option value="co">CO (Chứng nhận xuất xứ)</option>
+                                    <option value="cq">CQ (Chứng nhận chất lượng)</option>
+                                    <option value="inspection">Kiểm định</option>
+                                    <option value="other">Khác</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Chọn file (PDF, ảnh)</label>
+                                <input type="file" id="documentFile" required>
+                            </div>
                         </div>
-                    </div>
+                        <button type="submit" class="action-button" style="width: 100%; justify-content: center;"><i class="fas fa-upload"></i> Tải lên</button>
+                    </form>
+                    <table class="generic-table" style="margin-top: 15px;">
+                        <thead><tr><th>Loại</th><th>Tên File</th><th>Ngày Tải Lên</th><th>Hành Động</th></tr></thead>
+                        <tbody id="document-list-tbody"></tbody>
+                    </table>
                 </div>
-                
-                <div id="profile-history">
-                    <h3 style="margin-bottom: 15px; border-bottom: 2px solid var(--light-color); padding-bottom: 10px;">Lịch sử & Hồ sơ</h3>
-                    <div>
-                        <h4 style="margin-bottom: 10px; font-weight: 500;">Quản lý Hồ sơ & Tài liệu</h4>
-                        <div class="document-section">
-                            <form id="documentUploadForm">
-                                <input type="hidden" id="doc-equipment-id" value="${data.details._id}">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Loại tài liệu</label>
-                                        <select id="documentType">
-                                            <option value="contract">Hợp đồng</option>
-                                            <option value="co">CO (Chứng nhận xuất xứ)</option>
-                                            <option value="cq">CQ (Chứng nhận chất lượng)</option>
-                                            <option value="inspection">Kiểm định</option>
-                                            <option value="other">Khác</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Chọn file (PDF, ảnh)</label>
-                                        <input type="file" id="documentFile" required>
-                                    </div>
-                                </div>
-                                <button type="submit" class="action-button" style="width: 100%; justify-content: center;"><i class="fas fa-upload"></i> Tải lên</button>
-                            </form>
-                            <table class="generic-table" style="margin-top: 15px;">
-                                <thead><tr><th>Loại</th><th>Tên File</th><th>Ngày Tải Lên</th><th>Hành Động</th></tr></thead>
-                                <tbody id="document-list-tbody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 style="margin-top: 20px; margin-bottom: 10px; font-weight: 500;">Nhật ký Sử dụng hàng tuần</h4>
-                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;"><table class="generic-table"><thead><tr><th>Ngày Ghi</th><th>Người Ghi</th><th>Tình Trạng</th><th>Ghi Chú</th></tr></thead><tbody id="usage-log-tbody"></tbody></table></div>
-                    </div>
-                    <div>
-                        <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Sự cố</h4>
-                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;"><table class="generic-table"><thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead><tbody id="profile-incidents-tbody"></tbody></table></div>
-                    </div>
-                    <div>
-                        <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Bảo trì</h4>
-                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;"><table class="generic-table"><thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Trạng thái</th></tr></thead><tbody id="profile-maintenance-tbody"></tbody></table></div>
-                    </div>
-                </div>
-            </div>`;
+            </div>
+            <div>
+                <h4 style="margin-top: 20px; margin-bottom: 10px; font-weight: 500;">Nhật ký Sử dụng hàng tuần</h4>
+                <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;"><table class="generic-table"><thead><tr><th>Ngày Ghi</th><th>Người Ghi</th><th>Tình Trạng</th><th>Ghi Chú</th></tr></thead><tbody id="usage-log-tbody"></tbody></table></div>
+            </div>
+            <div>
+                <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Sự cố</h4>
+                <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;"><table class="generic-table"><thead><tr><th>Ngày báo cáo</th><th>Mô tả</th><th>Trạng thái</th></tr></thead><tbody id="profile-incidents-tbody"></tbody></table></div>
+            </div>
+            <div>
+                <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Bảo trì</h4>
+                <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px;"><table class="generic-table"><thead><tr><th>Ngày lên lịch</th><th>Ngày hoàn thành</th><th>Trạng thái</th></tr></thead><tbody id="profile-maintenance-tbody"></tbody></table></div>
+            </div>
+        </div>
+    </div>
+`;
         
         // --- LOGIC MỚI: TẢI VÀ HIỂN THỊ NHẬT KÝ SỬ DỤNG ---
         const logResponse = await fetchWithAuth(`${API_BASE_URL}/api/logs/equipment/${data.details._id}`);
@@ -2155,6 +2162,19 @@ fileInput.addEventListener('change', (event) => {
                         margin: 3mm 0;
                         font-size: 20pt;
                     }
+                    .profile-main-image-container {
+                     width: 100%;
+                     margin-bottom: 20px;
+                     text-align: center;
+                    }
+                    .profile-main-image-container img {
+                    max-width: 100%;
+                    max-height: 250px;
+                    object-fit: contain;
+                    border-radius: 8px;
+                    border: 1px solid #eee;
+                    background-color: #fff;
+                    }    
                 </style>
             </head>
             <body>
