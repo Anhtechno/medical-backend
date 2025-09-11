@@ -1712,16 +1712,16 @@
             <button id="back-to-list-btn" class="action-button"><i class="fas fa-arrow-left"></i> Quay lại</button>
         </div>
     </div>
+    <div id="profile-content" style="display: grid; grid-template-columns: 350px 1fr; gap: 25px;">
+        <div id="profile-info-card" style="background: white; border-radius: 8px; padding: 20px; border: 1px solid #eee;">
 
-    <div id="profile-content" style="display: grid; grid-template-columns: 280px 1fr; gap: 25px;">
-        <div id="profile-info-card">
-            
-            <div class="qr-image-display">
+            <div class="image-qr-container">
                 <div class="profile-image-wrapper">
                     <img src="${data.details.image || 'https://via.placeholder.com/150x150?text=No+Image'}" alt="Ảnh thiết bị">
                 </div>
-                <div id="qrcode-container" style="width: 150px; height: 150px; display: flex; justify-content: center; align-items: center; background: white; padding: 5px;"></div>
+                <div id="qrcode-container"></div>
             </div>
+
             <div id="profile-details" style="margin-top: 20px;">
                 <h3 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Thông tin chi tiết</h3>
                 <div style="font-size: 15px; line-height: 2.2;">
@@ -2163,47 +2163,43 @@ fileInput.addEventListener('change', (event) => {
                         margin: 3mm 0;
                         font-size: 20pt;
                     }
-                    .qr-image-display {
-    display: flex; /* Dùng flexbox để ảnh và QR nằm cạnh nhau */
-    justify-content: space-between; /* Đẩy ảnh và QR ra hai bên */
-    align-items: center; /* Căn giữa theo chiều dọc */
-    width: 100%;
+                    .image-qr-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    gap: 15px;
     margin-bottom: 20px;
-    padding: 10px;
-    background-color: #f8f9fa; /* Nền xám nhạt */
-    border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
-
 .profile-image-wrapper {
-    width: 150px; /* Chiều rộng cố định bằng QR */
-    height: 150px; /* Chiều cao cố định bằng QR */
+    width: 150px;
+    height: 150px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 5px;
+    background-color: #fff;
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: white; /* Nền trắng cho khung ảnh */
-    border-radius: 5px; /* Bo tròn góc */
-    border: 1px solid #eee; /* Viền nhẹ */
-    overflow: hidden; /* Đảm bảo ảnh không tràn ra ngoài khung */
 }
-
 .profile-image-wrapper img {
-    max-width: 100%; /* Ảnh sẽ co lại trong khung */
-    max-height: 100%; /* Ảnh sẽ co lại trong khung */
-    object-fit: contain; /* Đảm bảo ảnh hiển thị đầy đủ, không bị cắt */
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
 }
-
-/* Chỉnh lại QR code container để đồng bộ kích thước */
 #qrcode-container {
-    width: 150px; /* Đồng bộ với kích thước ảnh */
-    height: 150px; /* Đồng bộ với kích thước ảnh */
+    width: 150px;
+    height: 150px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 5px;
+    background-color: #fff;
     display: flex;
     justify-content: center;
     align-items: center;
-    background: white; /* Nền trắng cho QR */
-    padding: 5px; /* Giảm padding để QR code lớn hơn chút bên trong */
-    border-radius: 5px; /* Bo tròn góc */
-    border: 1px solid #eee; /* Viền nhẹ */
+}
+#qrcode-container img {
+    width: 100% !important;
+    height: 100% !important;
 }
                 </style>
             </head>
