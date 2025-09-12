@@ -184,7 +184,11 @@
                             const submitResponse = await fetch(`${API_BASE_URL}/api/public/incidents`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ equipmentSerial: serial, problemDescription })
+                                body: JSON.stringify({ 
+                                    equipmentSerial: serial, 
+                                    problemDescription,
+                                    reporterName: document.getElementById('reporter-name').value 
+                                })
                             });
                             const submitResult = await submitResponse.json();
                             if (!submitResponse.ok) {
