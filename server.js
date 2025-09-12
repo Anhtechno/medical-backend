@@ -397,20 +397,34 @@ app.put('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (re
         const { serial } = req.params;
         const updatedData = req.body;
 
+        // Tìm thiết bị gốc bằng serial cũ từ URL
         const originalEquipment = await Equipment.findOne({ serial: serial });
         if (!originalEquipment) {
-            return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+            return res.status(404).json({ message: "Không tìm thấy thiết bị gốc." });
+        }
+
+        // Nếu người dùng muốn đổi số serial
+        if (updatedData.serial && updatedData.serial !== serial) {
+            // Kiểm tra xem số serial mới có bị trùng với thiết bị nào khác không
+            const existingEquipment = await Equipment.findOne({ serial: updatedData.serial });
+            if (existingEquipment) {
+                return res.status(400).json({ message: `Số serial mới "${updatedData.serial}" đã tồn tại.` });
+            }
         }
 
         const updatedEquipment = await Equipment.findByIdAndUpdate(originalEquipment._id, updatedData, { new: true });
 
-        if (updatedData.name && updatedData.name !== originalEquipment.name) {
+        // Nếu tên hoặc serial thay đổi, cập nhật các bản ghi liên quan
+        const needsSync = (updatedData.name && updatedData.name !== originalEquipment.name) || 
+                          (updatedData.serial && updatedData.serial !== originalEquipment.serial);
+
+        if (needsSync) {
             await Promise.all([
-                Incident.updateMany({ equipmentId: originalEquipment._id }, { equipmentName: updatedData.name }),
-                Maintenance.updateMany({ equipmentId: originalEquipment._id }, { equipmentName: updatedData.name })
+                Incident.updateMany({ equipmentId: originalEquipment._id }, { equipmentName: updatedEquipment.name, serial: updatedEquipment.serial }),
+                Maintenance.updateMany({ equipmentId: originalEquipment._id }, { equipmentName: updatedEquipment.name, serial: updatedEquipment.serial })
             ]);
         }
-        
+
         res.json(updatedEquipment);
     } catch (error) {
         console.error("Lỗi khi cập nhật thiết bị:", error);
