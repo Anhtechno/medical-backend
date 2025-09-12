@@ -8,7 +8,7 @@
     <style>
         body { font-family: 'Roboto', sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
         .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
-        h1 { color: #007bff; text-align: center; margin-top: 0; margin-bottom: 25px; font-size: 26px; word-wrap: break-word; }
+        h1 { color: #007bff; text-align: center; margin-top: 0; margin-bottom: 25px; font-size: 26px; }
         .info-grid { display: grid; grid-template-columns: 150px 1fr; gap: 15px; font-size: 16px; }
         .info-grid strong { font-weight: 700; color: #343a40; }
         .info-grid span { color: #6c757d; }
@@ -19,7 +19,6 @@
     </style>
 </head>
 <body>
-    <div id="message-container" class="container"><h1>Đang tải...</h1></div>
     <div id="info-container" class="container" style="display: none;">
         <h1 id="equipment-name">...</h1>
         <div class="info-grid">
@@ -30,17 +29,15 @@
             <strong>Tình Trạng:</strong> <span id="status"></span>
         </div>
     </div>
+    <div id="message-container"></div>
 <script>
     document.addEventListener('DOMContentLoaded', async () => {
         const API_BASE_URL = 'https://quanlythietbi-anh.onrender.com'; // Nhớ thay bằng link Render của bạn
         const params = new URLSearchParams(window.location.search);
         const serial = params.get('serial');
-        
-        const messageContainer = document.getElementById('message-container');
-        const infoContainer = document.getElementById('info-container');
 
         if (!serial) {
-            messageContainer.innerHTML = '<h1>Lỗi: Thiếu Số Serial</h1>';
+            document.getElementById('message-container').innerHTML = '<h1>Lỗi: Thiếu Số Serial</h1>';
             return;
         }
 
@@ -57,12 +54,11 @@
             const statusEl = document.getElementById('status');
             statusEl.textContent = {active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[data.status] || 'Không rõ';
             statusEl.className = `status ${data.status}`;
-            
-            messageContainer.style.display = 'none';
-            infoContainer.style.display = 'block';
+
+            document.getElementById('info-container').style.display = 'block';
 
         } catch (error) {
-            messageContainer.innerHTML = `<h1>Lỗi: ${error.message}</h1>`;
+            document.getElementById('message-container').innerHTML = `<h1>Lỗi: ${error.message}</h1>`;
         }
     });
 </script>
