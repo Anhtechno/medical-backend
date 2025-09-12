@@ -536,6 +536,7 @@
         let currentStatusFilter = 'all';
         let userProfile = {};
         let userChartInstance = null;
+        let currentPage = 1;
         
         const dom = {
             loginContainer: document.getElementById('login-container'),
@@ -724,6 +725,7 @@
         }
 
         async function fetchAndDisplayEquipment(deptKey, page = 1) {
+            currentPage = page;
             if (!deptKey) {
                 dom.equipmentTableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px;">Vui lòng chọn một khoa.</td></tr>`;
                 document.getElementById('pagination-controls').innerHTML = '';
@@ -799,14 +801,16 @@
             paginationContainer.innerHTML = '';
             if (totalPages <= 1) return;
             for (let i = 1; i <= totalPages; i++) {
-                const button = document.createElement('button');
-                button.textContent = i;
-                if (i === currentPage) button.classList.add('active');
-                button.addEventListener('click', () => {
-                    fetchAndDisplayEquipment(dom.departmentSelect.value, i);
-                });
-                paginationContainer.appendChild(button);
-            }
+            const button = document.createElement('button');
+            button.textContent = i;
+            if (i === currentPage) button.classList.add('active');
+            button.addEventListener('click', () => {
+                // Không gán trực tiếp i, mà gọi lại hàm fetchAndDisplayEquipment
+                // Hàm này sẽ tự động cập nhật currentPage cho chúng ta
+            fetchAndDisplayEquipment(dom.departmentSelect.value, i);
+            });
+            paginationContainer.appendChild(button);
+        }
         }
         
         function updateDepartmentTitle(deptKey) {
@@ -899,7 +903,7 @@
                 if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message || 'Thao tác thất bại.'); }
                 Swal.fire({ position: 'top-end', icon: 'success', title: 'Thao tác thành công!', showConfirmButton: false, timer: 1500 });
                 closeModal();
-                await fetchAndDisplayEquipment(targetDeptKey, 1);
+                await fetchAndDisplayEquipment(targetDeptKey, currentPage);
             } catch (error) {
                 handleApiError(error, isEditing ? 'Cập nhật' : 'Thêm mới');
             }
@@ -965,7 +969,7 @@
                     const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${encodeURIComponent(serial)}`, { method: 'DELETE' });
                     if (!response.ok) { const err = await response.json(); throw new Error(err.message); }
                     Swal.fire('Đã xóa!', 'Thiết bị đã được xóa thành công.', 'success');
-                    await fetchAndDisplayEquipment(dom.departmentSelect.value, 1); 
+                    await fetchAndDisplayEquipment(dom.departmentSelect.value, currentPage); 
                 } catch (error) { 
                     handleApiError(error, 'Xóa thiết bị'); 
                 }
