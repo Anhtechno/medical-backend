@@ -864,8 +864,22 @@
         });
         
         dom.departmentSearchInput.addEventListener('input', (e) => {
-            populateDepartmentDropdown(e.target.value);
-        });
+    populateDepartmentDropdown(e.target.value);
+
+    // --- PHẦN NÂNG CẤP ĐỂ TỰ ĐỘNG CHỌN VÀ TẢI DỮ LIỆU ---
+    const firstVisibleOption = dom.departmentSelect.querySelector('option');
+    if (firstVisibleOption) {
+        // Nếu có kết quả, tự động chọn khoa đầu tiên
+        dom.departmentSelect.value = firstVisibleOption.value;
+        // Kích hoạt sự kiện 'change' để tải lại dữ liệu cho khoa mới được chọn
+        dom.departmentSelect.dispatchEvent(new Event('change'));
+    } else {
+        // Nếu không có kết quả, xóa bảng
+        dom.equipmentTableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px;">Không tìm thấy khoa phù hợp.</td></tr>`;
+        dom.currentDepartment.textContent = "Không tìm thấy khoa";
+    }
+    // --- KẾT THÚC PHẦN NÂNG CẤP ---
+});
         
         dom.searchInput.addEventListener('input', async (e) => {
             const searchTerm = e.target.value.trim();
