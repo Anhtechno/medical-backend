@@ -574,6 +574,7 @@
         let userProfile = {};
         let userChartInstance = null;
         let currentPage = 1;
+        let currentDisplayedData = [];
         
         const dom = {
             loginContainer: document.getElementById('login-container'),
@@ -788,6 +789,7 @@
         }
         
         function updateEquipmentTable(list, isGlobalSearch = false) {
+    currentDisplayedData = list;
     dom.equipmentTableBody.innerHTML = '';
     document.getElementById('departmentColumnHeader').style.display = isGlobalSearch ? '' : 'none';
     const colspan = isGlobalSearch ? 8 : 7;
@@ -1046,77 +1048,58 @@
     }
 });
         
-        dom.exportExcelBtn.addEventListener('click', async () => {
-    const searchTerm = dom.searchInput.value.trim();
-    let dataToProcess = [];
-    let reportTitle = "";
-
-    // TRƯỜNG HỢP 1: Người dùng đang tìm kiếm
-    if (searchTerm) {
-        if (currentDisplayedData.length === 0) {
-            Swal.fire('Thông báo', 'Không có dữ liệu tìm kiếm để xuất.', 'info');
-            return;
-        }
-        dataToProcess = currentDisplayedData;
-        reportTitle = `Ket-qua-tim-kiem_${searchTerm.replace(/ /g, '_')}`;
-    } 
-    // TRƯỜNG HỢP 2: Người dùng đang xem danh sách theo khoa
-    else {
-        const selectedDepartmentKey = dom.departmentSelect.value;
-        if (!selectedDepartmentKey) {
-            Swal.fire('Thông báo', 'Vui lòng chọn khoa để xuất file.', 'info');
-            return;
-        }
-        reportTitle = `DS-Thiet-bi_${departments[selectedDepartmentKey] || ''}`;
-
-        Swal.fire({
-            title: `Đang tổng hợp dữ liệu cho khoa ${departments[selectedDepartmentKey]}...`,
-            allowOutsideClick: false,
-            didOpen: () => { Swal.showLoading() }
-        });
-
-        try {
-            // Gọi API để lấy TẤT CẢ thiết bị, không phân trang
-            const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${selectedDepartmentKey}?limit=10000`);
-            if (!response.ok) throw new Error('Không thể tải toàn bộ danh sách thiết bị.');
-            
-            const data = await response.json();
-            dataToProcess = data.equipments;
-            Swal.close();
-        } catch (error) {
-            handleApiError(error, "Xuất file Excel");
-            return;
-        }
-    }
-
-    if (dataToProcess.length === 0) {
+        dom.exportExcelBtn.addEventListener('click', () => {
+    if (currentDisplayedData.length === 0) {
         Swal.fire('Thông báo', 'Không có dữ liệu để xuất.', 'info');
         return;
     }
 
-    // Xử lý và tạo file Excel (giữ nguyên logic cũ)
-    const statusMap = { active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng hoạt động' };
-    const dataToExport = dataToProcess.map(item => ({
-        'Tên Thiết Bị': item.name,
-        'Số Serial': item.serial,
-        'Hãng Sản Xuất': item.manufacturer,
-        'Khoa/Phòng': departments[item.department] || 'N/A',
-        'Năm Sử Dụng': item.year,
-        'Tình Trạng': statusMap[item.status] || 'Không rõ',
-        'Phụ Kiện': item.accessories || '',
-        'Mô Tả': item.description || ''
-    }));
+    const searchTerm = dom.searchInput.value.trim();
+    let reportTitle = "";
+    let departmentName = "";
 
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách thiết bị');
-    
-    const headers = Object.keys(dataToExport[0]);
-    const colWidths = headers.map(header => ({ wch: Math.max(header.length, ...dataToExport.map(row => (row[header] || '').toString().length)) + 2 }));
-    worksheet["!cols"] = colWidths;
-    
-    const fileName = `${reportTitle.replace(/[^\w]/g, '')}_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+    // Quyết định tên file dựa trên việc có đang tìm kiếm hay không
+    if (searchTerm) {
+        reportTitle = `Ket-qua-tim-kiem_${searchTerm.replace(/\\s/g, '_')}`;
+    } else {
+        const selectedDepartmentKey = dom.departmentSelect.value;
+        departmentName = departments[selectedDepartmentKey] || 'UnknownDept';
+        reportTitle = `DS-Thiet-bi_${departmentName.replace(/[^\\w]/g, '')}`;
+    }
+
+    Swal.fire({
+        title: 'Đang chuẩn bị file Excel...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading() }
+    });
+
+    try {
+        const statusMap = { active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng hoạt động' };
+        const dataToExport = currentDisplayedData.map(item => ({
+            'Tên Thiết Bị': item.name,
+            'Số Serial': item.serial,
+            'Hãng Sản Xuất': item.manufacturer,
+            'Khoa/Phòng': departments[item.department] || 'N/A',
+            'Năm Sử Dụng': item.year,
+            'Tình Trạng': statusMap[item.status] || 'Không rõ',
+            'Phụ Kiện': item.accessories || '',
+            'Mô Tả': item.description || ''
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách thiết bị');
+        
+        const headers = Object.keys(dataToExport[0]);
+        const colWidths = headers.map(header => ({ wch: Math.max(header.length, ...dataToExport.map(row => (row[header] || '').toString().length)) + 2 }));
+        worksheet["!cols"] = colWidths;
+        
+        const fileName = `${reportTitle}_${new Date().toLocaleDateString('vi-VN').replace(/\\//g, '-')}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+        Swal.close();
+    } catch(error) {
+        handleApiError(error, "Xuất file Excel");
+    }
 });
 
         function openModal(mode = 'add', itemData = null) {
