@@ -155,6 +155,34 @@
         from {transform:scale(0)} 
         to {transform:scale(1)}
         }
+
+        .search-controls {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        margin-bottom: 25px;
+        }
+        .search-bar {
+        position: relative;
+        flex-grow: 1; /* Để thanh search chiếm phần lớn không gian */
+        }
+        .search-scope-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #555;
+        white-space: nowrap;
+        }
+        .search-scope-toggle input {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        }
+        .search-scope-toggle label {
+        cursor: pointer;
+        user-select: none;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
@@ -226,7 +254,16 @@
                     <div id="equipment-view-container" class="view-container">
                         <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="bulkPrintQrBtn" style="background-color: #555;"><i class="fas fa-qrcode"></i> In QR hàng loạt</button><button class="action-button" id="importExcelBtn" style="background-color: var(--success-color);"><i class="fas fa-file-import"></i> Nhập từ Excel</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
                         <input type="file" id="excelFileInput" style="display: none" accept=".xlsx, .xls">
-                        <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Tìm kiếm thiết bị trên toàn bộ các khoa (theo serial, tên, hãng)..."></div>
+                        <div class="search-controls">
+                            <div class="search-bar">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="searchInput" placeholder="Tìm kiếm trong khoa...">
+                            </div>
+                            <div class="search-scope-toggle" id="search-scope-container">
+                                <input type="checkbox" id="globalSearchCheckbox">
+                                <label for="globalSearchCheckbox">Tìm kiếm toàn cục</label>
+                            </div>
+                        </div>
                         <div class="stats-cards"><div class="stat-card total"><h3>Tổng Thiết Bị</h3><div class="value" id="totalEquipment">0</div></div><div class="stat-card active"><h3>Đang Hoạt Động</h3><div class="value" id="activeEquipment">0</div></div><div class="stat-card maintenance"><h3>Cần Bảo Trì</h3><div class="value" id="maintenanceEquipment">0</div></div><div class="stat-card inactive"><h3>Ngừng Hoạt Động</h3><div class="value" id="inactiveEquipment">0</div></div></div>
                         <table class="generic-table equipment-table" id="equipmentTable"><thead><tr><th>Hình Ảnh</th><th>Tên Thiết Bị</th><th>Số Serial</th><th id="departmentColumnHeader" style="display:none;">Khoa/Phòng</th><th>Hãng SX</th><th>Năm SD</th><th>Tình Trạng</th><th>Hành Động</th></tr></thead><tbody id="equipmentTableBody"></tbody></table>
                         <div id="pagination-controls"></div>
@@ -830,20 +867,38 @@
         
         dom.searchInput.addEventListener('input', async (e) => {
             const searchTerm = e.target.value.trim();
-            document.getElementById('pagination-controls').innerHTML = ''; 
-            if (searchTerm.length > 1) {
+            const isGlobalSearch = document.getElementById('globalSearchCheckbox').checked;
+
+            document.getElementById('pagination-controls').innerHTML = ''; // Xóa phân trang khi tìm kiếm
+
+            if (searchTerm.length > 0) {
                 try {
-                    dom.currentDepartment.textContent = `Kết quả tìm kiếm cho "${searchTerm}"`;
-                    updateStats();
-                    const response = await fetchWithAuth(`${API_BASE_URL}/api/search?q=${searchTerm}`);
-                    const results = await response.json();
-                    currentFullDeptList = results;
-                    updateEquipmentTable(currentFullDeptList, true);
-                } catch (error) { handleApiError(error, 'Tìm kiếm'); }
-            } else if (searchTerm.length === 0) {
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
-            }
-        });
+                    let searchUrl = `${API_BASE_URL}/api/search?q=${encodeURIComponent(searchTerm)}`;
+
+            // Nếu không phải tìm kiếm toàn cục, thêm mã khoa vào URL
+                if (!isGlobalSearch) {
+                const deptKey = dom.departmentSelect.value;
+                    if (deptKey) {
+                    searchUrl += `&dept=${deptKey}`;
+                    }
+                }
+
+                dom.currentDepartment.textContent = `Kết quả tìm kiếm cho "${searchTerm}"...`;
+                updateStats(); // Reset stats
+
+                const response = await fetchWithAuth(searchUrl);
+                const results = await response.json();
+
+                // Cập nhật bảng với kết quả, isGlobalSearch sẽ quyết định có hiển thị cột Khoa/Phòng hay không
+                updateEquipmentTable(results, isGlobalSearch);
+
+        } catch (error) {
+            handleApiError(error, 'Tìm kiếm');
+        }
+    } else { // Nếu xóa hết chữ trong ô tìm kiếm, quay về danh sách của khoa
+        fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+    }
+});
 
         dom.sidebarFilters.forEach(link => {
             link.addEventListener('click', (e) => {
@@ -2993,7 +3048,27 @@ function handleDocumentDelete(e) {
     });
 }
 
+document.getElementById('globalSearchCheckbox').addEventListener('change', (e) => {
+    const isGlobal = e.target.checked;
+    if (isGlobal) {
+        dom.searchInput.placeholder = "Tìm kiếm trên toàn bộ các khoa...";
+    } else {
+        dom.searchInput.placeholder = "Tìm kiếm trong khoa hiện tại...";
+    }
+    // Tự động tìm kiếm lại khi tick/bỏ tick checkbox
+    if (dom.searchInput.value.trim().length > 0) {
+        dom.searchInput.dispatchEvent(new Event('input'));
+    }
+});
 
+// Hàm này sẽ được gọi khi đăng nhập để ẩn checkbox cho user thường
+function updateUserUIByRole() {
+    if (userProfile.role === 'user') {
+        document.getElementById('search-scope-container').style.display = 'none';
+    } else {
+        document.getElementById('search-scope-container').style.display = 'flex';
+    }
+}
 
 
         checkAuth();

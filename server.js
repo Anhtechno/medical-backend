@@ -339,47 +339,46 @@ app.delete('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async 
 
 app.get('/api/search', authenticateToken, async (req, res) => {
     try {
-        const { q } = req.query;
+        const { q, dept } = req.query; // Nhận thêm tham số 'dept' cho khoa
         if (!q) return res.status(400).json({ message: "Cần có từ khóa tìm kiếm." });
-        const searchTerm = q.toLowerCase();
 
-        let query = { 
-            $or: [ 
+        const searchTerm = q.toLowerCase();
+        let query = {
+            $or: [
                 { name: { $regex: searchTerm, $options: 'i' } },
                 { serial: { $regex: searchTerm, $options: 'i' } },
                 { manufacturer: { $regex: searchTerm, $options: 'i' } }
-            ] 
+            ]
         };
 
-        if (req.user.role === 'user') { 
-            query.department = req.user.departmentKey; 
+        // Nếu người dùng là 'user', luôn giới hạn trong khoa của họ
+        if (req.user.role === 'user') {
+            query.department = req.user.departmentKey;
+        } 
+        // Nếu có tham số 'dept' (tìm kiếm cục bộ cho admin), thêm điều kiện lọc theo khoa
+        else if (dept) {
+            query.department = dept;
         }
 
-        const results = await Equipment.find(query).lean(); // Dùng .lean() để tăng tốc độ
+        const results = await Equipment.find(query).lean();
 
-        // --- LOGIC ĐƯỢC THÊM VÀO ĐỂ SỬA LỖI ---
+        // Logic thêm cờ 'needsLog' để hiển thị dấu ! chính xác
         const now = new Date();
         const dayOfWeek = now.getDay();
         const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
         const startOfWeek = new Date(now.setDate(diff));
         startOfWeek.setHours(0, 0, 0, 0);
-
-        const loggedThisWeek = await UsageLog.find({
-            createdAt: { $gte: startOfWeek }
-        }).select('equipmentId -_id');
-
+        const loggedThisWeek = await UsageLog.find({ createdAt: { $gte: startOfWeek } }).select('equipmentId -_id');
         const loggedEquipmentIds = new Set(loggedThisWeek.map(log => log.equipmentId.toString()));
-
         const resultsWithLogStatus = results.map(eq => ({
             ...eq,
             needsLog: !loggedEquipmentIds.has(eq._id.toString())
         }));
-        // --- KẾT THÚC PHẦN SỬA LỖI ---
 
-        res.json(resultsWithLogStatus); // Trả về kết quả đã có cờ needsLog
-
-    } catch (error) { 
-        res.status(500).json({ message: 'Lỗi server khi tìm kiếm', error: error.message }); 
+        res.json(resultsWithLogStatus);
+    } catch (error) {
+        console.error("Lỗi khi tìm kiếm:", error);
+        res.status(500).json({ message: 'Lỗi server khi tìm kiếm', error: error.message });
     }
 });
 
