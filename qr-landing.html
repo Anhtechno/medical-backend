@@ -6,53 +6,117 @@
     <title>Tùy chọn Thiết bị</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Roboto', sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-        .container { background-color: white; padding: 40px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 400px; }
-        h1 { color: #007bff; margin-bottom: 15px; font-size: 22px; word-wrap: break-word; }
-        p { color: #6c757d; margin-bottom: 30px; }
-        .button-group { display: flex; flex-direction: column; gap: 15px; }
-        .button { display: block; padding: 15px; font-size: 18px; font-weight: 700; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; transition: background-color 0.3s; }
-        .btn-info { background-color: #17a2b8; } .btn-info:hover { background-color: #138496; }
-        .btn-report { background-color: #dc3545; } .btn-report:hover { background-color: #c82333; }
-        .hidden { display: none; }
+        :root {
+            --primary-color: #007bff;
+            --info-color: #17a2b8;
+            --danger-color: #dc3545;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+            --font-family: 'Roboto', sans-serif;
+        }
+        body {
+            font-family: var(--font-family);
+            background-color: var(--light-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+        h1 {
+            color: var(--primary-color);
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 24px;
+            word-wrap: break-word; /* Để tên dài tự xuống dòng */
+        }
+        p {
+            color: #6c757d;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .button {
+            display: block;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+        }
+        .btn-info { background-color: var(--info-color); }
+        .btn-info:hover { background-color: #138496; }
+        .btn-report { background-color: var(--danger-color); }
+        .btn-report:hover { background-color: #c82333; }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div id="container" class="container">
         <h1 id="equipment-name">Đang tải...</h1>
-        <p id="sub-text">Vui lòng chọn một hành động bạn muốn thực hiện.</p>
+        <p id="sub-text">Vui lòng đợi trong giây lát.</p>
         <div id="button-group" class="button-group hidden">
             <a id="info-btn" class="button btn-info">Xem Thông Tin Thiết Bị</a>
             <a id="report-btn" class="button btn-report">Báo Hỏng Thiết Bị</a>
         </div>
     </div>
+
 <script>
     document.addEventListener('DOMContentLoaded', async () => {
-        // !!! QUAN TRỌNG: Đảm bảo bạn đã thay đúng link Render của mình vào đây
-        const API_BASE_URL = 'https://quanlythietbi-anh.onrender.com'; 
+        const API_BASE_URL = 'https://quanlythietbi-anh.onrender.com';
         
         const params = new URLSearchParams(window.location.search);
         const serial = params.get('serial');
+
         const equipmentNameEl = document.getElementById('equipment-name');
         const buttonGroup = document.getElementById('button-group');
         const subText = document.getElementById('sub-text');
 
         if (!serial) {
-            equipmentNameEl.textContent = 'Lỗi: Thiếu Số Serial';
-            subText.style.display = 'none';
+            equipmentNameEl.textContent = 'Lỗi';
+            subText.textContent = 'Không tìm thấy số serial của thiết bị trong đường dẫn.';
             return;
         }
 
         try {
             const response = await fetch(`${API_BASE_URL}/api/public/equipment-info/${encodeURIComponent(serial)}`);
             const equipment = await response.json();
-            if (!response.ok) throw new Error(equipment.message);
+            
+            if (!response.ok) {
+                throw new Error(equipment.message || 'Không thể kết nối tới server.');
+            }
             
             equipmentNameEl.textContent = equipment.name;
+            subText.textContent = 'Vui lòng chọn một hành động bạn muốn thực hiện.';
+            
             document.getElementById('info-btn').href = `info.html?serial=${encodeURIComponent(serial)}`;
             document.getElementById('report-btn').href = `report.html?serial=${encodeURIComponent(serial)}`;
             
-            // Chỉ hiển thị nút bấm khi đã tải thành công
+            // Chỉ hiển thị các nút bấm sau khi đã tải thành công
             buttonGroup.classList.remove('hidden');
 
         } catch (error) {
