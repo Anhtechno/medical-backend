@@ -1918,7 +1918,7 @@
         // Tạo QR Code
         const qrCodeContainer = document.getElementById('qrcode-container');
         new QRCode(qrCodeContainer, {
-            text: `https://resilient-dieffenbachia-5881b7.netlify.app/report.html?serial=${encodeURIComponent(data.details.serial)}`,
+            text: `https://resilient-dieffenbachia-5881b7.netlify.app/qr-landing.html?serial=${encodeURIComponent(data.details.serial)}`,
             width: 220, height: 220, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H
         });
         
