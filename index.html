@@ -2503,7 +2503,7 @@ document.getElementById('bulkPrintQrBtn').addEventListener('click', async () => 
         for (const equipment of equipments) {
             tempQrDiv.innerHTML = ''; // Xóa QR cũ
             new QRCode(tempQrDiv, {
-                text: `https://resilient-dieffenbachia-5881b7.netlify.app/report.html?serial=${encodeURIComponent(equipment.serial)}`,
+                text: `https://resilient-dieffenbachia-5881b7.netlify.app/qr-landing.html?serial=${encodeURIComponent(equipment.serial)}`,
                 width: 600,
                 height: 600,
                 correctLevel : QRCode.CorrectLevel.H
