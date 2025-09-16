@@ -38,7 +38,7 @@
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/public/equipment-info/${encodeURIComponent(serial)}`);
+            const response = await fetch(`${API_BASE_URL}/api/public/equipment-details/${encodeURIComponent(serial)}`);
             const equipment = await response.json();
             if (!response.ok) throw new Error(equipment.message);
 
