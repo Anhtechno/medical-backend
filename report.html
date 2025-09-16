@@ -152,7 +152,7 @@
 
         try {
             // 1. Lấy thông tin thiết bị
-            const response = await fetch(`${API_BASE_URL}/api/public/equipment-info/${encodeURIComponent(serial)}`);
+            const response = await fetch(`${API_BASE_URL}/api/public/equipment-details/${encodeURIComponent(serial)}`);
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.message);
