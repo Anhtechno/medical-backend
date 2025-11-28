@@ -82,6 +82,40 @@
         .status.maintenance, .incident-status.in_progress, .status.scheduled { background-color: var(--warning-color); } 
         .status.inactive, .incident-status.new, .status.canceled { background-color: var(--danger-color); }
         .status.in_progress { background-color: var(--info-color); }
+        .hp-bar-container {
+            width: 100%;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            height: 18px;
+            margin-top: 8px; /* Cách nút bấm một chút */
+            position: relative;
+            cursor: pointer;
+            border: 1px solid #ced4da;
+            overflow: hidden;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+            transition: transform 0.1s;
+        }
+        .hp-bar-container:active {
+            transform: scale(0.98);
+        }
+        .hp-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.6s ease-in-out, background-color 0.3s;
+        }
+        .hp-bar-text {
+            position: absolute;
+            width: 100%;
+            top: 0;
+            left: 0;
+            font-size: 11px;
+            line-height: 18px;
+            text-align: center;
+            color: #333;
+            font-weight: bold;
+            text-shadow: 0 0 2px rgba(255,255,255,0.8);
+            pointer-events: none; /* Để click xuyên qua text xuống container */
+        }
         .action-btn-group button { padding: 6px 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: all 0.3s; margin: 0 2px; }
         .edit-btn, .action-btn-group .resolve-btn { background-color: var(--info-color); color: white; } .edit-btn:hover, .resolve-btn:hover { background-color: #138496; }
         .delete-btn { background-color: var(--danger-color); color: white; } .delete-btn:hover { background-color: #c82333; }
@@ -822,7 +856,35 @@
             `;
         }
 
-        row.innerHTML = `<td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td><td>${item.name}</td><td>${item.serial}</td> ${isGlobalSearch ? `<td>${departments[itemDept] || 'N/A'}</td>` : ''} <td>${item.manufacturer || 'N/A'}</td><td>${item.year}</td><td><span class="status ${item.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span></td><td class="action-btn-group">${actionButtons}</td>`;
+        // Tính toán màu sắc và độ dài thanh HP
+        const usage = item.dailyUsage || 0;
+        const percentage = (usage / 24) * 100;
+        let hpColor = '#28a745'; // Xanh (Tốt/Ít)
+        if (usage > 12) hpColor = '#ffc107'; // Vàng (Trung bình)
+        if (usage > 20) hpColor = '#dc3545'; // Đỏ (Cao/Quá tải)
+
+        // HTML cho thanh HP
+        const hpBarHtml = `
+            <div class="hp-bar-container hp-trigger" data-id="${item._id}" data-current="${usage}" data-name="${item.name}" title="Click để cập nhật giờ hoạt động">
+                <div class="hp-bar-fill" style="width: ${percentage}%; background-color: ${hpColor};"></div>
+                <div class="hp-bar-text">${usage}h / 24h</div>
+            </div>
+        `;
+
+        row.innerHTML = `
+            <td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td>
+            <td>${item.name}</td>
+            <td>${item.serial}</td> 
+            ${isGlobalSearch ? `<td>${departments[itemDept] || 'N/A'}</td>` : ''} 
+            <td>${item.manufacturer || 'N/A'}</td>
+            <td>${item.year}</td>
+            <td>
+                <span class="status ${item.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span>
+            </td>
+            <td class="action-btn-group" style="vertical-align: middle;">
+                <div style="margin-bottom: 5px;">${actionButtons}</div>
+                ${hpBarHtml} </td>
+        `;
         dom.equipmentTableBody.appendChild(row);
     });
 }
@@ -981,6 +1043,85 @@
         });
 
         dom.equipmentTableBody.addEventListener('click', async (e) => {
+            const hpTarget = e.target.closest('.hp-trigger');
+    if (hpTarget) {
+        const id = hpTarget.dataset.id;
+        const currentVal = parseFloat(hpTarget.dataset.current);
+        const name = hpTarget.dataset.name;
+
+        // Hiện Popup thanh trượt
+        const { value: hours } = await Swal.fire({
+            title: `Hiệu suất: ${name}`,
+            text: 'Kéo để chọn số giờ hoạt động hôm nay',
+            input: 'range',
+            inputLabel: 'Giờ hoạt động (0 - 24h)',
+            inputAttributes: {
+                min: 0,
+                max: 24,
+                step: 0.5
+            },
+            inputValue: currentVal,
+            showCancelButton: true,
+            confirmButtonText: 'Cập nhật',
+            cancelButtonText: 'Hủy',
+            didOpen: () => {
+                // Thêm hiển thị số giờ real-time khi kéo
+                const range = Swal.getInput();
+                const output = Swal.getHtmlContainer().querySelector('output') || document.createElement('output');
+                output.style.display = 'block';
+                output.style.fontSize = '20px';
+                output.style.fontWeight = 'bold';
+                output.style.color = '#007bff';
+                output.style.marginTop = '10px';
+                output.innerText = `${range.value} giờ`;
+                if(!Swal.getHtmlContainer().querySelector('output')) Swal.getHtmlContainer().appendChild(output);
+                
+                range.addEventListener('input', () => {
+                    output.innerText = `${range.value} giờ`;
+                });
+            }
+        });
+
+        if (hours !== undefined) { // Người dùng ấn OK
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/usage/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ dailyUsage: hours })
+                });
+
+                if (!response.ok) throw new Error('Cập nhật thất bại');
+                
+                // Cập nhật giao diện ngay lập tức mà không cần load lại trang
+                const percentage = (hours / 24) * 100;
+                let newColor = '#28a745';
+                if (hours > 12) newColor = '#ffc107';
+                if (hours > 20) newColor = '#dc3545';
+                
+                const fill = hpTarget.querySelector('.hp-bar-fill');
+                const text = hpTarget.querySelector('.hp-bar-text');
+                
+                fill.style.width = `${percentage}%`;
+                fill.style.backgroundColor = newColor;
+                text.textContent = `${hours}h / 24h`;
+                
+                // Cập nhật lại data attribute để lần click sau đúng giá trị
+                hpTarget.dataset.current = hours;
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Đã cập nhật!',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 1500
+                });
+
+            } catch (error) {
+                handleApiError(error, 'Cập nhật hiệu suất');
+            }
+        }
+        return; // Dừng xử lý tiếp để không kích hoạt nhầm các nút khác
+    }
     const target = e.target.closest('button, img');
     if (!target) return;
 

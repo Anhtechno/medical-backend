@@ -52,7 +52,9 @@ const equipmentSchema = new mongoose.Schema({
     name: { type: String, required: true },
     serial: { type: String, required: true, unique: true },
     manufacturer: String, accessories: String, year: String, status: String,
-    description: String, image: String, department: { type: String, required: true }
+    description: String, image: String, department: { type: String, required: true },
+    // --- THÊM DÒNG NÀY ---
+    dailyUsage: { type: Number, default: 0, min: 0, max: 24 } 
 });
 const Equipment = mongoose.models.Equipment || mongoose.model('Equipment', equipmentSchema);
 
@@ -1180,6 +1182,29 @@ app.delete('/api/documents/:documentId', authenticateToken, isAdmin, async (req,
         res.json({ message: 'Xóa tài liệu thành công.' });
     } catch (error) {
         res.status(500).json({ message: 'Lỗi server khi xóa tài liệu.' });
+    }
+});
+
+// API Cập nhật giờ sử dụng (Hiệu suất) - Cho phép cả User và Admin
+app.put('/api/equipment/usage/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { dailyUsage } = req.body;
+        
+        // Kiểm tra quyền: Nếu là User thì phải đúng khoa
+        const equipment = await Equipment.findById(id);
+        if (!equipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+        
+        if (req.user.role === 'user' && req.user.departmentKey !== equipment.department) {
+            return res.status(403).json({ message: "Bạn không có quyền cập nhật thiết bị của khoa khác." });
+        }
+
+        equipment.dailyUsage = parseFloat(dailyUsage);
+        await equipment.save();
+
+        res.json({ message: "Đã cập nhật hiệu suất.", dailyUsage: equipment.dailyUsage });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server.', error: error.message });
     }
 });
 
