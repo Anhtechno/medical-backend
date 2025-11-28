@@ -746,10 +746,24 @@
             const headers = { 'Content-Type': 'application/json', ...options.headers };
             if (token) { headers['Authorization'] = `Bearer ${token}`; }
             const response = await fetch(url, { ...options, headers });
-            if (response.status === 401 || response.status === 403) {
-                logout();
-                throw new Error('Phiên đăng nhập không hợp lệ hoặc đã hết hạn.');
-            }
+            if (response.status === 401) {
+    logout();
+    throw new Error('Phiên đăng nhập đã hết hạn.');
+}
+
+// Nếu lỗi 403 (Không có quyền), ta kiểm tra xem có phải đang gọi API 'usage' không
+// Nếu đúng là đang update usage thì KHÔNG đăng xuất, chỉ báo lỗi thôi.
+if (response.status === 403) {
+    if (url.includes('/usage/')) {
+        // Không logout, cho phép code bên dưới ném lỗi ra để hiện SweetAlert
+        const err = await response.json();
+        throw new Error(err.message || 'Bạn không có quyền thực hiện (Lỗi 403)');
+    } else {
+        // Các trường hợp khác thì vẫn logout để bảo mật
+        logout();
+        throw new Error('Bạn không có quyền truy cập.');
+    }
+}
             return response;
         }
         
