@@ -1098,7 +1098,7 @@ if (response.status === 403) {
 
         if (hours !== undefined) { // Người dùng ấn OK
             try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/usage/${id}`, {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/update-usage/${id}`, {
                     method: 'PUT',
                     body: JSON.stringify({ dailyUsage: hours })
                 });

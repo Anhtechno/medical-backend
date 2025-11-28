@@ -1186,7 +1186,7 @@ app.delete('/api/documents/:documentId', authenticateToken, isAdmin, async (req,
 });
 
 // API Cập nhật giờ sử dụng (Hiệu suất)
-app.put('/api/equipment/usage/:id', authenticateToken, async (req, res) => {
+app.put('/api/equipment/update-usage/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const { dailyUsage } = req.body;
