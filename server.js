@@ -393,6 +393,32 @@ app.get('/api/equipment/item/:serial', authenticateToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: 'Lỗi server khi lấy chi tiết thiết bị', error: error.message }); }
 });
 
+// API Cập nhật giờ sử dụng (Hiệu suất)
+app.put('/api/equipment/usage/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { dailyUsage } = req.body;
+        
+        const equipment = await Equipment.findById(id);
+        if (!equipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+        
+        // --- SỬA DÒNG DƯỚI ĐÂY ---
+        // Đổi 403 thành 400 để tránh bị logout oan
+        if (req.user.role === 'user' && req.user.departmentKey !== equipment.department) {
+            return res.status(400).json({ message: "Bạn không có quyền cập nhật thiết bị của khoa khác." }); 
+        }
+        // --------------------------
+
+        equipment.dailyUsage = parseFloat(dailyUsage);
+        await equipment.save();
+
+        res.json({ message: "Đã cập nhật hiệu suất.", dailyUsage: equipment.dailyUsage });
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi server.', error: error.message });
+    }
+});
+
+
 app.put('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async (req, res) => {
     try {
         const { serial } = req.params;
@@ -1185,30 +1211,7 @@ app.delete('/api/documents/:documentId', authenticateToken, isAdmin, async (req,
     }
 });
 
-// API Cập nhật giờ sử dụng (Hiệu suất)
-app.put('/api/equipment/usage/:id', authenticateToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { dailyUsage } = req.body;
-        
-        const equipment = await Equipment.findById(id);
-        if (!equipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
-        
-        // --- SỬA DÒNG DƯỚI ĐÂY ---
-        // Đổi 403 thành 400 để tránh bị logout oan
-        if (req.user.role === 'user' && req.user.departmentKey !== equipment.department) {
-            return res.status(400).json({ message: "Bạn không có quyền cập nhật thiết bị của khoa khác." }); 
-        }
-        // --------------------------
 
-        equipment.dailyUsage = parseFloat(dailyUsage);
-        await equipment.save();
-
-        res.json({ message: "Đã cập nhật hiệu suất.", dailyUsage: equipment.dailyUsage });
-    } catch (error) {
-        res.status(500).json({ message: 'Lỗi server.', error: error.message });
-    }
-});
 
 // 11. KHỞI ĐỘNG SERVER
 app.listen(PORT, () => {
