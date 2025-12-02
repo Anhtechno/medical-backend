@@ -53,8 +53,13 @@ const equipmentSchema = new mongoose.Schema({
     serial: { type: String, required: true, unique: true },
     manufacturer: String, accessories: String, year: String, status: String,
     description: String, image: String, department: { type: String, required: true },
-    // --- THÊM DÒNG NÀY ---
-    dailyUsage: { type: Number, default: 0, min: 0, max: 24 } 
+    
+    dailyUsage: { type: Number, default: 0, min: 0, max: 24 },
+    lastLogDate: { type: String, default: '' }, // Lưu ngày cập nhật cuối (dạng YYYY-MM-DD)
+    usageHistory: [{ // Mảng lưu lịch sử dùng để tính báo cáo
+        date: String, // YYYY-MM-DD
+        hours: Number
+    }]
 });
 const Equipment = mongoose.models.Equipment || mongoose.model('Equipment', equipmentSchema);
 
@@ -240,6 +245,7 @@ app.get('/api/departments', authenticateToken, (req, res) => {
     res.json(userDept);
 });
 
+// --- SỬA ĐOẠN NÀY ---
 app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
     try {
         const { deptKey } = req.params;
@@ -247,13 +253,14 @@ app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
             return res.status(403).json({ message: "Không có quyền xem dữ liệu của khoa này." });
         }
         
-        // --- LOGIC MỚI: TÍNH TOÁN ĐẦU TUẦN ---
+        // --- LOGIC MỚI: TÍNH TOÁN NGÀY HÔM NAY ---
+        const todayStr = new Date().toISOString().split('T')[0]; // Lấy ngày YYYY-MM-DD
+        
         const now = new Date();
-        const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
-        const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Lấy ngày đầu tuần (Thứ 2)
+        const dayOfWeek = now.getDay();
+        const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
         const startOfWeek = new Date(now.setDate(diff));
         startOfWeek.setHours(0, 0, 0, 0);
-        // ------------------------------------
 
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
@@ -261,44 +268,33 @@ app.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
         const skip = (page - 1) * limit;
         
         const query = { department: deptKey };
-        if (status && status !== 'all') {
-            query.status = status;
-        }
+        if (status && status !== 'all') query.status = status;
 
-        const [equipments, totalItems, statsResult, loggedThisWeek] = await Promise.all([
+        const [equipmentsRaw, totalItems, statsResult, loggedThisWeek] = await Promise.all([
             Equipment.find(query).sort({ name: 1 }).skip(skip).limit(limit).lean(),
             Equipment.countDocuments(query),
             Equipment.aggregate([ { $match: { department: deptKey } }, { $group: { _id: '$status', count: { $sum: 1 } } } ]),
-            // --- LOGIC MỚI: LẤY DANH SÁCH THIẾT BỊ ĐÃ GHI NHẬT KÝ TUẦN NÀY ---
-            UsageLog.find({
-                departmentKey: deptKey,
-                createdAt: { $gte: startOfWeek }
-            }).select('equipmentId -_id') // Chỉ lấy ID thiết bị
+            UsageLog.find({ departmentKey: deptKey, createdAt: { $gte: startOfWeek } }).select('equipmentId -_id')
         ]);
-        
-        // Tạo một set để tra cứu nhanh các ID đã ghi nhật ký
+
         const loggedEquipmentIds = new Set(loggedThisWeek.map(log => log.equipmentId.toString()));
         
-        // Thêm trường 'needsLog' vào mỗi thiết bị
-        const equipmentsWithLogStatus = equipments.map(eq => ({
-            ...eq,
-            needsLog: !loggedEquipmentIds.has(eq._id.toString())
-        }));
+        // --- LOGIC RESET THANH HP NẾU QUA NGÀY MỚI ---
+        const equipmentsWithLogStatus = equipmentsRaw.map(eq => {
+            // Nếu ngày lưu cuối cùng KHÁC hôm nay, thì reset hiển thị về 0
+            const displayUsage = (eq.lastLogDate === todayStr) ? eq.dailyUsage : 0;
+            
+            return {
+                ...eq,
+                dailyUsage: displayUsage, // Ghi đè giá trị hiển thị
+                needsLog: !loggedEquipmentIds.has(eq._id.toString())
+            };
+        });
 
-        const stats = statsResult.reduce((acc, curr) => {
-            if (curr._id) { acc[curr._id] = curr.count; }
-            return acc;
-        }, {});
-        
+        const stats = statsResult.reduce((acc, curr) => { if (curr._id) acc[curr._id] = curr.count; return acc; }, {});
         const totalPages = Math.ceil(totalItems / limit);
         
-        res.json({
-            equipments: equipmentsWithLogStatus, // Trả về danh sách đã được cập nhật
-            totalPages, 
-            currentPage: page,
-            totalItems, 
-            stats 
-        });
+        res.json({ equipments: equipmentsWithLogStatus, totalPages, currentPage: page, totalItems, stats });
     } catch (error) {
         console.error("Lỗi khi lấy dữ liệu equipment:", error);
         res.status(500).json({ message: 'Lỗi server khi lấy dữ liệu', error: error.message });
@@ -393,23 +389,82 @@ app.get('/api/equipment/item/:serial', authenticateToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: 'Lỗi server khi lấy chi tiết thiết bị', error: error.message }); }
 });
 
+// API Báo cáo hiệu suất máy (Cho Admin xem trong modal)
+app.post('/api/reports/machine-efficiency', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { equipmentId, startDate, endDate } = req.body;
+        
+        const equipment = await Equipment.findById(equipmentId);
+        if (!equipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
+
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        // Lọc lịch sử trong khoảng thời gian
+        const logsInRange = equipment.usageHistory.filter(log => {
+            const logDate = new Date(log.date);
+            return logDate >= start && logDate <= end;
+        });
+
+        // Tính tổng giờ
+        const totalHours = logsInRange.reduce((sum, log) => sum + log.hours, 0);
+        
+        // Tính số ngày trong khoảng (bao gồm cả ngày bắt đầu và kết thúc)
+        const diffTime = Math.abs(end - start);
+        const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; 
+
+        // Tính trung bình
+        const avgHoursPerDay = totalDays > 0 ? (totalHours / totalDays).toFixed(1) : 0;
+        const efficiencyPercent = ((avgHoursPerDay / 24) * 100).toFixed(1);
+
+        res.json({
+            equipmentName: equipment.name,
+            totalHours,
+            totalDays,
+            avgHoursPerDay,
+            efficiencyPercent,
+            logsCount: logsInRange.length // Số ngày thực tế có nhập liệu
+        });
+
+    } catch (error) {
+        console.error("Lỗi tính hiệu suất:", error);
+        res.status(500).json({ message: 'Lỗi tính toán.' });
+    }
+});
+
+
 // API Cập nhật giờ sử dụng (Hiệu suất)
 app.put('/api/equipment/usage/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const { dailyUsage } = req.body;
+        const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         
         const equipment = await Equipment.findById(id);
         if (!equipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
         
-        // --- SỬA DÒNG DƯỚI ĐÂY ---
-        // Đổi 403 thành 400 để tránh bị logout oan
         if (req.user.role === 'user' && req.user.departmentKey !== equipment.department) {
             return res.status(400).json({ message: "Bạn không có quyền cập nhật thiết bị của khoa khác." }); 
         }
-        // --------------------------
 
-        equipment.dailyUsage = parseFloat(dailyUsage);
+        const hours = parseFloat(dailyUsage);
+
+        // 1. Cập nhật thông tin hiện tại
+        equipment.dailyUsage = hours;
+        equipment.lastLogDate = todayStr;
+
+        // 2. Cập nhật lịch sử (UsageHistory)
+        // Tìm xem trong mảng history đã có ngày hôm nay chưa
+        const historyIndex = equipment.usageHistory.findIndex(h => h.date === todayStr);
+        
+        if (historyIndex > -1) {
+            // Nếu có rồi thì cập nhật lại giờ
+            equipment.usageHistory[historyIndex].hours = hours;
+        } else {
+            // Nếu chưa có thì thêm mới
+            equipment.usageHistory.push({ date: todayStr, hours: hours });
+        }
+
         await equipment.save();
 
         res.json({ message: "Đã cập nhật hiệu suất.", dailyUsage: equipment.dailyUsage });

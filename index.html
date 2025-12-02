@@ -2001,9 +2001,32 @@ if (response.status === 403) {
                     <button id="back-to-list-btn" class="action-button"><i class="fas fa-arrow-left"></i> Quay lại</button>
                 </div>
             </div>
+            
             <div id="profile-content" style="display: grid; grid-template-columns: 280px 1fr; gap: 25px;">
                 <div id="profile-info-card">
                     <div id="qrcode-container" style="width: 250px; margin: 0 auto; padding: 15px; border: 1px solid #ddd; background: white; margin-bottom: 20px; text-align:center;"></div>
+                    
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 20px;">
+                        <h4 style="color: var(--primary-color); margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">
+                            <i class="fas fa-chart-line"></i> Phân tích Hiệu suất
+                        </h4>
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <label style="font-size: 12px;">Từ ngày:</label>
+                            <input type="date" id="eff-start-date" style="padding: 5px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <label style="font-size: 12px;">Đến ngày:</label>
+                            <input type="date" id="eff-end-date" style="padding: 5px;">
+                        </div>
+                        <button id="calc-efficiency-btn" style="width: 100%; padding: 8px; background: var(--success-color); color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            Tính toán
+                        </button>
+                        <div id="efficiency-result" style="margin-top: 15px; display: none; text-align: center;">
+                            <div style="font-size: 30px; font-weight: bold; color: var(--primary-color);" id="eff-percent">0%</div>
+                            <div style="font-size: 12px; color: #666;">Hiệu suất trung bình</div>
+                            <div style="font-size: 13px; margin-top: 5px; font-weight: 500;" id="eff-hours">0h/ngày</div>
+                        </div>
+                    </div>
                     <div id="profile-details">
                         <h3 style="color: var(--primary-color); margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">Thông tin chi tiết</h3>
                         <div style="font-size: 15px; line-height: 2.2;">
@@ -2061,6 +2084,49 @@ if (response.status === 403) {
                     </div>
                 </div>
             </div>`;
+
+        // --- CODE MỚI: XỬ LÝ NÚT TÍNH HIỆU SUẤT ---
+        // Set mặc định ngày: Đầu tháng đến Hôm nay
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        document.getElementById('eff-end-date').value = today.toISOString().split('T')[0];
+        document.getElementById('eff-start-date').value = firstDay.toISOString().split('T')[0];
+
+        document.getElementById('calc-efficiency-btn').addEventListener('click', async () => {
+            const start = document.getElementById('eff-start-date').value;
+            const end = document.getElementById('eff-end-date').value;
+            const resultBox = document.getElementById('efficiency-result');
+
+            if(!start || !end) { Swal.fire('Lỗi', 'Vui lòng chọn ngày', 'warning'); return; }
+
+            // Hiệu ứng loading nhẹ
+            document.getElementById('calc-efficiency-btn').textContent = 'Đang tính...';
+            
+            try {
+                const res = await fetchWithAuth(`${API_BASE_URL}/api/reports/machine-efficiency`, {
+                    method: 'POST',
+                    body: JSON.stringify({ equipmentId: data.details._id, startDate: start, endDate: end })
+                });
+                const report = await res.json();
+                
+                // Hiển thị kết quả
+                document.getElementById('eff-percent').textContent = `${report.efficiencyPercent}%`;
+                
+                // Tô màu theo mức độ
+                const p = parseFloat(report.efficiencyPercent);
+                const color = p > 80 ? '#dc3545' : (p > 50 ? '#ffc107' : '#28a745');
+                document.getElementById('eff-percent').style.color = color;
+
+                document.getElementById('eff-hours').textContent = `TB: ${report.avgHoursPerDay} giờ / ngày`;
+                resultBox.style.display = 'block';
+
+            } catch (err) {
+                console.error(err);
+                Swal.fire('Lỗi', 'Không thể tính toán', 'error');
+            } finally {
+                document.getElementById('calc-efficiency-btn').textContent = 'Tính toán';
+            }
+        });
         
         // --- LOGIC MỚI: TẢI VÀ HIỂN THỊ NHẬT KÝ SỬ DỤNG ---
         const logResponse = await fetchWithAuth(`${API_BASE_URL}/api/logs/equipment/${data.details._id}`);
