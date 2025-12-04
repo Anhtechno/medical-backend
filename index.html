@@ -356,6 +356,29 @@
                             <tbody id="users-table-body"></tbody>
                         </table>
                     </div>
+
+                    <div id="technicians-view-container" class="view-container">
+                        <div class="main-header">
+                            <h1 class="view-title">Đội ngũ Kỹ sư</h1>
+                            <div class="header-actions">
+                                <button id="addTechnicianBtn" class="action-button">
+                                    <i class="fas fa-user-plus"></i> Thêm Kỹ sư mới
+                                </button>
+                            </div>
+                        </div>
+                        <table class="generic-table" id="technicians-table">
+                            <thead>
+                                <tr>
+                                    <th>Avatar</th>
+                                    <th>Họ và Tên</th>
+                                    <th>Tên đăng nhập</th>
+                                    <th>Ngày tạo</th>
+                                    <th style="width: 120px; text-align: center;">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="technicians-table-body"></tbody>
+                        </table>
+                    </div>
                     
                     <div id="user-dashboard-view-container" class="view-container">
                       <div class="main-header">
@@ -557,6 +580,69 @@
         </div>
     </div>
 </div>
+
+        <div class="modal" id="technicianModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Thêm Hồ sơ Kỹ sư</h2>
+                    <button class="close-btn" id="closeTechnicianModalBtn">×</button>
+                </div>
+                <form id="technicianForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Họ và Tên *</label>
+                            <input type="text" id="techFullName" required placeholder="VD: Nguyễn Văn A">
+                        </div>
+                        <div class="form-group">
+                            <label>Tên đăng nhập *</label>
+                            <input type="text" id="techUsername" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Mật khẩu *</label>
+                        <input type="password" id="techPassword" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Ảnh đại diện (Avatar)</label>
+                        <div class="image-upload" id="avatarUpload">
+                            <i class="fas fa-camera"></i>
+                            <p>Chọn ảnh chân dung</p>
+                            <input type="file" id="avatarInput" accept="image/*" style="display: none;">
+                            <img id="avatarPreview" class="image-preview" src="#" alt="Avatar" style="border-radius: 50%; width: 100px; height: 100px; object-fit: cover;">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="cancel-btn" id="cancelTechBtn">Hủy</button>
+                        <button type="submit" class="save-btn">Lưu Hồ sơ</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="modal" id="assignTaskModal">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h2>Phân công Xử lý Sự cố</h2>
+                    <button class="close-btn" id="closeAssignModalBtn">×</button>
+                </div>
+                <form id="assignTaskForm">
+                    <input type="hidden" id="assign-incident-id">
+                    <div class="form-group">
+                        <label>Chọn Kỹ sư tiếp nhận *</label>
+                        <select id="assignTechnicianSelect" required style="font-weight: bold; color: var(--primary-color);">
+                            </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Ghi chú chỉ đạo (Optional)</label>
+                        <textarea id="assignNotes" rows="3" placeholder="Nhập yêu cầu cụ thể cho kỹ sư..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="cancel-btn" id="cancelAssignBtn">Hủy</button>
+                        <button type="submit" class="save-btn"><i class="fas fa-paper-plane"></i> Giao việc ngay</button>
+                    </div>
+                </form>
+            </div>
+        </div>
         <div class="modal" id="usageLogModal">
            <div class="modal-content" style="max-width: 550px;">
              <div class="modal-header">
@@ -699,33 +785,39 @@
     dom.logoutBtn.innerHTML = `<i class="fas fa-sign-out-alt"></i> ${userProfile.username} (Đăng xuất)`;
 
     if (userProfile.role === 'admin') {
-        const sidebar = document.getElementById('sidebar-main');
-        
-        // Thêm menu Quản lý Người dùng nếu chưa có
-        if (!document.querySelector('a[data-view="users"]')) {
-            const userLi = document.createElement('li');
-            userLi.innerHTML = `<a data-view="users"><i class="fas fa-users-cog"></i> Quản lý Người dùng</a>`;
-            sidebar.appendChild(userLi);
+            const sidebar = document.getElementById('sidebar-main');
+            // Menu Quản lý Users (Khoa phòng)
+            if (!document.querySelector('a[data-view="users"]')) {
+                const userLi = document.createElement('li');
+                userLi.innerHTML = `<a data-view="users"><i class="fas fa-hospital-user"></i> Quản lý Khoa/Phòng</a>`;
+                sidebar.appendChild(userLi);
+            }
+            // Menu Quản lý Kỹ sư (MỚI)
+            if (!document.querySelector('a[data-view="technicians"]')) {
+                const techLi = document.createElement('li');
+                techLi.innerHTML = `<a data-view="technicians"><i class="fas fa-user-shield"></i> Quản lý Kỹ sư</a>`;
+                sidebar.appendChild(techLi);
+            }
+            // Menu Báo cáo
+            if (!document.querySelector('a[data-view="reports"]')) {
+                const reportLi = document.createElement('li');
+                reportLi.innerHTML = `<a data-view="reports"><i class="fas fa-chart-pie"></i> Báo cáo</a>`;
+                sidebar.appendChild(reportLi);
+            }
+            
+            // Re-attach events
+            dom.sidebarNavLinks = document.querySelectorAll('#sidebar-main a');
+            dom.sidebarNavLinks.forEach(link => {
+                link.removeEventListener('click', handleNavLinkClick);
+                link.addEventListener('click', handleNavLinkClick);
+            });
+            dom.notificationBellContainer.style.display = 'flex';
+            fetchNotifications();
+            setInterval(fetchNotifications, 60000); 
+        } else if (userProfile.role === 'technician') {
+            // Logic cho Kỹ sư: Ẩn các menu không cần thiết nếu muốn
+            // Hiện tại cứ để nguyên, chỉ cần xử lý hiển thị dữ liệu
         }
-        
-        // Thêm menu Báo cáo nếu chưa có
-        if (!document.querySelector('a[data-view="reports"]')) {
-            const reportLi = document.createElement('li');
-            reportLi.innerHTML = `<a data-view="reports"><i class="fas fa-chart-pie"></i> Báo cáo</a>`;
-            sidebar.appendChild(reportLi);
-        }
-        
-        // Gán lại sự kiện cho tất cả các link sidebar
-        dom.sidebarNavLinks = document.querySelectorAll('#sidebar-main a');
-        dom.sidebarNavLinks.forEach(link => {
-            link.removeEventListener('click', handleNavLinkClick);
-            link.addEventListener('click', handleNavLinkClick);
-        });
-        
-        dom.notificationBellContainer.style.display = 'flex';
-        fetchNotifications();
-        setInterval(fetchNotifications, 60000); 
-    }
 }
         
         function handleNavLinkClick(e) {
@@ -1363,6 +1455,7 @@ if (response.status === 403) {
         if (viewName === 'users') renderUsersView();
         if (viewName === 'reports') renderReportsView();
         if (viewName === 'userDashboard') renderUserDashboard();
+        if (viewName === 'technicians') renderTechniciansView();
     }
 }
         
@@ -1376,6 +1469,11 @@ if (response.status === 403) {
             dom.adminIncidentView.style.display = 'block';
             dom.userIncidentView.style.display = 'none';
             renderIncidentTableAdmin(incidents);
+        } else if (userProfile.role === 'technician') {
+            // Kỹ sư dùng chung view Admin nhưng data khác
+            dom.adminIncidentView.style.display = 'block';
+            dom.userIncidentView.style.display = 'none';
+            renderIncidentTableTechnician(incidents);
         } else {
             dom.adminIncidentView.style.display = 'none';
             dom.userIncidentView.style.display = 'block';
@@ -1426,15 +1524,15 @@ if (response.status === 403) {
         const row = document.createElement('tr');
         const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
         let actionButtons = '';
-        
-        // Quyết định nút hành động dựa trên trạng thái
+        const assignedInfo = inc.assignedTo ? `<br><small style="color:#007bff"><i class="fas fa-user-hard-hat"></i> ${inc.assignedTo.fullName}</small>` : '';
+
+        // ADMIN: Nếu mới -> Hiện nút Giao việc. Nếu đang xử lý -> Hiện ai đang làm.
         if (inc.status === 'new') {
-            actionButtons = `<button class="resolve-btn" data-id="${inc._id}" data-new-status="in_progress">Bắt đầu xử lý</button>`;
+            actionButtons = `<button class="resolve-btn" style="background-color: #6610f2;" onclick="openAssignModal('${inc._id}')"><i class="fas fa-tasks"></i> Giao việc</button>`;
         } else if (inc.status === 'in_progress') {
-            actionButtons = `<button class="resolve-btn" data-id="${inc._id}" data-new-status="resolved">Hoàn thành</button>`;
+            actionButtons = `<span style="color: #17a2b8; font-size: 12px; font-style: italic;">Đang xử lý bởi:<br><b>${inc.assignedTo ? inc.assignedTo.fullName : 'Kỹ sư'}</b></span>`;
         } else if (inc.status === 'resolved') {
-            // Chỉ hiển thị nút xóa khi sự cố đã được giải quyết
-            actionButtons = `<button class="delete-btn incident-delete-btn" data-id="${inc._id}"><i class="fas fa-trash"></i> Clear</button>`;
+            actionButtons = `<button class="delete-btn incident-delete-btn" data-id="${inc._id}"><i class="fas fa-trash"></i></button>`;
         }
 
         row.innerHTML = `<td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${departments[inc.departmentKey] || 'Không rõ'}</td><td>${inc.equipmentName}</td><td>${inc.serial}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td><td class="action-btn-group">${actionButtons}</td>`;
@@ -1455,6 +1553,36 @@ if (response.status === 403) {
                 row.innerHTML = `<td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.equipmentName}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td><td>${inc.notes || 'Chưa có'}</td>`;
                 tableBody.appendChild(row);
             });
+        }
+
+        function renderIncidentTableTechnician(incidents) {
+        const tableBody = dom.incidentTableBodyAdmin; // Tái sử dụng bảng Admin cho Kỹ sư
+        tableBody.innerHTML = '';
+        if (incidents.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 30px;">Bạn chưa được giao nhiệm vụ nào.</td></tr>`;
+            return;
+        }
+        incidents.forEach(inc => {
+            const row = document.createElement('tr');
+            // Kỹ sư chỉ có nút "Hoàn thành"
+            let btn = '';
+            if (inc.status === 'in_progress') {
+                btn = `<button class="resolve-btn" data-id="${inc._id}" data-new-status="resolved">Báo cáo Hoàn thành</button>`;
+            } else {
+                btn = '<span style="color:green"><i class="fas fa-check"></i> Xong</span>';
+            }
+
+            row.innerHTML = `
+                <td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td>
+                <td>${departments[inc.departmentKey]}</td>
+                <td>${inc.equipmentName}</td>
+                <td>${inc.serial}</td>
+                <td>${inc.problemDescription}<br><small style="color:red">Note Sếp: ${inc.notes || ''}</small></td>
+                <td><span class="incident-status ${inc.status}">${inc.status}</span></td>
+                <td>${btn}</td>
+            `;
+            tableBody.appendChild(row);
+        });
         }
 
         dom.incidentForm.addEventListener('submit', async (e) => {
@@ -3309,6 +3437,132 @@ function updateUserUIByRole() {
         document.getElementById('search-scope-container').style.display = 'flex';
     }
 }
+
+// --- LOGIC QUẢN LÝ KỸ SƯ ---
+    async function renderTechniciansView() {
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/api/technicians`);
+            const techs = await response.json();
+            const tbody = document.getElementById('technicians-table-body');
+            tbody.innerHTML = '';
+            
+            if (techs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Chưa có kỹ sư nào.</td></tr>';
+                return;
+            }
+
+            techs.forEach(t => {
+                const avatarUrl = t.avatar || 'https://via.placeholder.com/40?text=KS';
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><img src="${avatarUrl}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;"></td>
+                    <td style="font-weight: 500;">${t.fullName}</td>
+                    <td>${t.username}</td>
+                    <td>${new Date(t.createdAt).toLocaleDateString('vi-VN')}</td>
+                    <td style="text-align: center;"><button class="delete-btn" onclick="deleteUser('${t._id}', 'technician')"><i class="fas fa-trash"></i></button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        } catch (e) { handleApiError(e, 'Tải danh sách kỹ sư'); }
+    }
+
+    // Xử lý Modal Thêm Kỹ sư
+    const techModal = document.getElementById('technicianModal');
+    document.getElementById('addTechnicianBtn').addEventListener('click', () => {
+        document.getElementById('technicianForm').reset();
+        document.getElementById('avatarPreview').src = '#';
+        document.getElementById('avatarPreview').style.display = 'none';
+        techModal.style.display = 'flex';
+    });
+    document.getElementById('closeTechnicianModalBtn').addEventListener('click', () => techModal.style.display = 'none');
+    document.getElementById('cancelTechBtn').addEventListener('click', () => techModal.style.display = 'none');
+    
+    // Upload Avatar Preview
+    document.getElementById('avatarUpload').addEventListener('click', () => document.getElementById('avatarInput').click());
+    document.getElementById('avatarInput').addEventListener('change', function() {
+        if(this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = document.getElementById('avatarPreview');
+                img.src = e.target.result;
+                img.style.display = 'block';
+            };
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+
+    // Submit Thêm Kỹ sư
+    document.getElementById('technicianForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append('username', document.getElementById('techUsername').value);
+        formData.append('password', document.getElementById('techPassword').value);
+        formData.append('fullName', document.getElementById('techFullName').value);
+        const fileInput = document.getElementById('avatarInput');
+        if (fileInput.files[0]) {
+            formData.append('avatar', fileInput.files[0]);
+        }
+
+        Swal.fire({ title: 'Đang tạo hồ sơ...', didOpen: () => Swal.showLoading() });
+        
+        try {
+            const token = getToken();
+            const res = await fetch(`${API_BASE_URL}/api/technicians`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }, // Không set Content-Type để browser tự làm
+                body: formData
+            });
+            if(!res.ok) throw new Error((await res.json()).message);
+            
+            Swal.fire('Thành công', 'Đã thêm kỹ sư mới!', 'success');
+            techModal.style.display = 'none';
+            renderTechniciansView();
+        } catch (err) { handleApiError(err, 'Thêm kỹ sư'); }
+    });
+
+    // --- LOGIC PHÂN CÔNG VIỆC (ASSIGNMENT) ---
+    const assignModal = document.getElementById('assignTaskModal');
+    
+    // Hàm mở modal phân công (được gọi khi Admin bấm nút "Giao việc")
+    async function openAssignModal(incidentId) {
+        document.getElementById('assign-incident-id').value = incidentId;
+        const select = document.getElementById('assignTechnicianSelect');
+        select.innerHTML = '<option>Đang tải danh sách...</option>';
+        assignModal.style.display = 'flex';
+
+        try {
+            const res = await fetchWithAuth(`${API_BASE_URL}/api/technicians`);
+            const techs = await res.json();
+            select.innerHTML = '<option value="">-- Chọn Kỹ sư --</option>';
+            techs.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t._id;
+                opt.textContent = `${t.fullName} (${t.username})`;
+                select.appendChild(opt);
+            });
+        } catch (e) { select.innerHTML = '<option>Lỗi tải danh sách</option>'; }
+    }
+
+    document.getElementById('closeAssignModalBtn').addEventListener('click', () => assignModal.style.display = 'none');
+    document.getElementById('cancelAssignBtn').addEventListener('click', () => assignModal.style.display = 'none');
+
+    // Submit Phân công
+    document.getElementById('assignTaskForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const incidentId = document.getElementById('assign-incident-id').value;
+        const techId = document.getElementById('assignTechnicianSelect').value;
+        const notes = document.getElementById('assignNotes').value;
+
+        try {
+            await fetchWithAuth(`${API_BASE_URL}/api/incidents/assign/${incidentId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ assignedToId: techId, notes: notes })
+            });
+            Swal.fire('Đã giao việc!', 'Kỹ sư đã nhận được thông báo.', 'success');
+            assignModal.style.display = 'none';
+            renderIncidentView(); // Reload lại bảng
+        } catch (err) { handleApiError(err, 'Giao việc'); }
+    });
 
 
         checkAuth();

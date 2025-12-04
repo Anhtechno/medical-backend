@@ -66,8 +66,11 @@ const Equipment = mongoose.models.Equipment || mongoose.model('Equipment', equip
 const userSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
-    role: { type: String, required: true, enum: ['admin', 'user'], default: 'user' },
-    departmentKey: { type: String } 
+    // Thêm role 'technician'
+    role: { type: String, required: true, enum: ['admin', 'user', 'technician'], default: 'user' },
+    departmentKey: { type: String }, // Dùng cho User khoa phòng
+    fullName: { type: String }, // Tên hiển thị (Dành cho Kỹ sư)
+    avatar: { type: String } // Link ảnh đại diện (Dành cho Kỹ sư)
 }, { timestamps: true });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
@@ -79,9 +82,12 @@ const incidentSchema = new mongoose.Schema({
     reportedBy: { type: String, required: true },
     problemDescription: { type: String, required: true },
     status: { type: String, enum: ['new', 'in_progress', 'resolved'], default: 'new' },
-    notes: String,
+    notes: String, // Ghi chú chung
     resolvedAt: Date,
-    isRead: { type: Boolean, default: false }
+    isRead: { type: Boolean, default: false },
+    // Thêm trường người được giao việc
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, 
+    assignedByName: { type: String } // Tên người giao việc (Admin)
 }, { timestamps: true });
 const Incident = mongoose.models.Incident || mongoose.model('Incident', incidentSchema);
 
@@ -541,34 +547,60 @@ app.post('/api/incidents', authenticateToken, async (req, res) => {
     }
 });
 
-app.get('/api/incidents', authenticateToken, async (req, res) => {
+pp.get('/api/incidents', authenticateToken, async (req, res) => {
     try {
         let query = {};
+        
+        // 1. Nếu là User (Khoa): Chỉ thấy của khoa mình
         if (req.user.role === 'user') {
             query.departmentKey = req.user.departmentKey;
         }
-        const incidents = await Incident.find(query).sort({ createdAt: -1 });
+        // 2. Nếu là Technician (Kỹ sư): Chỉ thấy việc ĐƯỢC GIAO cho mình
+        else if (req.user.role === 'technician') {
+            query.assignedTo = req.user.userId; // userId lấy từ token
+        }
+        // 3. Nếu là Admin: Thấy hết (query rỗng)
+
+        const incidents = await Incident.find(query)
+            .populate('assignedTo', 'fullName avatar') // Lấy thêm thông tin kỹ sư để hiển thị
+            .sort({ createdAt: -1 });
+            
         res.json(incidents);
     } catch (error) {
-        console.error("Lỗi khi lấy danh sách sự cố:", error);
-        res.status(500).json({ message: 'Lỗi server khi lấy danh sách sự cố', error: error.message });
+        console.error("Lỗi lấy danh sách sự cố:", error);
+        res.status(500).json({ message: 'Lỗi server.' });
     }
 });
 
-app.put('/api/incidents/:id', authenticateToken, isAdmin, async (req, res) => {
+app.put('/api/incidents/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const { status, notes } = req.body;
-        const updateData = { status, notes, isRead: true };
+        
+        // Kiểm tra quyền: Chỉ Admin hoặc Kỹ sư được giao việc mới được update
+        const incident = await Incident.findById(id);
+        if (!incident) return res.status(404).json({ message: "Không tìm thấy sự cố." });
+
+        if (req.user.role === 'technician' && incident.assignedTo?.toString() !== req.user.userId) {
+             return res.status(403).json({ message: "Bạn không được giao xử lý sự cố này." });
+        }
+
+        const updateData = { status, notes };
+        
+        // Nếu chuyển sang hoàn thành thì thêm thời gian
         if (status === 'resolved') {
             updateData.resolvedAt = new Date();
         }
+        
+        // Admin xem là đã đọc
+        if (req.user.role === 'admin') {
+            updateData.isRead = true;
+        }
+
         const updatedIncident = await Incident.findByIdAndUpdate(id, updateData, { new: true });
-        if (!updatedIncident) return res.status(404).json({ message: "Không tìm thấy báo cáo sự cố." });
         res.json(updatedIncident);
     } catch (error) {
-        console.error("Lỗi khi cập nhật sự cố:", error);
-        res.status(500).json({ message: 'Lỗi server khi cập nhật sự cố', error: error.message });
+        res.status(500).json({ message: 'Lỗi cập nhật sự cố.' });
     }
 });
 
@@ -828,6 +860,78 @@ app.delete('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
         res.json({ message: 'Xóa người dùng thành công.' });
     } catch (error) {
         res.status(500).json({ message: 'Lỗi server khi xóa người dùng.' });
+    }
+});
+
+// --- API MỚI: TẠO TÀI KHOẢN KỸ SƯ (CÓ UPLOAD AVATAR) ---
+app.post('/api/technicians', authenticateToken, isAdmin, upload.single('avatar'), async (req, res) => {
+    try {
+        const { username, password, fullName } = req.body;
+        if (!username || !password || !fullName) {
+            return res.status(400).json({ message: "Vui lòng nhập đủ: Tên đăng nhập, Mật khẩu, Họ tên." });
+        }
+
+        const existingUser = await User.findOne({ username });
+        if (existingUser) return res.status(400).json({ message: "Tên đăng nhập đã tồn tại." });
+
+        let avatarUrl = null;
+        // Xử lý upload ảnh nếu có
+        if (req.file) {
+            const uploadResult = await new Promise((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream(
+                    { folder: 'avatars', resource_type: 'image' },
+                    (error, result) => { if (error) reject(error); else resolve(result); }
+                );
+                uploadStream.end(req.file.buffer);
+            });
+            avatarUrl = uploadResult.secure_url;
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 12);
+        const newTech = new User({
+            username,
+            password: hashedPassword,
+            role: 'technician',
+            fullName,
+            avatar: avatarUrl
+        });
+        await newTech.save();
+        res.status(201).json(newTech);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi tạo kỹ sư.', error: error.message });
+    }
+});
+
+// --- API MỚI: LẤY DANH SÁCH KỸ SƯ (ĐỂ ADMIN CHỌN) ---
+app.get('/api/technicians', authenticateToken, async (req, res) => {
+    try {
+        // Chỉ lấy role technician, trả về id, username, fullName, avatar
+        const techs = await User.find({ role: 'technician' }).select('_id username fullName avatar');
+        res.json(techs);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi lấy danh sách kỹ sư.' });
+    }
+});
+
+// --- API MỚI: PHÂN CÔNG SỰ CỐ (ASSIGN) ---
+app.put('/api/incidents/assign/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { assignedToId, notes } = req.body; // ID của kỹ sư được chọn và ghi chú
+
+        const updateData = {
+            status: 'in_progress',
+            assignedTo: assignedToId,
+            assignedByName: req.user.username, // Lưu tên admin đã giao việc
+            notes: notes // Ghi chú của Admin (Kỹ sư trưởng)
+        };
+
+        const incident = await Incident.findByIdAndUpdate(id, updateData, { new: true });
+        if (!incident) return res.status(404).json({ message: "Không tìm thấy sự cố." });
+        
+        res.json(incident);
+    } catch (error) {
+        res.status(500).json({ message: 'Lỗi phân công.' });
     }
 });
 
