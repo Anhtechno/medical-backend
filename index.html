@@ -1528,11 +1528,21 @@ if (response.status === 403) {
         const assignedInfo = inc.assignedTo ? `<br><small style="color:#007bff"><i class="fas fa-user-hard-hat"></i> ${inc.assignedTo.fullName}</small>` : '';
 
         // ADMIN: Nếu mới -> Hiện nút Giao việc. Nếu đang xử lý -> Hiện ai đang làm.
-        if (inc.status === 'new') {
-            actionButtons = `<button class="btn-assign" data-id="${inc._id}" style="background-color: #6f42c1; color: white; border: none; padding: 6px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px;"><i class="fas fa-tasks"></i> Giao việc</button>`;
-        } else if (inc.status === 'in_progress') {
+        // 1. Nếu là Mới HOẶC (Đang xử lý nhưng chưa ai nhận - Sự cố cũ bị kẹt)
+        if (inc.status === 'new' || (inc.status === 'in_progress' && !inc.assignedTo)) {
+            const btnLabel = inc.status === 'new' ? 'Giao việc' : 'Giao lại (Cứu hộ)';
+            const btnColor = inc.status === 'new' ? '#6f42c1' : '#dc3545'; // Màu Tím (Mới) hoặc Đỏ (Cứu hộ)
+            
+            actionButtons = `<button class="btn-assign" data-id="${inc._id}" style="background-color: ${btnColor}; color: white; border: none; padding: 6px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px;">
+                                <i class="fas fa-tasks"></i> ${btnLabel}
+                             </button>`;
+        } 
+        // 2. Nếu đang xử lý và ĐÃ có người nhận chuẩn chỉ
+        else if (inc.status === 'in_progress') {
             actionButtons = `<span style="color: #17a2b8; font-size: 12px; font-style: italic;">Đang xử lý bởi:<br><b>${inc.assignedTo ? inc.assignedTo.fullName : 'Kỹ sư'}</b></span>`;
-        } else if (inc.status === 'resolved') {
+        } 
+        // 3. Đã hoàn thành
+        else if (inc.status === 'resolved') {
             actionButtons = `<button class="delete-btn incident-delete-btn" data-id="${inc._id}"><i class="fas fa-trash"></i></button>`;
         }
 
