@@ -243,7 +243,10 @@ const isAdmin = (req, res, next) => {
 
 // 8. API QUẢN LÝ THIẾT BỊ
 app.get('/api/departments', authenticateToken, (req, res) => {
-    if (req.user.role === 'admin') return res.json(departments);
+    // Cho phép cả Admin VÀ Technician lấy full danh sách khoa
+    if (req.user.role === 'admin' || req.user.role === 'technician') return res.json(departments); 
+    
+    // ... phần dưới giữ nguyên ...
     const userDept = {};
     if (req.user.departmentKey && departments[req.user.departmentKey]) {
         userDept[req.user.departmentKey] = departments[req.user.departmentKey];
