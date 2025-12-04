@@ -116,18 +116,6 @@
             text-shadow: 0 0 2px rgba(255,255,255,0.8);
             pointer-events: none; /* Để click xuyên qua text xuống container */
         }
-        .btn-assign {
-            background-color: #6f42c1; /* Màu tím */
-            color: white;
-            border: none;
-            padding: 6px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-right: 5px;
-        }
-        .btn-assign:hover {
-            background-color: #59359a;
-        }
         .action-btn-group button { padding: 6px 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: all 0.3s; margin: 0 2px; }
         .edit-btn, .action-btn-group .resolve-btn { background-color: var(--info-color); color: white; } .edit-btn:hover, .resolve-btn:hover { background-color: #138496; }
         .delete-btn { background-color: var(--danger-color); color: white; } .delete-btn:hover { background-color: #c82333; }
@@ -1541,7 +1529,7 @@ if (response.status === 403) {
 
         // ADMIN: Nếu mới -> Hiện nút Giao việc. Nếu đang xử lý -> Hiện ai đang làm.
         if (inc.status === 'new') {
-            actionButtons = `<button class="btn-assign" onclick="openAssignModal('${inc._id}')"><i class="fas fa-tasks"></i> Giao việc</button>`;
+            actionButtons = `<button class="btn-assign" data-id="${inc._id}" style="background-color: #6f42c1; color: white; border: none; padding: 6px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px;"><i class="fas fa-tasks"></i> Giao việc</button>`;
         } else if (inc.status === 'in_progress') {
             actionButtons = `<span style="color: #17a2b8; font-size: 12px; font-style: italic;">Đang xử lý bởi:<br><b>${inc.assignedTo ? inc.assignedTo.fullName : 'Kỹ sư'}</b></span>`;
         } else if (inc.status === 'resolved') {
@@ -1615,55 +1603,67 @@ if (response.status === 403) {
         });
         
         dom.incidentTableBodyAdmin.addEventListener('click', async (e) => {
-    const target = e.target.closest('button');
-    if (!target) return;
+            // Tìm xem người dùng có bấm vào nút nào không (kể cả bấm vào icon bên trong nút)
+            const target = e.target.closest('button');
+            if (!target) return;
 
-    const incidentId = target.dataset.id;
+            const incidentId = target.dataset.id;
 
-    // Xử lý nút XỬ LÝ SỰ CỐ
-    if (target.classList.contains('resolve-btn')) {
-        const newStatus = target.dataset.newStatus;
-        const { value: text } = await Swal.fire({
-            input: 'textarea',
-            inputLabel: 'Ghi chú',
-            inputPlaceholder: 'Nhập ghi chú xử lý...',
-            inputAttributes: { 'aria-label': 'Type your message here' },
-            showCancelButton: true,
-            cancelButtonText: 'Hủy bỏ'
-        });
+            // TRƯỜNG HỢP 1: Bấm nút GIAO VIỆC (MỚI)
+            if (target.classList.contains('btn-assign')) {
+                openAssignModal(incidentId); // Gọi hàm mở modal
+                return;
+            }
 
-        if (text) {
-            try {
-                await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'PUT', body: JSON.stringify({ status: newStatus, notes: text }) });
-                renderIncidentView();
-                fetchNotifications();
-            } catch(error) { handleApiError(error, "Cập nhật sự cố"); }
-        }
-    }
-
-    // Xử lý nút XÓA SỰ CỐ (LOGIC MỚI)
-    if (target.classList.contains('incident-delete-btn')) {
-        Swal.fire({
-            title: 'Bạn chắc chắn không?',
-            text: "Báo cáo này sẽ bị xóa vĩnh viễn!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            confirmButtonText: 'Vâng, xóa nó!',
-            cancelButtonText: 'Hủy'
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                try {
-                    await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'DELETE' });
-                    Swal.fire('Đã xóa!', 'Báo cáo sự cố đã được xóa.', 'success');
-                    renderIncidentView(); // Tải lại danh sách
-                } catch (error) {
-                    handleApiError(error, "Xóa báo cáo sự cố");
+            // TRƯỜNG HỢP 2: Bấm nút XỬ LÝ / HOÀN THÀNH (CŨ)
+            if (target.classList.contains('resolve-btn')) {
+                const newStatus = target.dataset.newStatus;
+                // Nếu là Kỹ sư bấm Hoàn thành -> Không cần nhập nhiều, xác nhận luôn
+                if (userProfile.role === 'technician') {
+                    Swal.fire({
+                        title: 'Xác nhận hoàn thành?',
+                        text: "Bạn đã xử lý xong sự cố này?",
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonText: 'Đúng, đã xong!'
+                    }).then(async (result) => {
+                        if (result.isConfirmed) {
+                            try {
+                                await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { 
+                                    method: 'PUT', 
+                                    body: JSON.stringify({ status: 'resolved' }) 
+                                });
+                                Swal.fire('Thành công', 'Đã báo cáo hoàn thành!', 'success');
+                                renderIncidentView();
+                            } catch(e) { handleApiError(e, "Hoàn thành"); }
+                        }
+                    });
+                } else {
+                    // Logic cũ cho Admin nhập ghi chú nhanh (nếu cần)
+                    // ...
                 }
             }
+
+            // TRƯỜNG HỢP 3: Bấm nút XÓA
+            if (target.classList.contains('incident-delete-btn')) {
+                Swal.fire({
+                    title: 'Xóa báo cáo?',
+                    text: "Không thể hoàn tác!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#d33',
+                    confirmButtonText: 'Xóa'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            await fetchWithAuth(`${API_BASE_URL}/api/incidents/${incidentId}`, { method: 'DELETE' });
+                            Swal.fire('Đã xóa', '', 'success');
+                            renderIncidentView();
+                        } catch (error) { handleApiError(error, "Xóa"); }
+                    }
+                });
+            }
         });
-    }
-});
         
         document.getElementById('print-report-btn').addEventListener('click', () => {
             const selectedEquipmentOption = dom.incidentEquipmentSelect.options[dom.incidentEquipmentSelect.selectedIndex];
