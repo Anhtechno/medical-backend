@@ -721,7 +721,7 @@ app.delete('/api/maintenance/:id', authenticateToken, isAdmin, async (req, res) 
 });
 
 // 10.5. API CHO TRANG DASHBOARD
-app.get('/api/dashboard/summary', authenticateToken, isAdmin, async (req, res) => {
+app.get('/api/dashboard/summary', authenticateToken, async (req, res) => {
     try {
         const [
             equipmentStats,
@@ -770,7 +770,7 @@ app.get('/api/dashboard/summary', authenticateToken, isAdmin, async (req, res) =
 });
 
 // 10.6. API CHO TRANG HỒ SƠ THIẾT BỊ
-app.get('/api/equipment/profile/:serial', authenticateToken, isAdmin, async (req, res) => {
+app.get('/api/equipment/profile/:serial', authenticateToken, async (req, res) => {
     try {
         const { serial } = req.params;
         const equipment = await Equipment.findOne({ serial }).lean();

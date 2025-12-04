@@ -2053,7 +2053,7 @@ if (response.status === 403) {
         let equipmentChartInstance = null;
 
         async function renderDashboardView() {
-            if (userProfile.role !== 'admin') {
+            if (userProfile.role !== 'admin' && userProfile.role !== 'technician') {
                 dom.dashboardView.innerHTML = '<p>Bạn không có quyền truy cập trang này.</p>';
                 return;
             }
@@ -2484,11 +2484,8 @@ if (response.status === 403) {
         showMainAppView();
         
         // Phân luồng hiển thị sau khi đăng nhập
-        if (userProfile.role === 'admin') {
-            switchView('dashboard'); 
-        } else {
-            switchView('equipment');
-        }
+        if (userProfile.role === 'admin' || userProfile.role === 'technician') switchView('dashboard');
+                else switchView('equipment');
 
     } catch (error) { logout(); }
 }
