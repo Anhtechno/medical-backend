@@ -547,7 +547,7 @@ app.post('/api/incidents', authenticateToken, async (req, res) => {
     }
 });
 
-pp.get('/api/incidents', authenticateToken, async (req, res) => {
+app.get('/api/incidents', authenticateToken, async (req, res) => {
     try {
         let query = {};
         
