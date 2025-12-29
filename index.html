@@ -217,6 +217,123 @@
         cursor: pointer;
         user-select: none;
         }
+        /* --- CHATBOT WIDGET CSS --- */
+#chatbot-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    font-family: 'Roboto', sans-serif;
+}
+
+#chat-trigger-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #007bff, #00c6ff);
+    color: white;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s;
+}
+
+#chat-trigger-btn:hover {
+    transform: scale(1.1);
+}
+
+#chat-window {
+    display: none;
+    width: 350px;
+    height: 450px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
+    flex-direction: column;
+    overflow: hidden;
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    border: 1px solid #eee;
+}
+
+.chat-header {
+    background: var(--primary-color);
+    color: white;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+}
+
+.chat-header button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+#chat-messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: #f8f9fa;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.message {
+    max-width: 80%;
+    padding: 10px 12px;
+    border-radius: 15px;
+    font-size: 14px;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.message.bot {
+    background: #e9ecef;
+    color: #333;
+    align-self: flex-start;
+    border-bottom-left-radius: 2px;
+}
+
+.message.user {
+    background: var(--primary-color);
+    color: white;
+    align-self: flex-end;
+    border-bottom-right-radius: 2px;
+}
+
+.chat-input-area {
+    padding: 10px;
+    border-top: 1px solid #eee;
+    display: flex;
+    gap: 5px;
+    background: white;
+}
+
+.chat-input-area input {
+    flex: 1;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    padding: 8px 15px;
+    outline: none;
+}
+
+.chat-input-area button {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    cursor: pointer;
+}
     </style>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
@@ -446,6 +563,25 @@
         <button class="action-button preset-btn" data-range="this-year" style="background-color: #6c757d; padding: 6px 12px; font-size: 12px;">Năm nay</button>
     </div>
 </div>
+
+    <div id="chatbot-container">
+        <div id="chat-window">
+            <div class="chat-header">
+                <span><i class="fas fa-robot"></i> Trợ lý ảo</span>
+                <button onclick="toggleChat()">×</button>
+            </div>
+            <div id="chat-messages">
+                <div class="message bot">Xin chào! Tôi có thể giúp gì về tình trạng thiết bị hôm nay?</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="Hỏi gì đó (VD: Máy nào đang hỏng?)..." onkeypress="handleChatEnter(event)">
+                <button onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+        <button id="chat-trigger-btn" onclick="toggleChat()">
+            <i class="fas fa-comment-dots"></i>
+        </button>
+    </div>
 
     
 
@@ -3583,6 +3719,61 @@ function updateUserUIByRole() {
             renderIncidentView(); // Reload lại bảng
         } catch (err) { handleApiError(err, 'Giao việc'); }
     });
+
+    // --- CHATBOT LOGIC ---
+    function toggleChat() {
+        const win = document.getElementById('chat-window');
+        if (win.style.display === 'flex') {
+            win.style.display = 'none';
+        } else {
+            win.style.display = 'flex';
+            document.getElementById('chatInput').focus();
+        }
+    }
+
+    function handleChatEnter(e) {
+        if (e.key === 'Enter') sendMessage();
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const msg = input.value.trim();
+        if (!msg) return;
+
+        // 1. Hiển thị tin nhắn người dùng
+        addMessage(msg, 'user');
+        input.value = '';
+
+        // 2. Hiển thị trạng thái đang nhập...
+        const loadingId = addMessage('Đang suy nghĩ...', 'bot', true);
+
+        try {
+            // 3. Gửi lên Server
+            const res = await fetchWithAuth(`${API_BASE_URL}/api/chat`, {
+                method: 'POST',
+                body: JSON.stringify({ message: msg })
+            });
+            const data = await res.json();
+            
+            // 4. Xóa loading, hiện câu trả lời
+            document.getElementById(loadingId).remove();
+            addMessage(data.reply, 'bot');
+        } catch (e) {
+            document.getElementById(loadingId).remove();
+            addMessage('Lỗi kết nối AI.', 'bot');
+        }
+    }
+
+    function addMessage(text, sender, isLoading = false) {
+        const div = document.createElement('div');
+        div.className = `message ${sender}`;
+        div.innerText = text;
+        if (isLoading) div.id = 'msg-loading-' + Date.now();
+        const container = document.getElementById('chat-messages');
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight; // Tự cuộn xuống dưới
+        return div.id;
+    }
 
 
         checkAuth();

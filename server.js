@@ -12,7 +12,8 @@ const jwt = require('jsonwebtoken');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
-
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Cấu hình Cloudinary bằng các biến môi trường chúng ta đã thêm
 cloudinary.config({
@@ -1372,6 +1373,69 @@ app.delete('/api/documents/:documentId', authenticateToken, isAdmin, async (req,
         res.status(500).json({ message: 'Lỗi server khi xóa tài liệu.' });
     }
 });
+
+// --- API CHAT VỚI AI ---
+app.post('/api/chat', authenticateToken, async (req, res) => {
+    try {
+        const { message } = req.body;
+        
+        // 1. Lấy dữ liệu mới nhất từ DB
+        const dbContext = await getSystemContext();
+        
+        // 2. Cấu hình Model
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        
+        // 3. Tạo Prompt (Câu lệnh gửi cho AI)
+        const prompt = `
+        ${dbContext}
+        ----------------
+        CÂU HỎI CỦA NGƯỜI DÙNG: "${message}"
+        TRẢ LỜI:`;
+
+        // 4. Gọi Google Gemini
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        
+        res.json({ reply: text });
+    } catch (error) {
+        console.error("Lỗi AI:", error);
+        res.status(500).json({ reply: "Xin lỗi, AI đang bị quá tải. Vui lòng thử lại sau." });
+    }
+});
+
+// --- HÀM HỖ TRỢ AI: LẤY DỮ LIỆU TỔNG QUAN ---
+async function getSystemContext() {
+    try {
+        // 1. Lấy thống kê thiết bị
+        const equipment = await Equipment.find().select('name serial status department dailyUsage').lean();
+        const total = equipment.length;
+        const broken = equipment.filter(e => e.status === 'inactive').map(e => `${e.name} (${e.department})`);
+        
+        // 2. Lấy sự cố đang xử lý
+        const incidents = await Incident.find({ status: 'in_progress' })
+            .populate('assignedTo', 'fullName')
+            .select('equipmentName departmentKey problemDescription assignedTo')
+            .lean();
+            
+        // 3. Tạo đoạn văn bản tóm tắt dữ liệu để dạy cho AI
+        const contextText = `
+        DỮ LIỆU HỆ THỐNG HIỆN TẠI:
+        - Tổng số thiết bị: ${total} máy.
+        - Danh sách máy đang HỎNG/NGỪNG HOẠT ĐỘNG: ${broken.join(', ') || 'Không có'}.
+        - Các sự cố đang chờ xử lý:
+          ${incidents.map(i => `- Máy ${i.equipmentName} tại ${departments[i.departmentKey]}: Lỗi "${i.problemDescription}" (Kỹ sư phụ trách: ${i.assignedTo ? i.assignedTo.fullName : 'Chưa giao'}).`).join('\n          ')}
+        
+        Nhiệm vụ của bạn là Trợ lý ảo quản lý thiết bị y tế. Hãy trả lời câu hỏi của người dùng dựa trên dữ liệu trên. 
+        Nếu không có trong dữ liệu, hãy nói là không tìm thấy thông tin. Trả lời ngắn gọn, súc tích bằng tiếng Việt.
+        `;
+        
+        return contextText;
+    } catch (error) {
+        console.error(error);
+        return "Không lấy được dữ liệu hệ thống.";
+    }
+}
 
 
 
