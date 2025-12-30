@@ -218,88 +218,88 @@
         user-select: none;
         }
         /* --- CHATBOT WIDGET CSS --- */
-#chatbot-container {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 9999;
-    font-family: 'Roboto', sans-serif;
-}
+        #chatbot-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        font-family: 'Roboto', sans-serif;
+        }
 
-#chat-trigger-btn {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #007bff, #00c6ff);
-    color: white;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    transition: transform 0.3s;
-}
+        #chat-trigger-btn {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #007bff, #00c6ff);
+        color: white;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s;
+        }
 
-#chat-trigger-btn:hover {
-    transform: scale(1.1);
-}
+        #chat-trigger-btn:hover {
+        transform: scale(1.1);
+        }
 
-#chat-window {
-    display: none;
-    width: 350px;
-    height: 450px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
-    flex-direction: column;
-    overflow: hidden;
-    position: absolute;
-    bottom: 80px;
-    right: 0;
-    border: 1px solid #eee;
-}
+        #chat-window {
+        display: none;
+        width: 350px;
+        height: 450px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
+        flex-direction: column;
+        overflow: hidden;
+        position: absolute;
+        bottom: 80px;
+        right: 0;
+        border: 1px solid #eee;
+        }
 
-.chat-header {
-    background: var(--primary-color);
-    color: white;
-    padding: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-weight: bold;
-}
+        .chat-header {
+        background: var(--primary-color);
+        color: white;
+        padding: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: bold;
+        }
 
-.chat-header button {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 20px;
-    cursor: pointer;
-}
+        .chat-header button {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 20px;
+        cursor: pointer;
+        }
 
-#chat-messages {
-    flex: 1;
-    padding: 15px;
-    overflow-y: auto;
-    background: #f8f9fa;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
+        #chat-messages {
+        flex: 1;
+        padding: 15px;
+        overflow-y: auto;
+        background: #f8f9fa;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        }
 
-.message {
-    max-width: 80%;
-    padding: 10px 12px;
-    border-radius: 15px;
-    font-size: 14px;
-    line-height: 1.4;
-    word-wrap: break-word;
-}
+        .message {
+        max-width: 80%;
+        padding: 10px 12px;
+        border-radius: 15px;
+        font-size: 14px;
+        line-height: 1.4;
+        word-wrap: break-word;
+        }
 
-.message.bot {
-    background: #e9ecef;
-    color: #333;
-    align-self: flex-start;
-    border-bottom-left-radius: 2px;
+        .message.bot {
+        background: #e9ecef;
+        color: #333;
+        align-self: flex-start;
+        border-bottom-left-radius: 2px;
 }
 
 .message.user {
@@ -564,24 +564,7 @@
     </div>
 </div>
 
-    <div id="chatbot-container">
-        <div id="chat-window">
-            <div class="chat-header">
-                <span><i class="fas fa-robot"></i> Trợ lý ảo</span>
-                <button onclick="toggleChat()">×</button>
-            </div>
-            <div id="chat-messages">
-                <div class="message bot">Xin chào! Tôi có thể giúp gì về tình trạng thiết bị hôm nay?</div>
-            </div>
-            <div class="chat-input-area">
-                <input type="text" id="chatInput" placeholder="Hỏi gì đó (VD: Máy nào đang hỏng?)..." onkeypress="handleChatEnter(event)">
-                <button onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
-            </div>
-        </div>
-        <button id="chat-trigger-btn" onclick="toggleChat()">
-            <i class="fas fa-comment-dots"></i>
-        </button>
-    </div>
+    
 
     
 
@@ -814,11 +797,28 @@
     </div>
 </div>
             <div id="image-zoom-modal" class="modal">
-                <span class="close-btn" id="close-zoom-modal">&times;</span>
+                <span class="nclose-btn" id="close-zoom-modal">&times;</span>
                 <img class="modal-content" id="zoomed-image" style="max-width: 80%; max-height: 80%; border-radius: 10px;">
             <div id="zoom-caption" style="text-align: center; color: #ccc; padding: 10px 0; font-size: 16px;"></div>
 </div>
         <footer><div class="container"><p>© 2025 Hệ Thống Quản Lý Trang Thiết Bị Y Tế. Tối ưu hóa cho hoạt động bệnh viện.</p></div></footer>
+    </div><div id="chatbot-container">
+        <div id="chat-window">
+            <div class="chat-header">
+                <span><i class="fas fa-robot"></i> Trợ lý ảo</span>
+                <button onclick="toggleChat()">×</button>
+            </div>
+            <div id="chat-messages">
+                <div class="message bot">Xin chào! Tôi có thể giúp gì về tình trạng thiết bị hôm nay?</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="Hỏi gì đó (VD: Máy nào đang hỏng?)..." onkeypress="handleChatEnter(event)">
+                <button onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+           </div>
+        </div>
+        <button id="chat-trigger-btn" onclick="toggleChat()">
+            <i class="fas fa-comment-dots"></i>
+        </button>
     </div>
     
 <script>
