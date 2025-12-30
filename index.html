@@ -3774,6 +3774,11 @@ function updateUserUIByRole() {
         container.scrollTop = container.scrollHeight; // Tự cuộn xuống dưới
         return div.id;
     }
+    // --- BỔ SUNG ĐOẠN NÀY ĐỂ NÚT BẤM HOẠT ĐỘNG ---
+    window.toggleChat = toggleChat;
+    window.handleChatEnter = handleChatEnter;
+    window.sendMessage = sendMessage;
+    // ----------------------------------------------
 
 
         checkAuth();
