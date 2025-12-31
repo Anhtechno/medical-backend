@@ -1383,7 +1383,7 @@ app.post('/api/chat', authenticateToken, async (req, res) => {
         const dbContext = await getSystemContext();
         
         // 2. Cấu hình Model
-        const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
         
         // 3. Tạo Prompt (Câu lệnh gửi cho AI)
         const prompt = `
