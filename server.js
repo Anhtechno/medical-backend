@@ -1374,7 +1374,7 @@ app.delete('/api/documents/:documentId', authenticateToken, isAdmin, async (req,
     }
 });
 
-// --- API CHAT VỚI AI (SỬA LỖI 404: DÙNG MODEL GEMINI-PRO) ---
+/// --- API CHAT VỚI AI (SỬA LỖI 404: DÙNG MODEL GEMINI-PRO) ---
 app.post('/api/chat', authenticateToken, async (req, res) => {
     try {
         const { message } = req.body;
