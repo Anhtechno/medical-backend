@@ -12,8 +12,8 @@ const jwt = require('jsonwebtoken');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+//const { GoogleGenerativeAI } = require("@google/generative-ai");
+//const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Cấu hình Cloudinary bằng các biến môi trường chúng ta đã thêm
 cloudinary.config({
@@ -1374,33 +1374,56 @@ app.delete('/api/documents/:documentId', authenticateToken, isAdmin, async (req,
     }
 });
 
-// --- API CHAT VỚI AI ---
+// --- API CHAT VỚI AI (PHIÊN BẢN GỌI TRỰC TIẾP - KHÔNG DÙNG THƯ VIỆN) ---
 app.post('/api/chat', authenticateToken, async (req, res) => {
     try {
         const { message } = req.body;
         
-        // 1. Lấy dữ liệu mới nhất từ DB
+        // 1. Lấy dữ liệu bối cảnh từ DB (Hàm cũ của bạn)
         const dbContext = await getSystemContext();
-        
-        // 2. Cấu hình Model
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        
-        // 3. Tạo Prompt (Câu lệnh gửi cho AI)
-        const prompt = `
-        ${dbContext}
-        ----------------
-        CÂU HỎI CỦA NGƯỜI DÙNG: "${message}"
-        TRẢ LỜI:`;
 
-        // 4. Gọi Google Gemini
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
+        // 2. Cấu hình gọi thẳng sang Google
+        const API_KEY = process.env.GEMINI_API_KEY;
+        const MODEL_NAME = "gemini-1.5-flash"; // Model mới nhất, nhanh nhất
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
+
+        // 3. Tạo nội dung gửi đi (Cấu trúc JSON chuẩn của Google)
+        const payload = {
+            contents: [
+                {
+                    parts: [
+                        { text: `${dbContext}\n----------------\nCÂU HỎI CỦA NGƯỜI DÙNG: "${message}"\nTRẢ LỜI NGẮN GỌN:` }
+                    ]
+                }
+            ]
+        };
+
+        // 4. Gọi fetch
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        // 5. Xử lý lỗi nếu Google từ chối
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Google API Error Detail:", errorText);
+            throw new Error(`Google từ chối: ${response.status} - ${response.statusText}`);
+        }
+
+        // 6. Lấy kết quả
+        const data = await response.json();
+        const replyText = data.candidates[0].content.parts[0].text;
         
-        res.json({ reply: text });
+        res.json({ reply: replyText });
+
     } catch (error) {
-        console.error("Lỗi AI:", error);
-        res.status(500).json({ reply: "Xin lỗi, AI đang bị quá tải. Vui lòng thử lại sau." });
+        console.error("Lỗi AI (Direct Fetch):", error);
+        // Trả về lỗi chi tiết để bạn dễ debug trên web
+        res.status(500).json({ reply: `Hệ thống đang bận. Lỗi chi tiết: ${error.message}` });
     }
 });
 
