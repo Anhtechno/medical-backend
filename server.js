@@ -1374,55 +1374,41 @@ app.delete('/api/documents/:documentId', authenticateToken, isAdmin, async (req,
     }
 });
 
-// --- API CHAT VỚI AI (PHIÊN BẢN GỌI TRỰC TIẾP - KHÔNG DÙNG THƯ VIỆN) ---
+// --- API CHAT VỚI AI (SỬA LỖI 404: DÙNG MODEL GEMINI-PRO) ---
 app.post('/api/chat', authenticateToken, async (req, res) => {
     try {
         const { message } = req.body;
-        
-        // 1. Lấy dữ liệu bối cảnh từ DB (Hàm cũ của bạn)
         const dbContext = await getSystemContext();
 
-        // 2. Cấu hình gọi thẳng sang Google
+        // CẤU HÌNH GỌI TRỰC TIẾP
         const API_KEY = process.env.GEMINI_API_KEY;
-        const MODEL_NAME = "gemini-1.5-flash"; // Model mới nhất, nhanh nhất
+        // ĐỔI SANG 'gemini-pro' ĐỂ ĐẢM BẢO KHÔNG BỊ LỖI 404
+        const MODEL_NAME = "gemini-pro"; 
         const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
 
-        // 3. Tạo nội dung gửi đi (Cấu trúc JSON chuẩn của Google)
         const payload = {
-            contents: [
-                {
-                    parts: [
-                        { text: `${dbContext}\n----------------\nCÂU HỎI CỦA NGƯỜI DÙNG: "${message}"\nTRẢ LỜI NGẮN GỌN:` }
-                    ]
-                }
-            ]
+            contents: [{
+                parts: [{ text: `${dbContext}\n----------------\nCÂU HỎI: "${message}"\nTRẢ LỜI NGẮN GỌN:` }]
+            }]
         };
 
-        // 4. Gọi fetch
         const response = await fetch(API_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
 
-        // 5. Xử lý lỗi nếu Google từ chối
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("Google API Error Detail:", errorText);
             throw new Error(`Google từ chối: ${response.status} - ${response.statusText}`);
         }
 
-        // 6. Lấy kết quả
         const data = await response.json();
         const replyText = data.candidates[0].content.parts[0].text;
-        
         res.json({ reply: replyText });
 
     } catch (error) {
-        console.error("Lỗi AI (Direct Fetch):", error);
-        // Trả về lỗi chi tiết để bạn dễ debug trên web
+        console.error("Lỗi AI:", error);
         res.status(500).json({ reply: `Hệ thống đang bận. Lỗi chi tiết: ${error.message}` });
     }
 });
