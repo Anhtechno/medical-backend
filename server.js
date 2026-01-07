@@ -1383,7 +1383,7 @@ app.post('/api/chat', authenticateToken, async (req, res) => {
         // CẤU HÌNH GỌI TRỰC TIẾP
         const API_KEY = process.env.GEMINI_API_KEY;
         // ĐỔI SANG 'gemini-pro' ĐỂ ĐẢM BẢO KHÔNG BỊ LỖI 404
-        const MODEL_NAME = "gemini-pro"; 
+        const MODEL_NAME = "gemini-2.5-flash"; 
         const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
 
         const payload = {
@@ -1468,8 +1468,6 @@ app.get('/api/test-models', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
-
 
 // 11. KHỞI ĐỘNG SERVER
 app.listen(PORT, () => {
