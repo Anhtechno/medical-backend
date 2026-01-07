@@ -1446,6 +1446,29 @@ async function getSystemContext() {
     }
 }
 
+// --- API KIỂM TRA MODEL (CHẨN ĐOÁN LỖI) ---
+app.get('/api/test-models', async (req, res) => {
+    try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        // Gọi API liệt kê danh sách model
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        const data = await response.json();
+        
+        // Lọc ra các model dùng được cho chatbot (generateContent)
+        const chatModels = data.models ? data.models
+            .filter(m => m.supportedGenerationMethods.includes("generateContent"))
+            .map(m => m.name) : [];
+
+        res.json({ 
+            message: "Danh sách model khả dụng cho Key của bạn",
+            models: chatModels,
+            fullData: data 
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 
 // 11. KHỞI ĐỘNG SERVER
