@@ -805,8 +805,13 @@
     </div><div id="chatbot-container">
         <div id="chat-window">
             <div class="chat-header">
-                <span><i class="fas fa-robot"></i> Trợ lý ảo</span>
-                <button onclick="toggleChat()">×</button>
+                <span><i class="fas fa-robot"></i> Trợ lý ảo AI</span>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="clearChatHistory()" title="Xóa lịch sử chat" style="font-size: 16px;">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                    <button onclick="toggleChat()" style="font-size: 20px;">×</button>
+            </div>
             </div>
             <div id="chat-messages">
                 <div class="message bot">Xin chào! Tôi có thể giúp gì về tình trạng thiết bị hôm nay?</div>
@@ -3721,6 +3726,23 @@ function updateUserUIByRole() {
     });
 
     // --- CHATBOT LOGIC ---
+    const CHAT_HISTORY_KEY = 'hospital_chat_history'; // Tên khóa lưu trữ
+
+    // 1. Hàm khởi tạo: Tự động chạy khi web tải xong
+    function initChat() {
+        const history = localStorage.getItem(CHAT_HISTORY_KEY);
+        const container = document.getElementById('chat-messages');
+        
+        if (history) {
+            // Nếu có lịch sử cũ, xóa tin nhắn chào mặc định và tải lại
+            container.innerHTML = ''; 
+            const messages = JSON.parse(history);
+            messages.forEach(msg => {
+                addMessageToUI(msg.text, msg.sender, false);
+            });
+        }
+    }
+
     function toggleChat() {
         const win = document.getElementById('chat-window');
         if (win.style.display === 'flex') {
@@ -3728,6 +3750,9 @@ function updateUserUIByRole() {
         } else {
             win.style.display = 'flex';
             document.getElementById('chatInput').focus();
+            // Cuộn xuống dưới cùng khi mở
+            const container = document.getElementById('chat-messages');
+            container.scrollTop = container.scrollHeight;
         }
     }
 
@@ -3735,17 +3760,39 @@ function updateUserUIByRole() {
         if (e.key === 'Enter') sendMessage();
     }
 
+    // Hàm xóa lịch sử
+    function clearChatHistory() {
+        if(confirm('Bạn có chắc muốn xóa toàn bộ đoạn chat cũ không?')) {
+            localStorage.removeItem(CHAT_HISTORY_KEY);
+            document.getElementById('chat-messages').innerHTML = 
+                '<div class="message bot">Đã xóa lịch sử. Tôi có thể giúp gì cho bạn?</div>';
+        }
+    }
+
+    // Hàm lưu tin nhắn vào LocalStorage
+    function saveToHistory(text, sender) {
+        let history = localStorage.getItem(CHAT_HISTORY_KEY);
+        let messages = history ? JSON.parse(history) : [];
+        
+        // Giới hạn lưu 50 tin nhắn gần nhất để không bị nặng máy
+        if (messages.length > 50) messages.shift(); 
+        
+        messages.push({ text: text, sender: sender });
+        localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
+    }
+
     async function sendMessage() {
         const input = document.getElementById('chatInput');
         const msg = input.value.trim();
         if (!msg) return;
 
-        // 1. Hiển thị tin nhắn người dùng
-        addMessage(msg, 'user');
+        // 1. Hiển thị & Lưu tin nhắn người dùng
+        addMessageToUI(msg, 'user');
+        saveToHistory(msg, 'user'); // <--- LƯU
         input.value = '';
 
         // 2. Hiển thị trạng thái đang nhập...
-        const loadingId = addMessage('Đang suy nghĩ...', 'bot', true);
+        const loadingId = addMessageToUI('Đang suy nghĩ...', 'bot', true);
 
         try {
             // 3. Gửi lên Server
@@ -3755,30 +3802,47 @@ function updateUserUIByRole() {
             });
             const data = await res.json();
             
-            // 4. Xóa loading, hiện câu trả lời
+            // 4. Xóa loading, hiện câu trả lời & Lưu
             document.getElementById(loadingId).remove();
-            addMessage(data.reply, 'bot');
+            
+            const botReply = data.reply || 'Xin lỗi, tôi không hiểu.';
+            addMessageToUI(botReply, 'bot');
+            saveToHistory(botReply, 'bot'); // <--- LƯU
+
         } catch (e) {
-            document.getElementById(loadingId).remove();
-            addMessage('Lỗi kết nối AI.', 'bot');
+            if(document.getElementById(loadingId)) document.getElementById(loadingId).remove();
+            addMessageToUI('Lỗi kết nối AI.', 'bot');
         }
     }
 
-    function addMessage(text, sender, isLoading = false) {
+    // Hàm chỉ làm nhiệm vụ hiển thị (UI), tách biệt với logic lưu
+    function addMessageToUI(text, sender, isLoading = false) {
         const div = document.createElement('div');
         div.className = `message ${sender}`;
-        div.innerText = text;
+        
+        // Xử lý xuống dòng cho đẹp nếu AI trả về văn bản dài
+        if (!isLoading) {
+            div.innerHTML = text.replace(/\n/g, '<br>');
+        } else {
+            div.innerText = text;
+        }
+
         if (isLoading) div.id = 'msg-loading-' + Date.now();
+        
         const container = document.getElementById('chat-messages');
         container.appendChild(div);
-        container.scrollTop = container.scrollHeight; // Tự cuộn xuống dưới
+        container.scrollTop = container.scrollHeight; 
         return div.id;
     }
-    // --- BỔ SUNG ĐOẠN NÀY ĐỂ NÚT BẤM HOẠT ĐỘNG ---
+
+    // --- QUAN TRỌNG: GẮN HÀM VÀO WINDOW & KHỞI CHẠY ---
     window.toggleChat = toggleChat;
     window.handleChatEnter = handleChatEnter;
     window.sendMessage = sendMessage;
-    // ----------------------------------------------
+    window.clearChatHistory = clearChatHistory;
+    
+    // Gọi hàm load lịch sử ngay khi script chạy
+    initChat();
 
 
         checkAuth();
