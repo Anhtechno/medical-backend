@@ -14,7 +14,31 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 //const { GoogleGenerativeAI } = require("@google/generative-ai");
 //const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// --- CẤU HÌNH GỬI EMAIL ---
+const nodemailer = require('nodemailer');
 
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
+
+// Hàm gửi mail dùng chung
+async function sendNotificationEmail(toEmail, subject, htmlContent) {
+    try {
+        await transporter.sendMail({
+            from: '"Hệ thống QLTB Y Tế" <' + process.env.EMAIL_USER + '>',
+            to: toEmail,
+            subject: subject,
+            html: htmlContent
+        });
+        console.log(`Đã gửi mail tới ${toEmail}`);
+    } catch (error) {
+        console.error('Lỗi gửi mail:', error);
+    }
+}
 // Cấu hình Cloudinary bằng các biến môi trường chúng ta đã thêm
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -544,10 +568,34 @@ app.post('/api/incidents', authenticateToken, async (req, res) => {
             reportedBy: req.user.username
         });
         await newIncident.save();
-        res.status(201).json(newIncident);
+        // --- ĐOẠN CODE THÊM MỚI: GỬI MAIL THÔNG BÁO ---
+        
+        // 1. Tìm email của tất cả Admin
+        const admins = await User.find({ role: 'admin' }).select('email');
+        const adminEmails = admins.map(u => u.email).filter(e => e); // Lọc email rỗng
+
+        if (adminEmails.length > 0) {
+            const emailSubject = `[BÁO ĐỘNG] Máy ${newIncident.equipmentName} gặp sự cố!`;
+            const emailContent = `
+                <h3>Thông báo sự cố mới</h3>
+                <p><b>Thiết bị:</b> ${newIncident.equipmentName}</p>
+                <p><b>Khoa phòng:</b> ${newIncident.departmentKey}</p>
+                <p><b>Người báo:</b> ${req.user.fullName}</p>
+                <p><b>Mô tả lỗi:</b> <span style="color:red">${newIncident.problemDescription}</span></p>
+                <hr>
+                <p>Vui lòng đăng nhập hệ thống để xử lý.</p>
+            `;
+            
+            // Gửi cho tất cả admin
+            adminEmails.forEach(email => {
+                sendNotificationEmail(email, emailSubject, emailContent);
+            });
+        }
+        // ------------------------------------------------
+
+        res.json({ message: 'Đã báo cáo sự cố và gửi thông báo!' });
     } catch (error) {
-        console.error("Lỗi khi tạo báo cáo sự cố:", error);
-        res.status(500).json({ message: 'Lỗi server khi tạo báo cáo sự cố', error: error.message });
+        res.status(500).json({ message: error.message });
     }
 });
 
