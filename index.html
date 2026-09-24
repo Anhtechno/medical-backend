@@ -829,7 +829,18 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const API_BASE_URL = 'https://quanlythietbi-anh.onrender.com';
-        let departments = {}; 
+        // BẢO MẬT: escape dữ liệu text do người dùng nhập (vd: mô tả sự cố gửi qua QR công khai)
+        // trước khi chèn vào innerHTML, để tránh HTML/script lạ chạy trong trình duyệt (XSS).
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+        let departments = {};
         let currentFullDeptList = []; 
         let currentStatusFilter = 'all';
         let userProfile = {};
@@ -1687,7 +1698,7 @@ if (response.status === 403) {
             actionButtons = `<button class="delete-btn incident-delete-btn" data-id="${inc._id}"><i class="fas fa-trash"></i></button>`;
         }
 
-        row.innerHTML = `<td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${departments[inc.departmentKey] || 'Không rõ'}</td><td>${inc.equipmentName}</td><td>${inc.serial}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td><td class="action-btn-group">${actionButtons}</td>`;
+        row.innerHTML = `<td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${departments[inc.departmentKey] || 'Không rõ'}</td><td>${inc.equipmentName}</td><td>${inc.serial}</td><td>${escapeHtml(inc.problemDescription)}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td><td class="action-btn-group">${actionButtons}</td>`;
         tableBody.appendChild(row);
     });
 }
@@ -1702,7 +1713,7 @@ if (response.status === 403) {
             incidents.forEach(inc => {
                 const row = document.createElement('tr');
                 const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
-                row.innerHTML = `<td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.equipmentName}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td><td>${inc.notes || 'Chưa có'}</td>`;
+                row.innerHTML = `<td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.equipmentName}</td><td>${escapeHtml(inc.problemDescription)}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td><td>${inc.notes ? escapeHtml(inc.notes) : 'Chưa có'}</td>`;
                 tableBody.appendChild(row);
             });
         }
@@ -1729,7 +1740,7 @@ if (response.status === 403) {
                 <td>${departments[inc.departmentKey]}</td>
                 <td>${inc.equipmentName}</td>
                 <td>${inc.serial}</td>
-                <td>${inc.problemDescription}<br><small style="color:red">Ghi chú: ${inc.notes || ''}</small></td>
+                <td>${escapeHtml(inc.problemDescription)}<br><small style="color:red">Ghi chú: ${escapeHtml(inc.notes || '')}</small></td>
                 <td><span class="incident-status ${inc.status}">${inc.status}</span></td>
                 <td>${btn}</td>
             `;
@@ -2452,7 +2463,7 @@ if (response.status === 403) {
             incidentBody.innerHTML = '';
             data.incidents.forEach(inc => {
                 const statusMap = { new: 'Mới', in_progress: 'Đang xử lý', resolved: 'Đã giải quyết' };
-                incidentBody.innerHTML += `<tr><td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${inc.problemDescription}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td></tr>`;
+                incidentBody.innerHTML += `<tr><td>${new Date(inc.createdAt).toLocaleDateString('vi-VN')}</td><td>${escapeHtml(inc.problemDescription)}</td><td><span class="incident-status ${inc.status}">${statusMap[inc.status]}</span></td></tr>`;
             });
         } else { incidentBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Không có lịch sử sự cố.</td></tr>'; }
 
