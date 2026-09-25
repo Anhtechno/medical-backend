@@ -226,17 +226,15 @@ const Document = mongoose.models.Document || mongoose.model('Document', document
 // 6. API XÁC THỰC
 app.post('/api/auth/register', async (req, res) => {
     try {
-        const { username, password, departmentKey } = req.body;
-        // BẢO MẬT: không nhận 'role' từ client — luôn tạo tài khoản với quyền 'user' mặc định.
-        // Việc tạo tài khoản 'admin'/'technician' chỉ được thực hiện qua các route đã có middleware isAdmin.
+        const { username, password, role, departmentKey } = req.body;
         if (!username || !password) return res.status(400).json({ message: "Vui lòng nhập đủ tên đăng nhập và mật khẩu." });
         const existingUser = await User.findOne({ username });
         if (existingUser) return res.status(400).json({ message: "Tên đăng nhập đã tồn tại." });
         const hashedPassword = await bcrypt.hash(password, 12);
-        const newUser = new User({ username, password: hashedPassword, role: 'user', departmentKey });
+        const newUser = new User({ username, password: hashedPassword, role, departmentKey });
         await newUser.save();
         res.status(201).json({ message: "Đăng ký tài khoản thành công!" });
-    } catch (error) { res.status(500).json({ message: "Lỗi server khi đăng ký." }); }
+    } catch (error) { res.status(500).json({ message: "Lỗi server khi đăng ký.", error: error.message }); }
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -853,7 +851,7 @@ app.get('/api/equipment/profile/:serial', authenticateToken, async (req, res) =>
 // 10.7. API QUẢN LÝ NGƯỜI DÙNG
 app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
     try {
-        const users = await User.find({ role: 'user' }).select('-password').sort({ username: 1 });
+        const users = await User.find({ role: 'user' }).sort({ username: 1 });
         res.json(users);
     } catch (error) {
         res.status(500).json({ message: 'Lỗi server khi lấy danh sách người dùng.' });
@@ -878,9 +876,7 @@ app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
             departmentKey
         });
         await newUser.save();
-        const userToReturn = newUser.toObject();
-        delete userToReturn.password;
-        res.status(201).json(userToReturn);
+        res.status(201).json(newUser);
     } catch (error) {
         res.status(500).json({ message: 'Lỗi server khi tạo người dùng.' });
     }
@@ -896,7 +892,7 @@ app.put('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
             updateData.password = await bcrypt.hash(password, 12);
         }
 
-        const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true }).select('-password');
+        const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true });
         if (!updatedUser) {
             return res.status(404).json({ message: 'Không tìm thấy người dùng.' });
         }
@@ -952,11 +948,9 @@ app.post('/api/technicians', authenticateToken, isAdmin, upload.single('avatar')
             avatar: avatarUrl
         });
         await newTech.save();
-        const techToReturn = newTech.toObject();
-        delete techToReturn.password;
-        res.status(201).json(techToReturn);
+        res.status(201).json(newTech);
     } catch (error) {
-        res.status(500).json({ message: 'Lỗi tạo kỹ sư.' });
+        res.status(500).json({ message: 'Lỗi tạo kỹ sư.', error: error.message });
     }
 });
 
@@ -1264,9 +1258,25 @@ app.get('/api/dashboards/user', authenticateToken, async (req, res) => {
 });
 
 // =================================================================
-// 10.12. (Đã xoá API debug công khai /api/debug/list-departments — không dùng ở
-// frontend, không có xác thực, rò rỉ dữ liệu department ra ngoài.)
+// 10.12. API DEBUG (CHẨN ĐOÁN LỖI)
 // =================================================================
+app.get('/api/debug/list-departments', async (req, res) => {
+    try {
+        console.log("--- [DEBUG] Bắt đầu chạy API chẩn đoán ---");
+        // Lấy ra tất cả các giá trị 'department' duy nhất trong collection 'equipments'
+        const distinctDepartments = await Equipment.distinct('department');
+        
+        console.log("--- [DEBUG] Các mã khoa tìm thấy trong database:", distinctDepartments);
+        res.json({
+            message: "Đây là danh sách tất cả các mã khoa (department key) mà server tìm thấy trong collection 'equipments'.",
+            foundDepartments: distinctDepartments
+        });
+
+    } catch (error) {
+        console.error("--- [DEBUG] Lỗi khi chạy API chẩn đoán ---:", error);
+        res.status(500).json({ message: 'Lỗi server khi chạy chẩn đoán.' });
+    }
+});
 
 // =================================================================
 // 10.13. API GHI NHẬT KÝ HÀNG LOẠT (TÍNH NĂNG MỚI)
@@ -1529,8 +1539,28 @@ async function getSystemContext() {
     }
 }
 
-// (Đã xoá API debug công khai /api/test-models — không dùng ở frontend, không có
-// xác thực, và gọi trực tiếp Gemini API bằng GEMINI_API_KEY rồi trả fullData ra ngoài.)
+// --- API KIỂM TRA MODEL (CHẨN ĐOÁN LỖI) ---
+app.get('/api/test-models', async (req, res) => {
+    try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        // Gọi API liệt kê danh sách model
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        const data = await response.json();
+        
+        // Lọc ra các model dùng được cho chatbot (generateContent)
+        const chatModels = data.models ? data.models
+            .filter(m => m.supportedGenerationMethods.includes("generateContent"))
+            .map(m => m.name) : [];
+
+        res.json({ 
+            message: "Danh sách model khả dụng cho Key của bạn",
+            models: chatModels,
+            fullData: data 
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // 11. KHỞI ĐỘNG SERVER
 app.listen(PORT, () => {
