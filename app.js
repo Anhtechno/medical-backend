@@ -85,6 +85,9 @@
             cancelBulkLogExceptionBtn: document.getElementById('cancelBulkLogExceptionBtn'),
             confirmBulkLogExceptionBtn: document.getElementById('confirmBulkLogExceptionBtn'),
             exceptionListContainer: document.getElementById('exception-list-container'),
+            sidebarToggleBtn: document.getElementById('sidebarToggleBtn'),
+            sidebarOverlay: document.getElementById('sidebarOverlay'),
+            sidebarMain: document.getElementById('sidebar-main') ? document.getElementById('sidebar-main').closest('.sidebar') : document.querySelector('.sidebar'),
         };
         
         const saveToken = (token) => localStorage.setItem('authToken', token);
@@ -155,6 +158,11 @@
     }
 
     if (viewName) switchView(viewName);
+
+    // Trên di động/tablet, đóng ngăn kéo sidebar sau khi chọn mục
+    if (window.innerWidth <= 992 && typeof closeMobileSidebar === 'function') {
+        closeMobileSidebar();
+    }
 }
 
         async function fetchWithAuth(url, options = {}) {
@@ -415,8 +423,34 @@ if (response.status === 403) {
                 currentStatusFilter = e.currentTarget.dataset.filter;
                 setActiveSidebarFilter(currentStatusFilter);
                 fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+                if (window.innerWidth <= 992) { closeMobileSidebar(); }
             });
         });
+
+        // ========================================================
+        // SIDEBAR DI ĐỘNG: mở/đóng ngăn kéo bằng nút hamburger (MỚI)
+        // Không thay đổi logic điều hướng hiện có, chỉ thêm hiệu ứng ẩn/hiện.
+        // ========================================================
+        function openMobileSidebar() {
+            if (dom.sidebarMain) dom.sidebarMain.classList.add('open');
+            if (dom.sidebarOverlay) dom.sidebarOverlay.classList.add('show');
+        }
+        function closeMobileSidebar() {
+            if (dom.sidebarMain) dom.sidebarMain.classList.remove('open');
+            if (dom.sidebarOverlay) dom.sidebarOverlay.classList.remove('show');
+        }
+        if (dom.sidebarToggleBtn) {
+            dom.sidebarToggleBtn.addEventListener('click', () => {
+                if (dom.sidebarMain && dom.sidebarMain.classList.contains('open')) {
+                    closeMobileSidebar();
+                } else {
+                    openMobileSidebar();
+                }
+            });
+        }
+        if (dom.sidebarOverlay) {
+            dom.sidebarOverlay.addEventListener('click', closeMobileSidebar);
+        }
 
         function setActiveSidebarFilter(activeFilter) {
             dom.sidebarFilters.forEach(link => {
@@ -1403,15 +1437,24 @@ if (response.status === 403) {
                 datasets: [{
                     label: 'Trạng thái thiết bị',
                     data: [stats.active, stats.maintenance, stats.inactive],
-                    backgroundColor: [ 'rgba(40, 167, 69, 0.8)', 'rgba(255, 193, 7, 0.8)', 'rgba(220, 53, 69, 0.8)' ],
-                    borderColor: [ 'rgba(40, 167, 69, 1)', 'rgba(255, 193, 7, 1)', 'rgba(220, 53, 69, 1)' ],
-                    borderWidth: 1
+                    backgroundColor: [ '#16a34a', '#d97706', '#dc2626' ],
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    hoverOffset: 6
                 }]
             };
             if (equipmentChartInstance) { equipmentChartInstance.destroy(); }
             equipmentChartInstance = new Chart(ctx, {
                 type: 'doughnut', data: chartData,
-                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 16, font: { family: "'Roboto', system-ui, sans-serif", size: 12.5 }, color: '#5b6472' } },
+                        tooltip: { backgroundColor: '#1e293b', padding: 10, cornerRadius: 8, titleFont: { family: "'Roboto', system-ui, sans-serif" }, bodyFont: { family: "'Roboto', system-ui, sans-serif" } }
+                    }
+                }
             });
         }
 
@@ -2103,24 +2146,32 @@ function renderDepartmentChart(chartData) {
             datasets: [{
                 label: 'Số sự cố',
                 data: data,
-                backgroundColor: 'rgba(220, 53, 69, 0.7)',
-                borderColor: 'rgba(220, 53, 69, 1)',
-                borderWidth: 1
+                backgroundColor: 'rgba(37, 99, 235, 0.75)',
+                borderColor: '#2563eb',
+                borderWidth: 1,
+                borderRadius: 6,
+                borderSkipped: false,
+                maxBarThickness: 48,
+                hoverBackgroundColor: '#1d4ed8'
             }]
         },
         options: {
+            responsive: true,
+            maintainAspectRatio: true,
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
+                    ticks: { stepSize: 1, color: '#5b6472', font: { family: "'Roboto', system-ui, sans-serif" } },
+                    grid: { color: '#e4e8ef' }
+                },
+                x: {
+                    ticks: { color: '#5b6472', font: { family: "'Roboto', system-ui, sans-serif" } },
+                    grid: { display: false }
                 }
             },
             plugins: {
-                legend: {
-                    display: false
-                }
+                legend: { display: false },
+                tooltip: { backgroundColor: '#1e293b', padding: 10, cornerRadius: 8 }
             }
         }
     });
@@ -2483,15 +2534,23 @@ function renderUserEquipmentChart(stats) {
         labels: ['Hoạt động', 'Bảo trì', 'Ngừng hoạt động'],
         datasets: [{
             data: [stats.active || 0, stats.maintenance || 0, stats.inactive || 0],
-            backgroundColor: ['rgba(40, 167, 69, 0.8)', 'rgba(255, 193, 7, 0.8)', 'rgba(220, 53, 69, 0.8)'],
-            borderColor: ['#fff'],
-            borderWidth: 2
+            backgroundColor: ['#16a34a', '#d97706', '#dc2626'],
+            borderColor: '#fff',
+            borderWidth: 2,
+            hoverOffset: 6
         }]
     };
     if (userChartInstance) { userChartInstance.destroy(); }
     userChartInstance = new Chart(ctx, {
         type: 'pie', data: chartData,
-        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 16, font: { family: "'Roboto', system-ui, sans-serif", size: 12.5 }, color: '#5b6472' } },
+                tooltip: { backgroundColor: '#1e293b', padding: 10, cornerRadius: 8 }
+            }
+        }
     });
 }
 
