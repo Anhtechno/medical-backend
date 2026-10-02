@@ -1,0 +1,48 @@
+module.exports = {
+    // === KHỐI LÂM SÀNG ===
+    'cap_cuu': 'Khoa Cấp cứu',
+    'kham_benh': 'Khoa Khám bệnh',
+    'kham_benh_yc': 'Khoa Khám bệnh theo yêu cầu',
+    'icu': 'Khoa Hồi sức tích cực – Chống độc',
+    'noi_nhiem': 'Khoa Nội nhiễm',
+    'noi_tiet': 'Khoa Nội tiết',
+    'noi_cxk': 'Khoa Nội cơ xương khớp',
+    'noi_than_kinh': 'Khoa Nội thần kinh',
+    'noi_tim_mach': 'Khoa Nội tim mạch',
+    'tim_mach_cc_ct': 'Khoa Tim mạch cấp cứu và can thiệp',
+    'loan_nhip_tim': 'Khoa Loạn nhịp tim',
+    'noi_than_loc_mau': 'Khoa Nội thận – Lọc máu',
+    'noi_ho_hap': 'Khoa Nội hô hấp',
+    'noi_tieu_hoa': 'Khoa Nội tiêu hoá',
+    'ung_buou': 'Khoa Ung bướu',
+    'dieu_tri_cbcc': 'Khoa Điều trị Cán bộ cao cấp',
+    'noi_dieu_tri_yc': 'Khoa Nội điều trị theo yêu cầu',
+    'ngoai_dieu_tri_yc': 'Khoa Ngoại điều trị theo yêu cầu',
+    'ngoai_ctch': 'Khoa Ngoại chấn thương chỉnh hình',
+    'ngoai_gan_mat': 'Khoa Ngoại gan mật',
+    'ngoai_than_kinh': 'Khoa Ngoại thần kinh',
+    'ngoai_than_tn': 'Khoa Ngoại thận – Tiết niệu',
+    'ngoai_tieu_hoa': 'Khoa Ngoại tiêu hoá',
+    'ngoai_tim_mach_ln': 'Khoa Ngoại tim mạch – Lồng ngực',
+    'phau_thuat_gmhs': 'Khoa Phẫu thuật – Gây mê hồi sức',
+    'pt_hm_thtm': 'Khoa Phẫu thuật hàm mặt – Tạo hình thẩm mỹ',
+    'mat': 'Khoa Mắt',
+    'tai_mui_hong': 'Khoa Tai mũi họng',
+    'da_lieu_md_du': 'Khoa Da liễu – Miễn dịch – Dị ứng',
+    'y_hoc_co_truyen': 'Khoa Y học cổ truyền',
+    'phuc_hoi_cn': 'Khoa Phục hồi chức năng',
+    
+    // === KHỐI CẬN LÂM SÀNG (ĐÃ THÊM MỚI) ===
+    'chan_doan_ha': 'Khoa Chẩn đoán hình ảnh',
+    'tham_do_cn_ns': 'Khoa Thăm dò chức năng và Nội soi',
+    'hoa_sinh': 'Khoa Hóa sinh',
+    'vi_sinh': 'Khoa Vi sinh',
+    'huyet_hoc': 'Khoa Huyết học',
+    'giai_phau_benh': 'Khoa Giải phẫu bệnh',
+
+    // === KHỐI HẬU CẦN & CÁC PHÒNG BAN ===
+    'duoc': 'Khoa Dược',
+    'dinh_duong_ls': 'Khoa Dinh dưỡng lâm sàng',
+    'kiem_soat_nk': 'Khoa Kiểm soát nhiễm khuẩn',
+    'bvsk_tw_2b': 'Phòng Bảo vệ sức khỏe Trung ương 2B'
+};
