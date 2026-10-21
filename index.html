@@ -489,6 +489,47 @@
                     <button class="close-btn" id="closeDailyUsageBtn">×</button>
                 </div>
                 <div id="dailyUsageSummary" class="du-summary"></div>
+                <button type="button" class="du-bulk-toggle" id="duBulkToggle"><i class="fas fa-bolt"></i> Ghi nhanh nhiều ngày cùng lúc <small>(không cần kéo từng ngày)</small></button>
+                <div class="du-bulk" id="duBulkBox" style="display:none;">
+                    <div class="du-bulk-title">Ghi hàng loạt giờ sử dụng</div>
+                    <div class="du-bulk-row">
+                        <label>Từ ngày <input type="date" id="duBulkFrom"></label>
+                        <label>Đến ngày <input type="date" id="duBulkTo"></label>
+                    </div>
+                    <div class="du-bulk-chips">
+                        <button type="button" data-range="month">Tháng đang xem</button>
+                        <button type="button" data-range="all">Từ 01/2026 đến hôm qua</button>
+                        <button type="button" data-range="30">30 ngày gần nhất</button>
+                    </div>
+                    <div class="du-bulk-row">
+                        <label>Các ngày áp dụng
+                            <select id="duBulkMode">
+                                <option value="all">Tất cả các ngày</option>
+                                <option value="no_sun">Bỏ Chủ nhật</option>
+                                <option value="weekdays">Chỉ thứ 2 – thứ 6</option>
+                            </select>
+                        </label>
+                        <label>Áp dụng cho
+                            <select id="duBulkScope">
+                                <option value="one">Chỉ thiết bị này</option>
+                                <option value="department">Tất cả thiết bị đang hoạt động của Khoa</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="du-bulk-hours">
+                        <span>Số giờ máy chạy mỗi ngày:</span>
+                        <input type="range" id="duBulkRange" min="0" max="24" step="0.5" value="8">
+                        <output id="duBulkReadout">8 giờ</output>
+                    </div>
+                    <div class="du-quick du-bulk-quick">
+                        <button type="button" data-h="0">0h</button><button type="button" data-h="4">4h</button><button type="button" data-h="8">8h</button><button type="button" data-h="12">12h</button><button type="button" data-h="16">16h</button><button type="button" data-h="24">24h</button>
+                    </div>
+                    <label class="du-bulk-check"><input type="checkbox" id="duBulkOverwrite"> Ghi đè cả những ngày đã có số liệu (mặc định chỉ điền các ngày còn thiếu)</label>
+                    <div class="du-bulk-actions">
+                        <button type="button" class="cancel-btn" id="duBulkCancel">Hủy</button>
+                        <button type="button" class="save-btn" id="duBulkApply"><i class="fas fa-check-double"></i> Xem trước &amp; áp dụng</button>
+                    </div>
+                </div>
                 <div class="du-month-nav">
                     <button type="button" id="duPrevMonth" title="Tháng trước"><i class="fas fa-chevron-left"></i></button>
                     <select id="duMonthSelect"></select>

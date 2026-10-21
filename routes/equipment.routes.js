@@ -7,8 +7,17 @@ const departments = require('../data/departments');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
 const cfg = require('../config/usage');
 const { todayVN, addDays, isValidDateStr, createdDateOf } = require('../utils/dateVN');
-const { loadLoggedWeeks, decorateEquipment } = require('../utils/usageStatus');
+const { loadLoggedWeeks, decorateEquipment, isLocked } = require('../utils/usageStatus');
 const { buildEquipmentSearchFilter, escapeRegex } = require('../utils/search');
+
+// Chỉ nhận các trường thông tin thiết bị hợp lệ (không cho client tự gán _id, usageHistory, department...)
+const EQUIPMENT_FIELDS = ['name', 'serial', 'manufacturer', 'accessories', 'year', 'status', 'description', 'image'];
+const VALID_STATUS = ['active', 'maintenance', 'inactive'];
+function pickEquipmentFields(src = {}) {
+    const out = {};
+    for (const k of EQUIPMENT_FIELDS) if (src[k] !== undefined) out[k] = src[k];
+    return out;
+}
 
 const byNameVi = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'vi');
 
@@ -69,7 +78,10 @@ router.get('/api/equipment/:deptKey', authenticateToken, async (req, res) => {
 router.post('/api/equipment/:deptKey', authenticateToken, isAdmin, async (req, res) => {
     try {
         const { deptKey } = req.params;
-        const newEquipmentData = { ...req.body, department: deptKey };
+        if (!departments[deptKey]) return res.status(400).json({ message: 'Khoa/phòng không hợp lệ.' });
+        const newEquipmentData = { ...pickEquipmentFields(req.body), department: deptKey };
+        if (!newEquipmentData.name || !newEquipmentData.serial) return res.status(400).json({ message: 'Thiếu tên hoặc số serial thiết bị.' });
+        if (newEquipmentData.status && !VALID_STATUS.includes(newEquipmentData.status)) return res.status(400).json({ message: 'Tình trạng thiết bị không hợp lệ.' });
         const existing = await Equipment.findOne({ serial: newEquipmentData.serial });
         if (existing) return res.status(400).json({ message: `Số serial "${newEquipmentData.serial}" đã tồn tại.` });
         const equipment = new Equipment(newEquipmentData);
@@ -130,7 +142,11 @@ router.get('/api/equipment/item/:serial', authenticateToken, async (req, res) =>
         const serialToFind = req.params.serial.trim();
         const equipment = await Equipment.findOne({ serial: new RegExp('^' + escapeRegex(serialToFind) + '$', 'i') });
         if (!equipment) return res.status(404).json({ message: "Không tìm thấy thiết bị với số serial này." });
-        res.json(equipment);
+        if (req.user.role === 'user' && equipment.department !== req.user.departmentKey) {
+            return res.status(403).json({ message: "Bạn không có quyền xem thiết bị của khoa khác." });
+        }
+        const { usageHistory, ...safe } = equipment.toObject ? equipment.toObject() : equipment;
+        res.json(safe);
     } catch (error) { res.status(500).json({ message: 'Lỗi server khi lấy chi tiết thiết bị' }); }
 });
 // API Cập nhật giờ sử dụng (Hiệu suất)
@@ -165,6 +181,10 @@ router.put('/api/equipment/usage/:id', authenticateToken, async (req, res) => {
 
         if (req.user.role === 'user' && req.user.departmentKey !== equipment.department) {
             return res.status(403).json({ message: "Bạn không có quyền cập nhật thiết bị của khoa khác." });
+        }
+
+        if (req.user.role === 'user' && isLocked(equipment)) {
+            return res.status(403).json({ message: cfg.LOCKED_MESSAGE, locked: true });
         }
 
         const backfilled = targetDate < today;
@@ -209,7 +229,7 @@ router.put('/api/equipment/usage/:id', authenticateToken, async (req, res) => {
 // Lịch sử giờ sử dụng theo từng ngày (để hiển thị lịch ghi bù trên giao diện)
 router.get('/api/equipment/usage/:id/history', authenticateToken, async (req, res) => {
     try {
-        const equipment = await Equipment.findById(req.params.id).select('name department usageHistory').lean();
+        const equipment = await Equipment.findById(req.params.id).select('name department status usageHistory').lean();
         if (!equipment) return res.status(404).json({ message: "Không tìm thấy thiết bị." });
         if (req.user.role === 'user' && req.user.departmentKey !== equipment.department) {
             return res.status(403).json({ message: "Bạn không có quyền xem thiết bị của khoa khác." });
@@ -231,10 +251,107 @@ router.get('/api/equipment/usage/:id/history', authenticateToken, async (req, re
                 beforeCreation: d < created // trước khi thiết bị có trong hệ thống: không tính là "thiếu"
             });
         }
-        res.json({ today, equipmentName: equipment.name, goLive: cfg.GO_LIVE_DATE, days });
+        res.json({ today, equipmentName: equipment.name, goLive: cfg.GO_LIVE_DATE, locked: isLocked(equipment) && req.user.role === 'user', days });
     } catch (error) {
         console.error("Lỗi khi lấy lịch sử giờ sử dụng:", error);
         res.status(500).json({ message: 'Lỗi server.' });
+    }
+});
+
+// =================================================================
+// GHI HÀNG LOẠT GIỜ SỬ DỤNG NHIỀU NGÀY (ghi bù 100-200 ngày chỉ bằng một lần bấm)
+// Body: { equipmentId, scope: 'one' | 'department', from, to, hours, mode, overwrite, dryRun }
+//  - scope 'one'        : chỉ thiết bị equipmentId
+//  - scope 'department' : tất cả thiết bị ĐANG HOẠT ĐỘNG (không "Ngừng hoạt động") của khoa chứa equipmentId
+//  - mode: 'all' (mọi ngày) | 'no_sun' (bỏ Chủ nhật) | 'weekdays' (chỉ thứ 2 - thứ 6)
+//  - overwrite: false (mặc định) -> chỉ điền những ngày CHƯA có số liệu; true -> ghi đè cả ngày đã có
+//  - dryRun: true -> chỉ đếm, không lưu (để giao diện hỏi xác nhận trước khi ghi)
+// =================================================================
+router.post('/api/usage/bulk-fill', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'user' && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Tài khoản này không được ghi giờ sử dụng.' });
+        }
+        const { equipmentId, scope = 'one', from, to, hours, mode = 'all', overwrite = false, dryRun = false } = req.body;
+        const today = todayVN();
+
+        if (!equipmentId) return res.status(400).json({ message: 'Thiếu thiết bị.' });
+        if (!['one', 'department'].includes(scope)) return res.status(400).json({ message: 'Phạm vi áp dụng không hợp lệ.' });
+        if (!['all', 'no_sun', 'weekdays'].includes(mode)) return res.status(400).json({ message: 'Kiểu ngày không hợp lệ.' });
+        if (!isValidDateStr(from) || !isValidDateStr(to)) return res.status(400).json({ message: 'Vui lòng chọn khoảng ngày hợp lệ.' });
+        if (from > to) return res.status(400).json({ message: 'Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.' });
+        if (to > today) return res.status(400).json({ message: 'Không thể ghi giờ sử dụng cho ngày chưa đến.' });
+        if (from < cfg.GO_LIVE_DATE && req.user.role !== 'admin') {
+            return res.status(400).json({ message: `Chỉ được ghi từ ngày ${cfg.GO_LIVE_DATE.split('-').reverse().join('/')} (thời điểm bắt đầu áp dụng phần mềm).` });
+        }
+        const h = Number(hours);
+        if (hours === undefined || hours === null || hours === '' || !Number.isFinite(h) || h < 0 || h > 24) {
+            return res.status(400).json({ message: 'Số giờ sử dụng phải là số từ 0 đến 24.' });
+        }
+        const value = Math.round(h * 100) / 100;
+
+        const anchor = await Equipment.findById(equipmentId);
+        if (!anchor) return res.status(404).json({ message: 'Không tìm thấy thiết bị.' });
+        if (req.user.role === 'user' && anchor.department !== req.user.departmentKey) {
+            return res.status(403).json({ message: 'Bạn không có quyền cập nhật thiết bị của khoa khác.' });
+        }
+
+        let targets = scope === 'department' ? await Equipment.find({ department: anchor.department }) : [anchor];
+        const lockedCount = targets.filter(isLocked).length;
+        if (req.user.role === 'user') targets = targets.filter(eq => !isLocked(eq));
+        if (targets.length === 0) {
+            return res.status(403).json({ message: cfg.LOCKED_MESSAGE, locked: true });
+        }
+
+        // Các ngày được chọn (theo kiểu ngày)
+        const dates = [];
+        for (let d = from; d <= to; d = addDays(d, 1)) {
+            const dow = new Date(d + 'T00:00:00Z').getUTCDay(); // 0 = Chủ nhật, 6 = Thứ bảy
+            if (mode === 'no_sun' && dow === 0) continue;
+            if (mode === 'weekdays' && (dow === 0 || dow === 6)) continue;
+            dates.push(d);
+        }
+
+        const summary = { devices: targets.length, lockedDevices: lockedCount, newDays: 0, overwrittenDays: 0, skippedExisting: 0, skippedBeforeCreation: 0 };
+        const now = new Date();
+        for (const eq of targets) {
+            const created = createdDateOf(eq);
+            const byDate = new Map((eq.usageHistory || []).map(x => [x.date, x]));
+            let latest = null;
+            for (const date of dates) {
+                // Ngày trước khi thiết bị được thêm vào hệ thống: không tính là "thiếu" -> không tự điền hàng loạt
+                if (date < created) { summary.skippedBeforeCreation++; continue; }
+                const existing = byDate.get(date);
+                if (existing && !overwrite) { summary.skippedExisting++; continue; }
+                if (!dryRun) {
+                    if (existing) {
+                        existing.hours = value; existing.backfilled = date < today;
+                        existing.loggedBy = req.user.username; existing.loggedAt = now;
+                    } else {
+                        eq.usageHistory.push({ date, hours: value, backfilled: date < today, loggedBy: req.user.username, loggedAt: now });
+                    }
+                }
+                if (existing) summary.overwrittenDays++; else summary.newDays++;
+                latest = date;
+            }
+            if (!dryRun && latest) {
+                if (latest >= (eq.lastLogDate || '')) { eq.dailyUsage = value; eq.lastLogDate = latest; }
+                await eq.save();
+            }
+        }
+
+        const written = summary.newDays + summary.overwrittenDays;
+        res.json({
+            ...summary,
+            dryRun: !!dryRun,
+            daysWritten: written,
+            message: dryRun
+                ? `Sẽ ghi ${written} ngày cho ${summary.devices} thiết bị.`
+                : (written > 0 ? `Đã ghi bù ${written} ngày (${value} giờ/ngày) cho ${summary.devices} thiết bị.` : 'Không có ngày nào cần ghi trong khoảng đã chọn.')
+        });
+    } catch (error) {
+        console.error('Lỗi khi ghi giờ sử dụng hàng loạt:', error);
+        res.status(500).json({ message: 'Lỗi server khi ghi giờ sử dụng hàng loạt.' });
     }
 });
 
@@ -243,9 +360,12 @@ router.put('/api/equipment/:deptKey/:serial', authenticateToken, isAdmin, async 
     // Khai báo ngoài try để khối catch bên dưới dùng được (trước đây gây lỗi ReferenceError làm sập server khi trùng serial)
     const { serial } = req.params;
     // Không cho phép ghi đè dữ liệu giờ sử dụng/nhật ký qua form sửa thiết bị
-    const { usageHistory, dailyUsage, lastLogDate, _id, __v, ...updatedData } = req.body;
+    const updatedData = pickEquipmentFields(req.body); // bỏ qua mọi trường khác (usageHistory, dailyUsage, department, _id...)
     try {
 
+        if (updatedData.status && !VALID_STATUS.includes(updatedData.status)) {
+            return res.status(400).json({ message: 'Tình trạng thiết bị không hợp lệ.' });
+        }
         // Tìm thiết bị gốc bằng serial cũ từ URL
         const originalEquipment = await Equipment.findOne({ serial: serial });
         if (!originalEquipment) {
@@ -292,6 +412,10 @@ router.get('/api/equipment/profile/:serial', authenticateToken, async (req, res)
         if (!equipment) {
             return res.status(404).json({ message: 'Không tìm thấy thiết bị.' });
         }
+        if (req.user.role === 'user' && equipment.department !== req.user.departmentKey) {
+            return res.status(403).json({ message: 'Bạn không có quyền xem thiết bị của khoa khác.' });
+        }
+        delete equipment.usageHistory; // rất nặng, giao diện hồ sơ không dùng (hiệu suất tính ở server)
 
         const [incidents, maintenanceHistory] = await Promise.all([
             Incident.find({ equipmentId: equipment._id }).sort({ createdAt: -1 }).lean(),
@@ -322,22 +446,27 @@ router.post('/api/equipment/batch-import/:deptKey', authenticateToken, isAdmin, 
     let failedCount = 0;
     const errors = [];
 
-    const dataToInsert = equipmentList.map(item => ({
-        ...item,
-        department: deptKey,
-        status: item.status || 'active',
-        year: item.year || new Date().getFullYear().toString(),
-    }));
+    if (!departments[deptKey]) return res.status(400).json({ message: 'Khoa/phòng không hợp lệ.' });
+    const dataToInsert = equipmentList.map(item => {
+        const clean = pickEquipmentFields(item);
+        return {
+            ...clean,
+            department: deptKey,
+            status: VALID_STATUS.includes(clean.status) ? clean.status : 'active',
+            year: clean.year || new Date().getFullYear().toString(),
+        };
+    });
 
     try {
         const result = await Equipment.insertMany(dataToInsert, { ordered: false });
         successCount = result.length;
     } catch (error) {
         if (error.writeErrors) {
-            successCount = error.insertedDocs.length;
+            successCount = (error.insertedDocs || []).length;
             failedCount = error.writeErrors.length;
             error.writeErrors.forEach(err => {
-                errors.push(`Serial '${err.err.op.serial}' đã tồn tại.`);
+                const op = (err.err && err.err.op) || {};
+                errors.push(`Serial '${op.serial || '?'}' không thêm được (có thể đã tồn tại hoặc thiếu thông tin).`);
             });
         } else {
             console.error("Lỗi nghiêm trọng khi nhập hàng loạt:", error);

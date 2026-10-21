@@ -8,7 +8,7 @@ const {
     todayVN, addDays, weekStartOf, currentWeekStart, weekEndOf, isValidDateStr, weekLabel,
     startInstant, weekStartOfLog, createdDateOf
 } = require('../utils/dateVN');
-const { loadLoggedWeeks, computeUsageStatus, firstWeek } = require('../utils/usageStatus');
+const { loadLoggedWeeks, computeUsageStatus, firstWeek, isLocked } = require('../utils/usageStatus');
 
 const fmtMonthYear = (s) => `tháng ${s.slice(5, 7)}/${s.slice(0, 4)}`;
 
@@ -64,6 +64,11 @@ router.post('/api/logs', authenticateToken, async (req, res) => {
         // Khoa chỉ được ghi nhật ký cho thiết bị của chính khoa mình
         if (req.user.role === 'user' && equipment.department !== req.user.departmentKey) {
             return res.status(403).json({ message: "Bạn không thể ghi nhật ký cho thiết bị của khoa khác." });
+        }
+
+        // Thiết bị đang "Ngừng hoạt động": Khoa tạm thời không được ghi (Admin vẫn sửa được nếu cần)
+        if (req.user.role === 'user' && isLocked(equipment)) {
+            return res.status(403).json({ message: cfg.LOCKED_MESSAGE, locked: true });
         }
 
         const week = resolveWeek(weekInput, req.user.role);
@@ -155,7 +160,7 @@ router.post('/api/logs/bulk', authenticateToken, async (req, res) => {
 
         // 1. Thiết bị trong khoa + các tuần đã ghi của từng thiết bị
         const [allEquipment, loggedMap] = await Promise.all([
-            Equipment.find({ department: departmentKey }).select('_id name serial').lean(),
+            Equipment.find({ department: departmentKey }).select('_id name serial status').lean(),
             loadLoggedWeeks({ departmentKey })
         ]);
 
@@ -165,7 +170,7 @@ router.post('/api/logs/bulk', authenticateToken, async (req, res) => {
         const toLog = allEquipment.filter(eq => {
             const id = eq._id.toString();
             const logged = loggedMap.get(id);
-            return !(logged && logged.has(weekStart)) && !excluded.has(id) && createdDateOf(eq) <= weekEnd;
+            return !isLocked(eq) && !(logged && logged.has(weekStart)) && !excluded.has(id) && createdDateOf(eq) <= weekEnd;
         });
 
         const label = weekLabel(weekStart);
@@ -198,11 +203,13 @@ router.get('/api/logs/missing-summary', authenticateToken, async (req, res) => {
         if (!deptKey) return res.status(400).json({ message: 'Thiếu thông tin khoa/phòng.' });
 
         const [equipments, loggedMap] = await Promise.all([
-            Equipment.find({ department: deptKey }).select('_id usageHistory').lean(),
+            Equipment.find({ department: deptKey }).select('_id usageHistory status').lean(),
             loadLoggedWeeks({ departmentKey: deptKey })
         ]);
 
-        const statuses = equipments.map(eq => computeUsageStatus(eq, loggedMap.get(eq._id.toString())));
+        // Thiết bị đang ngừng hoạt động không bị tính là "thiếu"
+        const active = equipments.filter(eq => !isLocked(eq));
+        const statuses = active.map(eq => computeUsageStatus(eq, loggedMap.get(eq._id.toString())));
 
         const cur = currentWeekStart();
         const weeks = [];
@@ -215,7 +222,7 @@ router.get('/api/logs/missing-summary', authenticateToken, async (req, res) => {
 
         res.json({
             today: todayVN(),
-            totalEquipment: equipments.length,
+            totalEquipment: active.length,
             weeks,
             dailyMissing: {
                 since: cfg.GO_LIVE_DATE,

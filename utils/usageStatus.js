@@ -9,6 +9,9 @@ const {
     todayVN, addDays, currentWeekStart, weekEndOf, weekStartOf, createdDateOf, weekStartOfLog, startInstant
 } = require('./dateVN');
 
+// Thiết bị đang ngừng hoạt động -> tạm khóa ghi nhận ở phía Khoa
+const isLocked = (eq) => !!eq && eq.status === cfg.LOCKED_STATUS;
+
 // Tuần đầu tiên được phép ghi (tuần chứa ngày bắt đầu áp dụng phần mềm)
 const firstWeek = () => weekStartOf(cfg.GO_LIVE_DATE);
 
@@ -64,6 +67,7 @@ function computeUsageStatus(eq, loggedWeeksSet = new Set()) {
 // - dailyUsage chỉ hiển thị nếu đã ghi cho HÔM NAY (giờ VN), ngược lại là 0.
 function decorateEquipment(eq, loggedWeeksSet) {
     const st = computeUsageStatus(eq, loggedWeeksSet);
+    const locked = isLocked(eq);
     const { usageHistory, ...rest } = eq;
     const todayEntry = (usageHistory || []).find(h => h.date === st.today);
     let dailyUsage = 0;
@@ -72,12 +76,14 @@ function decorateEquipment(eq, loggedWeeksSet) {
     return {
         ...rest,
         dailyUsage,
-        needsLog: st.needsLog,
-        missingDayCount: st.missingDays.length,
-        missingWeeks: st.missingWeeks,
+        locked, // true: thiết bị đang "Ngừng hoạt động" -> Khoa tạm thời không ghi được
+        // Thiết bị đang bị khóa thì không nhắc "còn thiếu"
+        needsLog: locked ? false : st.needsLog,
+        missingDayCount: locked ? 0 : st.missingDays.length,
+        missingWeeks: locked ? [] : st.missingWeeks,
         loggedWeeks: st.loggedWeeks,
-        hasMissing: st.needsLog || st.missingDays.length > 0 || st.missingWeeks.length > 0
+        hasMissing: !locked && (st.needsLog || st.missingDays.length > 0 || st.missingWeeks.length > 0)
     };
 }
 
-module.exports = { loadLoggedWeeks, computeUsageStatus, decorateEquipment, firstWeek };
+module.exports = { loadLoggedWeeks, computeUsageStatus, decorateEquipment, firstWeek, isLocked };

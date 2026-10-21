@@ -307,6 +307,7 @@ if (response.status === 403) {
         }
         
         function updateEquipmentTable(list, isGlobalSearch = false) {
+    const LOCKED_TEXT = 'Thiết bị đang ngừng hoạt động nên tạm thời không ghi nhận được. Khi Admin chuyển về “Hoạt động” thì ghi được.';
     currentDisplayedData = list;
     equipmentCache.clear();
     list.forEach(item => equipmentCache.set(String(item._id), item));
@@ -333,6 +334,7 @@ if (response.status === 403) {
                 <button class="delete-btn" data-serial="${sSerial}" data-dept="${sDept}"><i class="fas fa-trash"></i></button>
             `;
         } else { // Nếu là user thì hiển thị các nút tương ứng
+            const locked = !!item.locked; // thiết bị đang "Ngừng hoạt động" -> Khoa tạm thời không ghi được
             const missingWeekCount = (item.needsLog ? 1 : 0) + (item.missingWeeks || []).length;
             const missingDayCount = item.missingDayCount || 0;
             let warningIcon = '';
@@ -342,14 +344,19 @@ if (response.status === 403) {
 
             actionButtons = `
                 <button class="action-button report-issue-btn" data-serial="${sSerial}" style="background-color: var(--danger-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-triangle-exclamation"></i> Báo hỏng</button>
-                <button class="action-button log-usage-btn" data-id="${sId}" data-name="${sName}" style="background-color: var(--info-color); padding: 6px 10px; font-size: 14px;">${warningIcon}<i class="far fa-file-alt"></i> Ghi Nhật ký</button>
+                ${locked
+                    ? `<button class="action-button log-usage-btn is-locked" disabled title="${LOCKED_TEXT}" style="padding: 6px 10px; font-size: 14px;"><i class="fas fa-lock"></i> Ghi Nhật ký</button>`
+                    : `<button class="action-button log-usage-btn" data-id="${sId}" data-name="${sName}" style="background-color: var(--info-color); padding: 6px 10px; font-size: 14px;">${warningIcon}<i class="far fa-file-alt"></i> Ghi Nhật ký</button>`}
             `;
+            if (locked) {
+                missingPills = `<div class="locked-note" title="${LOCKED_TEXT}"><i class="fas fa-lock"></i> Đang ngừng hoạt động — tạm khóa ghi nhận</div>`;
+            }
 
             // Nhãn nổi bật để Khoa thấy ngay thiết bị nào đang thiếu dữ liệu và bấm vào để ghi bù
-            if (missingDayCount > 0) {
+            if (!locked && missingDayCount > 0) {
                 missingPills += `<button type="button" class="missing-pill daily" data-id="${sId}" data-name="${sName}" title="Bấm để ghi bù giờ sử dụng các ngày còn thiếu"><i class="fas fa-clock"></i> Thiếu ${missingDayCount} ngày giờ sử dụng</button>`;
             }
-            if (missingWeekCount > 0) {
+            if (!locked && missingWeekCount > 0) {
                 missingPills += `<button type="button" class="missing-pill weekly" data-id="${sId}" data-name="${sName}" title="Bấm để ghi hoặc ghi bù nhật ký tuần"><i class="fas fa-file-pen"></i> Thiếu nhật ký ${missingWeekCount} tuần</button>`;
             }
         }
@@ -360,7 +367,10 @@ if (response.status === 403) {
         const hpColor = usageColor(usage);
 
         // HTML cho thanh HP
-        const hpBarHtml = `
+        const hpBarHtml = (userProfile.role === 'user' && item.locked) ? `
+            <div class="hp-bar-container locked" title="${LOCKED_TEXT}">
+                <div class="hp-bar-text"><i class="fas fa-lock"></i> Tạm khóa</div>
+            </div>` : `
             <div class="hp-bar-container hp-trigger" data-id="${sId}" data-current="${usage}" data-name="${sName}" title="Giờ sử dụng hôm nay. Bấm để cập nhật hoặc ghi bù các ngày trước">
                 <div class="hp-bar-fill" style="width: ${percentage}%; background-color: ${hpColor};"></div>
                 <div class="hp-bar-text">${usage}h / 24h</div>
@@ -558,11 +568,13 @@ if (response.status === 403) {
                 name: document.getElementById('equipmentName').value, serial: serialNumber, manufacturer: document.getElementById('manufacturer').value,
                 accessories: document.getElementById('accessories').value, year: document.getElementById('purchaseDate').value,
                 status: document.getElementById('status').value, description: document.getElementById('description').value,
-                image: document.getElementById('imagePreview').src.startsWith('data:image') ? document.getElementById('imagePreview').src : null
             };
+            // Chỉ gửi ảnh khi có ảnh thật (tránh xóa mất ảnh cũ khi sửa thiết bị mà không đổi ảnh)
+            const previewSrc = document.getElementById('imagePreview').getAttribute('src') || '';
+            if (previewSrc.startsWith('data:image') || /^https?:\/\//i.test(previewSrc)) payload.image = previewSrc;
             let url, method, targetDeptKey;
             if (isEditing) {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${editSerial}`);
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/item/${encodeURIComponent(editSerial)}`);
                 if (!response.ok) { 
                     handleApiError({ message: 'Không tìm thấy thiết bị gốc để cập nhật.'}, 'Cập nhật');
                     return; 
@@ -2661,6 +2673,7 @@ async function openDailyUsageModal(id, name, preselectDate) {
         if (!res.ok) throw new Error(data.message || 'Không thể tải lịch sử giờ sử dụng.');
         Swal.close();
         du.days = data.days; du.today = data.today; du.goLive = data.goLive || GO_LIVE_DATE;
+        closeDuBulk();
         document.getElementById('dailyUsageTitle').textContent = `Giờ sử dụng: ${data.equipmentName || du.name}`;
         const missing = duMissingDays();
         selectDuDate(preselectDate || (missing.length ? missing[missing.length - 1] : du.today));
@@ -2837,6 +2850,111 @@ document.getElementById('closeDailyUsageBtn').addEventListener('click', closeDai
 document.getElementById('duCloseBtn').addEventListener('click', closeDailyUsageModal);
 document.getElementById('dailyUsageModal').addEventListener('click', (e) => {
     if (e.target.id === 'dailyUsageModal') closeDailyUsageModal();
+});
+
+// ========================================================
+// GHI HÀNG LOẠT GIỜ SỬ DỤNG (ghi bù 100-200 ngày chỉ bằng vài cú bấm)
+// ========================================================
+const duBulkEl = (id) => document.getElementById(id);
+
+function openDuBulk() {
+    const missing = duMissingDays();
+    const yesterday = addDaysStr(du.today, -1);
+    ['duBulkFrom', 'duBulkTo'].forEach(id => { duBulkEl(id).min = du.goLive; duBulkEl(id).max = du.today; });
+    duBulkEl('duBulkFrom').value = missing.length ? missing[0] : du.goLive;
+    duBulkEl('duBulkTo').value = yesterday >= duBulkEl('duBulkFrom').value ? yesterday : du.today;
+    duBulkEl('duBulkOverwrite').checked = false;
+    duBulkEl('duBulkBox').style.display = '';
+    duBulkEl('duBulkToggle').style.display = 'none';
+}
+function closeDuBulk() {
+    duBulkEl('duBulkBox').style.display = 'none';
+    duBulkEl('duBulkToggle').style.display = '';
+}
+
+async function reloadDuHistory() {
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/equipment/usage/${du.id}/history`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Không thể tải lại lịch sử giờ sử dụng.');
+    du.days = data.days; du.today = data.today;
+}
+
+async function applyDuBulk() {
+    const from = duBulkEl('duBulkFrom').value, to = duBulkEl('duBulkTo').value;
+    const hours = Number(duBulkEl('duBulkRange').value);
+    if (!from || !to) { Swal.fire('Chưa chọn ngày', 'Vui lòng chọn "Từ ngày" và "Đến ngày".', 'warning'); return; }
+    if (from > to) { Swal.fire('Khoảng ngày chưa đúng', '"Từ ngày" phải trước hoặc bằng "Đến ngày".', 'warning'); return; }
+    const body = {
+        equipmentId: du.id, scope: duBulkEl('duBulkScope').value, from, to, hours,
+        mode: duBulkEl('duBulkMode').value, overwrite: duBulkEl('duBulkOverwrite').checked
+    };
+    const applyBtn = duBulkEl('duBulkApply');
+    applyBtn.disabled = true;
+    try {
+        // Bước 1: xem trước (chưa lưu) để người dùng biết chính xác sẽ ghi bao nhiêu ngày
+        let res = await fetchWithAuth(`${API_BASE_URL}/api/usage/bulk-fill`, { method: 'POST', body: JSON.stringify({ ...body, dryRun: true }) });
+        let data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || 'Không thể xem trước.');
+        if (data.daysWritten === 0) {
+            Swal.fire('Không có ngày nào cần ghi', 'Trong khoảng đã chọn, các ngày đều đã có số liệu (hoặc nằm trước ngày thiết bị được thêm vào hệ thống). Nếu muốn thay số liệu cũ, hãy tích "Ghi đè".', 'info');
+            return;
+        }
+        const notes = [];
+        if (data.skippedExisting) notes.push(`${data.skippedExisting} ô đã có số liệu sẽ được giữ nguyên`);
+        if (data.skippedBeforeCreation) notes.push(`${data.skippedBeforeCreation} ô trước ngày thiết bị được thêm vào hệ thống sẽ bỏ qua`);
+        if (data.overwrittenDays) notes.push(`<b>${data.overwrittenDays}</b> ngày đã có số liệu sẽ bị GHI ĐÈ`);
+        const confirm = await Swal.fire({
+            title: 'Xác nhận ghi hàng loạt?',
+            html: `Ghi <b>${data.daysWritten}</b> ngày, mỗi ngày <b>${hours} giờ</b>, từ ${fmtFullDate(from).split(', ').pop()} đến ${fmtFullDate(to).split(', ').pop()}` +
+                  `, cho <b>${data.devices}</b> thiết bị.` + (notes.length ? `<br><small>${notes.join('; ')}.</small>` : ''),
+            icon: 'question', showCancelButton: true, confirmButtonText: 'Ghi ngay', cancelButtonText: 'Quay lại'
+        });
+        if (!confirm.isConfirmed) return;
+
+        // Bước 2: ghi thật
+        res = await fetchWithAuth(`${API_BASE_URL}/api/usage/bulk-fill`, { method: 'POST', body: JSON.stringify(body) });
+        data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || 'Ghi hàng loạt thất bại.');
+        showToast(data.message || 'Đã ghi hàng loạt.');
+        await reloadDuHistory();
+        const missing = duMissingDays();
+        selectDuDate(missing.length ? missing[missing.length - 1] : du.today);
+        closeDuBulk();
+        refreshAfterUsageChange();
+    } catch (error) {
+        handleApiError(error, 'Ghi hàng loạt giờ sử dụng');
+    } finally {
+        applyBtn.disabled = false;
+    }
+}
+
+duBulkEl('duBulkToggle').addEventListener('click', openDuBulk);
+duBulkEl('duBulkCancel').addEventListener('click', closeDuBulk);
+duBulkEl('duBulkApply').addEventListener('click', applyDuBulk);
+duBulkEl('duBulkRange').addEventListener('input', () => { duBulkEl('duBulkReadout').textContent = `${duBulkEl('duBulkRange').value} giờ`; });
+document.querySelector('.du-bulk-quick').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-h]');
+    if (!btn) return;
+    duBulkEl('duBulkRange').value = btn.dataset.h;
+    duBulkEl('duBulkReadout').textContent = `${btn.dataset.h} giờ`;
+});
+document.querySelector('.du-bulk-chips').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-range]');
+    if (!btn) return;
+    const yesterday = addDaysStr(du.today, -1);
+    const clampFrom = (d) => (d < du.goLive ? du.goLive : d);
+    let from, to;
+    if (btn.dataset.range === 'month') {
+        from = clampFrom(`${du.month}-01`);
+        const [y, m] = du.month.split('-').map(Number);
+        const last = `${du.month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+        to = last > du.today ? du.today : last;
+    } else if (btn.dataset.range === 'all') {
+        from = du.goLive; to = yesterday;
+    } else {
+        from = clampFrom(addDaysStr(du.today, -30)); to = yesterday;
+    }
+    duBulkEl('duBulkFrom').value = from; duBulkEl('duBulkTo').value = to;
 });
 
         // Dán hàm này vào cuối thẻ script
