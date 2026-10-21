@@ -81,6 +81,7 @@
                     <div id="equipment-view-container" class="view-container">
                         <div class="main-header"><h1 class="department-title" id="currentDepartment"></h1><div class="header-actions"><button class="action-button" id="addEquipmentBtn"><i class="fas fa-plus"></i> Thêm Thiết Bị</button><button class="action-button" id="bulkPrintQrBtn" style="background-color: #555;"><i class="fas fa-qrcode"></i> In QR hàng loạt</button><button class="action-button" id="importExcelBtn" style="background-color: var(--success-color);"><i class="fas fa-file-import"></i> Nhập từ Excel</button><button class="action-button" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Xuất Excel</button></div></div>
                         <input type="file" id="excelFileInput" style="display: none" accept=".xlsx, .xls">
+                        <div id="backfillBanner" class="backfill-banner" style="display: none;"></div>
                         <div class="search-controls">
                             <div class="search-bar">
                                 <i class="fas fa-search"></i>
@@ -440,14 +441,20 @@
             </div>
         </div>
         <div class="modal" id="usageLogModal">
-           <div class="modal-content" style="max-width: 550px;">
+           <div class="modal-content" style="max-width: 600px;">
              <div class="modal-header">
             <h2 id="usageLogModalTitle">Ghi Nhật ký Sử dụng Tuần</h2>
             <button class="close-btn" id="closeUsageLogModalBtn">×</button>
         </div>
         <form id="usageLogForm">
             <input type="hidden" id="log-equipment-id">
-            <div class="form-group">
+            <input type="hidden" id="log-week-start">
+            <div class="form-group" id="log-week-group">
+                <label>Chọn tuần cần ghi <span class="week-picker-note">(tuần quên ghi sẽ có dấu <i class="fas fa-circle-exclamation"></i> — bấm vào để ghi bù)</span></label>
+                <div id="logWeekPicker" class="week-picker"></div>
+                <div id="logWeekHint" class="week-hint"></div>
+            </div>
+            <div class="form-group" id="log-equipment-group">
                 <label>Thiết bị</label>
                 <input type="text" id="log-equipment-name" readonly style="background-color: #e9ecef; font-weight: bold;">
             </div>
@@ -464,7 +471,7 @@
                 <textarea id="logNotes" rows="3" placeholder="Nhập các ghi chú chi tiết về tình trạng thiết bị..."></textarea>
             </div>
             <div class="form-actions" style="flex-direction: column; align-items: stretch; gap: 10px;">
-                <button type="submit" class="save-btn">Lưu chỉ cho thiết bị này</button>
+                <button type="submit" class="save-btn" id="logSaveSingleBtn">Lưu chỉ cho thiết bị này</button>
                 <button type="button" id="bulkLogSubmitBtn" class="action-button" style="background-color: var(--success-color);"><i class="fas fa-check-double"></i> Áp dụng cho tất cả thiết bị còn lại</button>
                 <button type="button" id="bulkLogExceptBtn" class="action-button" style="background-color: #6c757d;"title="Chọn các thiết bị sẽ được ghi nhật ký riêng">
                     <i class="fas fa-tasks"></i> Áp dụng, trừ một vài thiết bị...
@@ -473,6 +480,38 @@
         </form>
     </div>
 </div>
+
+        <div class="modal" id="dailyUsageModal">
+            <div class="modal-content" style="max-width: 660px;">
+                <div class="modal-header">
+                    <h2 id="dailyUsageTitle">Giờ sử dụng hằng ngày</h2>
+                    <button class="close-btn" id="closeDailyUsageBtn">×</button>
+                </div>
+                <div id="dailyUsageSummary" class="du-summary"></div>
+                <div class="du-legend">
+                    <span><i class="du-dot logged"></i> Đã ghi</span>
+                    <span><i class="du-dot backfilled"></i> Ghi bù</span>
+                    <span><i class="du-dot missing"></i> Chưa ghi — bấm để ghi bù</span>
+                    <span><i class="du-dot today"></i> Hôm nay</span>
+                </div>
+                <div class="du-weekdays"><span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span></div>
+                <div id="dailyUsageCalendar" class="du-calendar"></div>
+                <div class="du-editor">
+                    <div id="duSelectedLabel" class="du-selected-label"></div>
+                    <input type="range" id="duRange" min="0" max="24" step="0.5" value="0">
+                    <div class="du-readout"><output id="duReadout">0 giờ</output><span id="duPercent"></span></div>
+                    <div class="du-quick">
+                        <button type="button" data-h="0">0h</button><button type="button" data-h="4">4h</button><button type="button" data-h="8">8h</button><button type="button" data-h="12">12h</button><button type="button" data-h="16">16h</button><button type="button" data-h="24">24h</button>
+                    </div>
+                    <div id="duNote" class="du-note"></div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="cancel-btn" id="duCloseBtn">Đóng</button>
+                    <button type="button" class="save-btn" id="duSaveBtn">Lưu</button>
+                    <button type="button" class="action-button" id="duSaveNextBtn" style="justify-content:center;"><i class="fas fa-forward"></i> Lưu &amp; ghi bù ngày thiếu tiếp theo</button>
+                </div>
+            </div>
+        </div>
             <div id="image-zoom-modal" class="modal">
                 <span class="nclose-btn" id="close-zoom-modal">&times;</span>
                 <img class="modal-content" id="zoomed-image" style="max-width: 80%; max-height: 80%; border-radius: 10px;">

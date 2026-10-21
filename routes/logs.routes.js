@@ -3,35 +3,106 @@ const router = express.Router();
 const Equipment = require('../models/Equipment');
 const UsageLog = require('../models/UsageLog');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
+const cfg = require('../config/usage');
+const {
+    todayVN, addDays, weekStartOf, currentWeekStart, weekEndOf, isValidDateStr, weekLabel,
+    startInstant, weekStartOfLog, createdDateOf
+} = require('../utils/dateVN');
+const { loadLoggedWeeks, computeUsageStatus } = require('../utils/usageStatus');
 
-// 10.10. API CHO NHẬT KÝ SỬ DỤNG (TÍNH NĂNG MỚI)
+const VALID_STATUS = ['operational', 'minor_issue', 'not_in_use'];
+
+// Chuẩn hóa & kiểm tra tuần được chọn để ghi (mặc định là tuần hiện tại).
+// Người dùng khoa chỉ được ghi bù tối đa BACKFILL_WEEKS tuần gần nhất.
+function resolveWeek(input, role) {
+    const cur = currentWeekStart();
+    if (input === undefined || input === null || input === '') return { weekStart: cur };
+    if (!isValidDateStr(input)) return { error: 'Tuần được chọn không hợp lệ.' };
+    const weekStart = weekStartOf(input);
+    if (weekStart > cur) return { error: 'Không thể ghi nhật ký cho tuần chưa đến.' };
+    const earliest = addDays(cur, -7 * cfg.BACKFILL_WEEKS);
+    if (weekStart < earliest && role !== 'admin') {
+        return { error: `Chỉ được ghi bù tối đa ${cfg.BACKFILL_WEEKS} tuần gần nhất.` };
+    }
+    return { weekStart };
+}
+
+// Điều kiện tìm nhật ký thuộc một tuần (gồm cả nhật ký cũ chưa có trường weekStart)
+function weekFilter(weekStart) {
+    return {
+        $or: [
+            { weekStart },
+            { weekStart: { $exists: false }, createdAt: { $gte: startInstant(weekStart), $lt: startInstant(addDays(weekStart, 7)) } }
+        ]
+    };
+}
+
+// =================================================================
+// API NHẬT KÝ SỬ DỤNG
 // =================================================================
 
-// API để khoa/phòng tạo một nhật ký sử dụng mới
+// Khoa ghi nhật ký cho MỘT thiết bị. Có thể chọn tuần (weekStart) để ghi bù.
+// Nếu thiết bị đã có nhật ký của tuần đó thì cập nhật lại (không tạo bản ghi trùng).
 router.post('/api/logs', authenticateToken, async (req, res) => {
     try {
-        const { equipmentId, status, notes } = req.body;
+        const { equipmentId, status, notes, weekStart: weekInput } = req.body;
         if (!equipmentId || !status) {
             return res.status(400).json({ message: "Thiếu thông tin thiết bị hoặc trạng thái." });
+        }
+        if (!VALID_STATUS.includes(status)) {
+            return res.status(400).json({ message: "Trạng thái nhật ký không hợp lệ." });
+        }
+        if (req.user.role !== 'user' && req.user.role !== 'admin') {
+            return res.status(403).json({ message: "Tài khoản này không được ghi nhật ký sử dụng." });
         }
 
         const equipment = await Equipment.findById(equipmentId);
         if (!equipment) {
             return res.status(404).json({ message: "Không tìm thấy thiết bị." });
         }
+        // Khoa chỉ được ghi nhật ký cho thiết bị của chính khoa mình
+        if (req.user.role === 'user' && equipment.department !== req.user.departmentKey) {
+            return res.status(403).json({ message: "Bạn không thể ghi nhật ký cho thiết bị của khoa khác." });
+        }
 
-        const newLog = new UsageLog({
-            equipmentId: equipment._id,
-            equipmentName: equipment.name,
-            serial: equipment.serial,
-            departmentKey: req.user.departmentKey, // Lấy từ token của người dùng đang đăng nhập
-            loggedBy: req.user.username, // Lấy từ token của người dùng đang đăng nhập
-            status,
-            notes
+        const week = resolveWeek(weekInput, req.user.role);
+        if (week.error) return res.status(400).json({ message: week.error });
+        const { weekStart } = week;
+        const isBackfill = weekStart < currentWeekStart();
+        const cleanNotes = String(notes || '').slice(0, 1000);
+
+        const existing = await UsageLog.findOne({ equipmentId: equipment._id, ...weekFilter(weekStart) }).sort({ createdAt: -1 });
+        let log;
+        let updated = false;
+        if (existing) {
+            existing.status = status;
+            existing.notes = cleanNotes;
+            existing.loggedBy = req.user.username;
+            existing.weekStart = weekStart;
+            existing.isBackfill = isBackfill;
+            log = await existing.save();
+            updated = true;
+        } else {
+            log = await UsageLog.create({
+                equipmentId: equipment._id,
+                equipmentName: equipment.name,
+                serial: equipment.serial,
+                departmentKey: equipment.department,
+                loggedBy: req.user.username,
+                status,
+                notes: cleanNotes,
+                weekStart,
+                isBackfill
+            });
+        }
+
+        const label = weekLabel(weekStart);
+        res.status(updated ? 200 : 201).json({
+            message: updated
+                ? `Đã cập nhật nhật ký tuần ${label}.`
+                : (isBackfill ? `Đã ghi bù nhật ký tuần ${label}.` : "Ghi nhật ký thành công!"),
+            log
         });
-
-        await newLog.save();
-        res.status(201).json({ message: "Ghi nhật ký thành công!", log: newLog });
 
     } catch (error) {
         console.error("Lỗi khi tạo nhật ký sử dụng:", error);
@@ -39,76 +110,120 @@ router.post('/api/logs', authenticateToken, async (req, res) => {
     }
 });
 
-// API để admin xem lịch sử nhật ký của một thiết bị cụ thể
+// Admin xem lịch sử nhật ký của một thiết bị
 router.get('/api/logs/equipment/:equipmentId', authenticateToken, isAdmin, async (req, res) => {
     try {
         const { equipmentId } = req.params;
-        const logs = await UsageLog.find({ equipmentId: equipmentId }).sort({ createdAt: -1 });
-        res.json(logs);
+        const logs = await UsageLog.find({ equipmentId }).lean();
+        const result = logs.map(l => ({ ...l, weekStart: weekStartOfLog(l) }));
+        result.sort((a, b) => (b.weekStart.localeCompare(a.weekStart)) || (new Date(b.createdAt) - new Date(a.createdAt)));
+        res.json(result);
     } catch (error) {
         console.error("Lỗi khi lấy lịch sử nhật ký:", error);
         res.status(500).json({ message: 'Lỗi server khi lấy lịch sử nhật ký.' });
     }
 });
+
 // =================================================================
-// 10.13. API GHI NHẬT KÝ HÀNG LOẠT (TÍNH NĂNG MỚI)
+// GHI NHẬT KÝ HÀNG LOẠT (cho cả khoa) - có thể chọn tuần để ghi bù
 // =================================================================
 router.post('/api/logs/bulk', authenticateToken, async (req, res) => {
     try {
-        const { status, notes, excludeIds = [] } = req.body; // Thêm `excludeIds` để nhận danh sách loại trừ
-        const { departmentKey, username } = req.user;
+        const { status, notes, excludeIds = [], weekStart: weekInput } = req.body;
+        const { departmentKey, username, role } = req.user;
 
+        if (role !== 'user' || !departmentKey) {
+            return res.status(403).json({ message: "Chỉ tài khoản của khoa/phòng mới được ghi nhật ký hàng loạt." });
+        }
         if (!status) {
             return res.status(400).json({ message: "Thiếu thông tin trạng thái." });
         }
-
-        // 1. Xác định tuần hiện tại
-        const now = new Date();
-        const dayOfWeek = now.getDay();
-        const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        const startOfWeek = new Date(now.setDate(diff));
-        startOfWeek.setHours(0, 0, 0, 0);
-
-        // 2. Lấy ID của tất cả thiết bị trong khoa
-        const allEquipmentInDept = await Equipment.find({ department: departmentKey }).select('_id');
-        const allEquipmentIds = allEquipmentInDept.map(eq => eq._id.toString());
-
-        // 3. Lấy ID của các thiết bị đã được ghi nhật ký trong tuần này
-        const loggedThisWeek = await UsageLog.find({
-            departmentKey: departmentKey,
-            createdAt: { $gte: startOfWeek }
-        }).select('equipmentId');
-        const loggedEquipmentIds = loggedThisWeek.map(log => log.equipmentId.toString());
-
-        // 4. Lọc ra danh sách các thiết bị CHƯA được ghi nhật ký VÀ KHÔNG NẰM TRONG DANH SÁCH LOẠI TRỪ
-        const unloggedEquipmentIds = allEquipmentIds.filter(id => 
-            !loggedEquipmentIds.includes(id) && !excludeIds.includes(id)
-        );
-
-        if (unloggedEquipmentIds.length === 0) {
-            return res.status(200).json({ message: "Không có thiết bị nào phù hợp để ghi nhật ký hàng loạt.", count: 0 });
+        if (!VALID_STATUS.includes(status)) {
+            return res.status(400).json({ message: "Trạng thái nhật ký không hợp lệ." });
+        }
+        if (!Array.isArray(excludeIds)) {
+            return res.status(400).json({ message: "Danh sách loại trừ không hợp lệ." });
         }
 
-        // 5. Lấy thông tin chi tiết của các thiết bị cần ghi nhật ký
-        const equipmentsToLog = await Equipment.find({ '_id': { $in: unloggedEquipmentIds } });
+        const week = resolveWeek(weekInput, role);
+        if (week.error) return res.status(400).json({ message: week.error });
+        const { weekStart } = week;
+        const isBackfill = weekStart < currentWeekStart();
+        const excluded = new Set(excludeIds.map(String));
+        const cleanNotes = String(notes || '').slice(0, 1000);
 
-        // 6. Chuẩn bị dữ liệu để ghi hàng loạt
-        const logsToInsert = equipmentsToLog.map(eq => ({
+        // 1. Thiết bị trong khoa + các tuần đã ghi của từng thiết bị
+        const [allEquipment, loggedMap] = await Promise.all([
+            Equipment.find({ department: departmentKey }).select('_id name serial').lean(),
+            loadLoggedWeeks({ departmentKey })
+        ]);
+
+        // 2. Chỉ ghi cho thiết bị: chưa có nhật ký tuần đó, không bị loại trừ,
+        //    và đã tồn tại tại thời điểm tuần đó (không ghi ngược cho thiết bị mới thêm)
+        const weekEnd = weekEndOf(weekStart);
+        const toLog = allEquipment.filter(eq => {
+            const id = eq._id.toString();
+            const logged = loggedMap.get(id);
+            return !(logged && logged.has(weekStart)) && !excluded.has(id) && createdDateOf(eq) <= weekEnd;
+        });
+
+        const label = weekLabel(weekStart);
+        if (toLog.length === 0) {
+            return res.status(200).json({ message: `Không còn thiết bị nào cần ghi nhật ký cho tuần ${label}.`, count: 0 });
+        }
+
+        await UsageLog.insertMany(toLog.map(eq => ({
             equipmentId: eq._id, equipmentName: eq.name, serial: eq.serial,
-            departmentKey: departmentKey, loggedBy: username, status: status, notes: notes
-        }));
-        
-        // 7. Thực hiện ghi hàng loạt
-        await UsageLog.insertMany(logsToInsert);
+            departmentKey, loggedBy: username, status, notes: cleanNotes, weekStart, isBackfill
+        })));
 
-        res.status(201).json({ 
-            message: `Đã ghi nhật ký hàng loạt thành công cho ${logsToInsert.length} thiết bị.`,
-            count: logsToInsert.length 
+        res.status(201).json({
+            message: `Đã ghi nhật ký${isBackfill ? ' bù' : ''} tuần ${label} cho ${toLog.length} thiết bị.`,
+            count: toLog.length
         });
 
     } catch (error) {
         console.error("Lỗi khi ghi nhật ký hàng loạt:", error);
         res.status(500).json({ message: 'Lỗi server khi ghi nhật ký hàng loạt.' });
+    }
+});
+
+// =================================================================
+// TỔNG HỢP "CÒN THIẾU GÌ CHƯA GHI" - dùng cho thông báo nổi bật trên giao diện khoa
+// =================================================================
+router.get('/api/logs/missing-summary', authenticateToken, async (req, res) => {
+    try {
+        const deptKey = req.user.role === 'user' ? req.user.departmentKey : req.query.dept;
+        if (!deptKey) return res.status(400).json({ message: 'Thiếu thông tin khoa/phòng.' });
+
+        const [equipments, loggedMap] = await Promise.all([
+            Equipment.find({ department: deptKey }).select('_id usageHistory').lean(),
+            loadLoggedWeeks({ departmentKey: deptKey })
+        ]);
+
+        const statuses = equipments.map(eq => computeUsageStatus(eq, loggedMap.get(eq._id.toString())));
+
+        const cur = currentWeekStart();
+        const weeks = [];
+        for (let i = 0; i <= cfg.MISSING_WEEKS_WINDOW; i++) {
+            const wk = addDays(cur, -7 * i);
+            const missingCount = statuses.filter(s => (i === 0 ? s.needsLog : s.missingWeeks.includes(wk))).length;
+            weeks.push({ weekStart: wk, label: weekLabel(wk), isCurrent: i === 0, missingCount });
+        }
+
+        res.json({
+            today: todayVN(),
+            totalEquipment: equipments.length,
+            weeks,
+            dailyMissing: {
+                windowDays: cfg.MISSING_DAYS_WINDOW,
+                equipmentCount: statuses.filter(s => s.missingDays.length > 0).length,
+                totalDays: statuses.reduce((sum, s) => sum + s.missingDays.length, 0)
+            }
+        });
+    } catch (error) {
+        console.error("Lỗi khi tổng hợp dữ liệu còn thiếu:", error);
+        res.status(500).json({ message: 'Lỗi server khi tổng hợp dữ liệu còn thiếu.' });
     }
 });
 

@@ -11,6 +11,45 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
         }
+        // --- Tiện ích ngày/tuần theo GIỜ VIỆT NAM (khớp với cách tính ở server) ---
+        function vnTodayStr() { return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10); }
+        function addDaysStr(s, n) {
+            const [y, m, d] = s.split('-').map(Number);
+            return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+        }
+        function weekStartOfStr(s) { // ngày THỨ HAI của tuần chứa ngày s
+            const [y, m, d] = s.split('-').map(Number);
+            const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+            return addDaysStr(s, dow === 0 ? -6 : 1 - dow);
+        }
+        function fmtDM(s) { const p = s.split('-'); return `${p[2]}/${p[1]}`; }
+        function fmtWeekLabel(weekStart) { return `${fmtDM(weekStart)} – ${fmtDM(addDaysStr(weekStart, 6))}`; }
+        const WEEKDAY_NAMES = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+        function fmtFullDate(s) {
+            const [y, m, d] = s.split('-').map(Number);
+            return `${WEEKDAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}, ${fmtDM(s)}/${y}`;
+        }
+        // Bỏ dấu tiếng Việt để tìm kiếm "hồi sức" bằng "hoi suc"
+        function normalizeVN(str) {
+            return String(str || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+                .replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+        }
+        // Màu thanh giờ sử dụng theo % công suất (24h): < 50% xanh, 50-80% vàng, >= 80% đỏ (khớp với báo cáo hiệu suất)
+        function usageColor(hours) {
+            const pct = (hours / 24) * 100;
+            if (pct >= 80) return '#dc2626';
+            if (pct >= 50) return '#d97706';
+            return '#16a34a';
+        }
+        function showToast(message, icon = 'success') {
+            Swal.fire({ toast: true, position: 'top-end', icon, title: message, showConfirmButton: false, timer: 2600 });
+        }
+        let currentMissingOnly = false;   // đang chỉ hiện thiết bị còn thiếu dữ liệu cần ghi bù
+        let searchSeq = 0, listSeq = 0;   // đánh số yêu cầu để bỏ qua kết quả trả về chậm/cũ
+        let searchTimer = null, deptSearchTimer = null;
+        let lastLoadedDept = '';
+        let lastMissingSummary = null;
+        const equipmentCache = new Map(); // _id -> thiết bị đang hiển thị
         let departments = {};
         let currentFullDeptList = []; 
         let currentStatusFilter = 'all';
@@ -218,7 +257,7 @@ if (response.status === 403) {
             const currentVal = dom.departmentSelect.value;
             dom.departmentSelect.innerHTML = '';
             for (const key in departments) {
-                if (departments[key].toLowerCase().includes(filter.toLowerCase())) {
+                if (normalizeVN(departments[key]).includes(normalizeVN(filter))) {
                     const option = document.createElement('option');
                     option.value = key;
                     option.textContent = departments[key];
@@ -234,27 +273,38 @@ if (response.status === 403) {
             dom.departmentSearchInput.style.opacity = isUser ? 0.6 : 1;
         }
 
-        async function fetchAndDisplayEquipment(deptKey, page = 1) {
+        async function fetchAndDisplayEquipment(deptKey, page = 1, silent = false) {
             currentPage = page;
             if (!deptKey) {
                 dom.equipmentTableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px;">Vui lòng chọn một khoa.</td></tr>`;
                 document.getElementById('pagination-controls').innerHTML = '';
                 return;
             }
-            dom.currentDepartment.textContent = `Đang tải...`;
+            const mySeq = ++listSeq;
+            if (!silent) dom.currentDepartment.textContent = `Đang tải...`;
             try {
-                const url = `${API_BASE_URL}/api/equipment/${deptKey}?page=${page}&limit=10&status=${currentStatusFilter}`;
+                let url = `${API_BASE_URL}/api/equipment/${encodeURIComponent(deptKey)}?page=${page}&limit=10&status=${currentStatusFilter}`;
+                if (currentMissingOnly) url += '&missing=1';
                 const response = await fetchWithAuth(url);
                 if (!response.ok) throw new Error(`Không thể tải dữ liệu`);
                 
                 const data = await response.json();
+                // Bỏ qua nếu đã có yêu cầu mới hơn, hoặc người dùng đang gõ tìm kiếm (kết quả tìm kiếm ưu tiên)
+                if (mySeq !== listSeq || currentSearchTerm()) return;
+                // Sau khi ghi bù, danh sách lọc có thể ngắn lại: lùi về trang cuối còn dữ liệu
+                if (data.equipments.length === 0 && page > 1 && data.totalPages >= 1) {
+                    return fetchAndDisplayEquipment(deptKey, data.totalPages, silent);
+                }
+                lastLoadedDept = deptKey;
                 currentFullDeptList = data.equipments;
                 
                 updateEquipmentTable(currentFullDeptList); 
                 updateDepartmentTitle(deptKey);
                 updateStats(data.stats);
                 renderPaginationControls(data.totalPages, data.currentPage);
+                if (!silent) refreshBackfillBanner();
             } catch (error) {
+                if (mySeq !== listSeq) return;
                 handleApiError(error, `Tải dữ liệu cho khoa ${departments[deptKey] || deptKey}`);
                 document.getElementById('pagination-controls').innerHTML = '';
             }
@@ -262,6 +312,8 @@ if (response.status === 403) {
         
         function updateEquipmentTable(list, isGlobalSearch = false) {
     currentDisplayedData = list;
+    equipmentCache.clear();
+    list.forEach(item => equipmentCache.set(String(item._id), item));
     dom.equipmentTableBody.innerHTML = '';
     document.getElementById('departmentColumnHeader').style.display = isGlobalSearch ? '' : 'none';
     const colspan = isGlobalSearch ? 8 : 7;
@@ -272,56 +324,67 @@ if (response.status === 403) {
     list.forEach(item => {
         const row = document.createElement('tr');
         const itemDept = item.department || dom.departmentSelect.value;
-        row.className = `status-${item.status}`;
+        const sName = escapeHtml(item.name), sSerial = escapeHtml(item.serial), sDept = escapeHtml(itemDept), sId = escapeHtml(item._id);
+        row.className = `status-${escapeHtml(item.status)}`;
         let actionButtons = '';
+        let missingPills = '';
 
         // Phân quyền hiển thị nút bấm
         if (userProfile.role === 'admin') {
             actionButtons = `
-                <button class="action-button view-btn" data-serial="${item.serial}" style="background-color: var(--success-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-eye"></i></button>
-                <button class="edit-btn" data-serial="${item.serial}"><i class="fas fa-edit"></i></button>
-                <button class="delete-btn" data-serial="${item.serial}" data-dept="${itemDept}"><i class="fas fa-trash"></i></button>
+                <button class="action-button view-btn" data-serial="${sSerial}" style="background-color: var(--success-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-eye"></i></button>
+                <button class="edit-btn" data-serial="${sSerial}"><i class="fas fa-edit"></i></button>
+                <button class="delete-btn" data-serial="${sSerial}" data-dept="${sDept}"><i class="fas fa-trash"></i></button>
             `;
         } else { // Nếu là user thì hiển thị các nút tương ứng
+            const missingWeekCount = (item.needsLog ? 1 : 0) + (item.missingWeeks || []).length;
+            const missingDayCount = (item.missingDays || []).length;
             let warningIcon = '';
-            if (item.needsLog) {
-                warningIcon = `<i class="fas fa-exclamation-circle" style="color: yellow; margin-right: 5px;" title="Chưa ghi nhật ký tuần này"></i>`;
+            if (missingWeekCount > 0) {
+                warningIcon = `<i class="fas fa-exclamation-circle log-warn-dot" title="Còn thiếu nhật ký — bấm để ghi hoặc ghi bù"></i>`;
             }
 
             actionButtons = `
-                <button class="action-button report-issue-btn" data-serial="${item.serial}" style="background-color: var(--danger-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-triangle-exclamation"></i> Báo hỏng</button>
-                <button class="action-button log-usage-btn" data-id="${item._id}" data-name="${item.name}" style="background-color: var(--info-color); padding: 6px 10px; font-size: 14px;">${warningIcon}<i class="far fa-file-alt"></i> Ghi Nhật ký</button>
+                <button class="action-button report-issue-btn" data-serial="${sSerial}" style="background-color: var(--danger-color); padding: 6px 10px; font-size: 14px;"><i class="fas fa-triangle-exclamation"></i> Báo hỏng</button>
+                <button class="action-button log-usage-btn" data-id="${sId}" data-name="${sName}" style="background-color: var(--info-color); padding: 6px 10px; font-size: 14px;">${warningIcon}<i class="far fa-file-alt"></i> Ghi Nhật ký</button>
             `;
+
+            // Nhãn nổi bật để Khoa thấy ngay thiết bị nào đang thiếu dữ liệu và bấm vào để ghi bù
+            if (missingDayCount > 0) {
+                missingPills += `<button type="button" class="missing-pill daily" data-id="${sId}" data-name="${sName}" title="Bấm để ghi bù giờ sử dụng các ngày còn thiếu"><i class="fas fa-clock"></i> Thiếu ${missingDayCount} ngày giờ sử dụng</button>`;
+            }
+            if (missingWeekCount > 0) {
+                missingPills += `<button type="button" class="missing-pill weekly" data-id="${sId}" data-name="${sName}" title="Bấm để ghi hoặc ghi bù nhật ký tuần"><i class="fas fa-file-pen"></i> Thiếu nhật ký ${missingWeekCount} tuần</button>`;
+            }
         }
 
-        // Tính toán màu sắc và độ dài thanh HP
+        // Tính toán màu sắc và độ dài thanh giờ sử dụng
         const usage = item.dailyUsage || 0;
-        const percentage = (usage / 24) * 100;
-        let hpColor = '#28a745'; // Xanh (Tốt/Ít)
-        if (usage > 12) hpColor = '#ffc107'; // Vàng (Trung bình)
-        if (usage > 20) hpColor = '#dc3545'; // Đỏ (Cao/Quá tải)
+        const percentage = Math.min((usage / 24) * 100, 100);
+        const hpColor = usageColor(usage);
 
         // HTML cho thanh HP
         const hpBarHtml = `
-            <div class="hp-bar-container hp-trigger" data-id="${item._id}" data-current="${usage}" data-name="${item.name}" title="Click để cập nhật giờ hoạt động">
+            <div class="hp-bar-container hp-trigger" data-id="${sId}" data-current="${usage}" data-name="${sName}" title="Giờ sử dụng hôm nay. Bấm để cập nhật hoặc ghi bù các ngày trước">
                 <div class="hp-bar-fill" style="width: ${percentage}%; background-color: ${hpColor};"></div>
                 <div class="hp-bar-text">${usage}h / 24h</div>
             </div>
         `;
 
         row.innerHTML = `
-            <td><img src="${item.image || 'https://via.placeholder.com/60x60?text=N/A'}" class="equipment-image" alt="${item.name}"></td>
-            <td>${item.name}</td>
-            <td>${item.serial}</td> 
-            ${isGlobalSearch ? `<td>${departments[itemDept] || 'N/A'}</td>` : ''} 
-            <td>${item.manufacturer || 'N/A'}</td>
-            <td>${item.year}</td>
+            <td><img src="${escapeHtml(item.image || 'https://via.placeholder.com/60x60?text=N/A')}" class="equipment-image" alt="${sName}"></td>
+            <td>${sName}</td>
+            <td>${sSerial}</td> 
+            ${isGlobalSearch ? `<td>${escapeHtml(departments[itemDept] || 'N/A')}</td>` : ''} 
+            <td>${escapeHtml(item.manufacturer || 'N/A')}</td>
+            <td>${escapeHtml(item.year || 'N/A')}</td>
             <td>
-                <span class="status ${item.status}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span>
+                <span class="status ${escapeHtml(item.status)}">${{active: 'Hoạt động', maintenance: 'Bảo trì', inactive: 'Ngừng HĐ'}[item.status] || 'Không rõ'}</span>
             </td>
             <td class="action-btn-group" style="vertical-align: middle;">
                 <div style="margin-bottom: 5px;">${actionButtons}</div>
-                ${hpBarHtml} </td>
+                ${hpBarHtml}
+                ${missingPills ? `<div class="missing-pills">${missingPills}</div>` : ''}</td>
         `;
         dom.equipmentTableBody.appendChild(row);
     });
@@ -356,73 +419,102 @@ if (response.status === 403) {
             dom.currentDepartment.textContent = departments[deptKey];
         }
 
+        function currentSearchTerm() { return dom.searchInput.value.trim(); }
+
+        // Tính lại 4 thẻ thống kê từ danh sách kết quả tìm kiếm (trước đây bị reset về 0)
+        function updateStatsFromList(list) {
+            const stats = { active: 0, maintenance: 0, inactive: 0 };
+            list.forEach(i => { if (stats[i.status] !== undefined) stats[i.status]++; });
+            updateStats(stats);
+        }
+
+        // Tìm kiếm: không phân biệt dấu/hoa thường, nhiều từ khóa; kết hợp với bộ lọc trạng thái ở thanh bên.
+        async function runSearch(term) {
+            const mySeq = ++searchSeq;
+            const isGlobalSearch = userProfile.role !== 'user' && document.getElementById('globalSearchCheckbox').checked;
+            document.getElementById('pagination-controls').innerHTML = '';
+
+            let searchUrl = `${API_BASE_URL}/api/search?q=${encodeURIComponent(term)}`;
+            if (!isGlobalSearch) {
+                const deptKey = dom.departmentSelect.value;
+                if (deptKey) searchUrl += `&dept=${encodeURIComponent(deptKey)}`;
+            }
+            if (currentStatusFilter && currentStatusFilter !== 'all') searchUrl += `&status=${encodeURIComponent(currentStatusFilter)}`;
+
+            dom.currentDepartment.textContent = `Đang tìm "${term}"...`;
+            try {
+                const response = await fetchWithAuth(searchUrl);
+                const data = await response.json().catch(() => null);
+                if (mySeq !== searchSeq) return; // đã có lần tìm mới hơn -> bỏ kết quả cũ, tránh hiển thị sai
+                if (!response.ok) throw new Error((data && data.message) || 'Không thể tìm kiếm.');
+
+                let results = Array.isArray(data) ? data : [];
+                if (currentMissingOnly) results = results.filter(r => r.hasMissing);
+                updateEquipmentTable(results, isGlobalSearch);
+                updateStatsFromList(results);
+                dom.currentDepartment.textContent = `Kết quả cho "${term}" — ${results.length} thiết bị${isGlobalSearch ? ' (toàn bộ các khoa)' : ''}`;
+            } catch (error) {
+                if (mySeq !== searchSeq) return;
+                handleApiError(error, 'Tìm kiếm');
+            }
+        }
+
+        // Tải lại đúng "chế độ" đang xem: kết quả tìm kiếm nếu đang có từ khóa, ngược lại là danh sách khoa
+        function refreshEquipmentList(page = currentPage || 1, silent = false) {
+            const term = currentSearchTerm();
+            if (term) return runSearch(term);
+            return fetchAndDisplayEquipment(dom.departmentSelect.value, page, silent);
+        }
+
         dom.departmentSelect.addEventListener('change', () => {
             dom.searchInput.value = '';
+            searchSeq++;
             currentStatusFilter = 'all';
+            currentMissingOnly = false;
             setActiveSidebarFilter('all');
             fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
         });
         
         dom.departmentSearchInput.addEventListener('input', (e) => {
-    populateDepartmentDropdown(e.target.value);
-
-    // --- PHẦN NÂNG CẤP ĐỂ TỰ ĐỘNG CHỌN VÀ TẢI DỮ LIỆU ---
-    const firstVisibleOption = dom.departmentSelect.querySelector('option');
-    if (firstVisibleOption) {
-        // Nếu có kết quả, tự động chọn khoa đầu tiên
-        dom.departmentSelect.value = firstVisibleOption.value;
-        // Kích hoạt sự kiện 'change' để tải lại dữ liệu cho khoa mới được chọn
-        dom.departmentSelect.dispatchEvent(new Event('change'));
-    } else {
-        // Nếu không có kết quả, xóa bảng
-        dom.equipmentTableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px;">Không tìm thấy khoa phù hợp.</td></tr>`;
-        dom.currentDepartment.textContent = "Không tìm thấy khoa";
-    }
-    // --- KẾT THÚC PHẦN NÂNG CẤP ---
-});
-        
-        dom.searchInput.addEventListener('input', async (e) => {
-            const searchTerm = e.target.value.trim();
-            const isGlobalSearch = document.getElementById('globalSearchCheckbox').checked;
-
-            document.getElementById('pagination-controls').innerHTML = ''; // Xóa phân trang khi tìm kiếm
-
-            if (searchTerm.length > 0) {
-                try {
-                    let searchUrl = `${API_BASE_URL}/api/search?q=${encodeURIComponent(searchTerm)}`;
-
-            // Nếu không phải tìm kiếm toàn cục, thêm mã khoa vào URL
-                if (!isGlobalSearch) {
-                const deptKey = dom.departmentSelect.value;
-                    if (deptKey) {
-                    searchUrl += `&dept=${deptKey}`;
-                    }
+            populateDepartmentDropdown(e.target.value);
+            // Chờ người dùng gõ xong một nhịp rồi mới tải dữ liệu, tránh gọi server sau mỗi phím
+            clearTimeout(deptSearchTimer);
+            deptSearchTimer = setTimeout(() => {
+                const options = [...dom.departmentSelect.options];
+                if (options.length === 0) {
+                    listSeq++;
+                    dom.equipmentTableBody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 30px;">Không tìm thấy khoa phù hợp.</td></tr>`;
+                    dom.currentDepartment.textContent = "Không tìm thấy khoa";
+                    return;
                 }
-
-                dom.currentDepartment.textContent = `Kết quả tìm kiếm cho "${searchTerm}"...`;
-                updateStats(); // Reset stats
-
-                const response = await fetchWithAuth(searchUrl);
-                const results = await response.json();
-
-                // Cập nhật bảng với kết quả, isGlobalSearch sẽ quyết định có hiển thị cột Khoa/Phòng hay không
-                updateEquipmentTable(results, isGlobalSearch);
-
-        } catch (error) {
-            handleApiError(error, 'Tìm kiếm');
-        }
-    } else { // Nếu xóa hết chữ trong ô tìm kiếm, quay về danh sách của khoa
-        fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
-    }
-});
+                // Khoa đang xem vẫn nằm trong kết quả lọc -> giữ nguyên, không tải lại
+                if (options.some(o => o.value === lastLoadedDept)) {
+                    dom.departmentSelect.value = lastLoadedDept;
+                    return;
+                }
+                dom.departmentSelect.value = options[0].value;
+                dom.departmentSelect.dispatchEvent(new Event('change'));
+            }, 250);
+        });
+        
+        dom.searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            const term = currentSearchTerm();
+            if (!term) { // Xóa hết chữ: quay về danh sách của khoa
+                searchSeq++;
+                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+                return;
+            }
+            searchTimer = setTimeout(() => runSearch(term), 300);
+        });
 
         dom.sidebarFilters.forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
-                dom.searchInput.value = '';
+                // Giữ nguyên từ khóa đang tìm: bộ lọc trạng thái nay kết hợp được với tìm kiếm
                 currentStatusFilter = e.currentTarget.dataset.filter;
                 setActiveSidebarFilter(currentStatusFilter);
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+                refreshEquipmentList(1);
                 if (window.innerWidth <= 992) { closeMobileSidebar(); }
             });
         });
@@ -500,7 +592,7 @@ if (response.status === 403) {
                 if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message || 'Thao tác thất bại.'); }
                 Swal.fire({ position: 'top-end', icon: 'success', title: 'Thao tác thành công!', showConfirmButton: false, timer: 1500 });
                 closeModal();
-                await fetchAndDisplayEquipment(targetDeptKey, currentPage);
+                await refreshEquipmentList(currentPage);
             } catch (error) {
                 handleApiError(error, isEditing ? 'Cập nhật' : 'Thêm mới');
             }
@@ -509,82 +601,15 @@ if (response.status === 403) {
         dom.equipmentTableBody.addEventListener('click', async (e) => {
             const hpTarget = e.target.closest('.hp-trigger');
     if (hpTarget) {
-        const id = hpTarget.dataset.id;
-        const currentVal = parseFloat(hpTarget.dataset.current);
-        const name = hpTarget.dataset.name;
-
-        // Hiện Popup thanh trượt
-        const { value: hours } = await Swal.fire({
-            title: `Hiệu suất: ${name}`,
-            text: 'Kéo để chọn số giờ hoạt động hôm nay',
-            input: 'range',
-            inputLabel: 'Giờ hoạt động (0 - 24h)',
-            inputAttributes: {
-                min: 0,
-                max: 24,
-                step: 0.5
-            },
-            inputValue: currentVal,
-            showCancelButton: true,
-            confirmButtonText: 'Cập nhật',
-            cancelButtonText: 'Hủy',
-            didOpen: () => {
-                // Thêm hiển thị số giờ real-time khi kéo
-                const range = Swal.getInput();
-                const output = Swal.getHtmlContainer().querySelector('output') || document.createElement('output');
-                output.style.display = 'block';
-                output.style.fontSize = '20px';
-                output.style.fontWeight = 'bold';
-                output.style.color = '#007bff';
-                output.style.marginTop = '10px';
-                output.innerText = `${range.value} giờ`;
-                if(!Swal.getHtmlContainer().querySelector('output')) Swal.getHtmlContainer().appendChild(output);
-                
-                range.addEventListener('input', () => {
-                    output.innerText = `${range.value} giờ`;
-                });
-            }
-        });
-
-        if (hours !== undefined) { // Người dùng ấn OK
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/usage/${id}`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ dailyUsage: hours })
-                });
-
-                if (!response.ok) throw new Error('Cập nhật thất bại');
-                
-                // Cập nhật giao diện ngay lập tức mà không cần load lại trang
-                const percentage = (hours / 24) * 100;
-                let newColor = '#28a745';
-                if (hours > 12) newColor = '#ffc107';
-                if (hours > 20) newColor = '#dc3545';
-                
-                const fill = hpTarget.querySelector('.hp-bar-fill');
-                const text = hpTarget.querySelector('.hp-bar-text');
-                
-                fill.style.width = `${percentage}%`;
-                fill.style.backgroundColor = newColor;
-                text.textContent = `${hours}h / 24h`;
-                
-                // Cập nhật lại data attribute để lần click sau đúng giá trị
-                hpTarget.dataset.current = hours;
-                
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Đã cập nhật!',
-                    toast: true,
-                    position: 'top-end',
-                    showConfirmButton: false,
-                    timer: 1500
-                });
-
-            } catch (error) {
-                handleApiError(error, 'Cập nhật hiệu suất');
-            }
-        }
+        // Mở lịch giờ sử dụng: cập nhật hôm nay hoặc ghi bù các ngày đã quên
+        openDailyUsageModal(hpTarget.dataset.id, hpTarget.dataset.name);
         return; // Dừng xử lý tiếp để không kích hoạt nhầm các nút khác
+    }
+    const pill = e.target.closest('.missing-pill');
+    if (pill) {
+        if (pill.classList.contains('daily')) openDailyUsageModal(pill.dataset.id, pill.dataset.name);
+        else openUsageLogModal(equipmentCache.get(pill.dataset.id) || null);
+        return;
     }
     const target = e.target.closest('button, img');
     if (!target) return;
@@ -645,7 +670,7 @@ if (response.status === 403) {
                     const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${deptKey}/${encodeURIComponent(serial)}`, { method: 'DELETE' });
                     if (!response.ok) { const err = await response.json(); throw new Error(err.message); }
                     Swal.fire('Đã xóa!', 'Thiết bị đã được xóa thành công.', 'success');
-                    await fetchAndDisplayEquipment(dom.departmentSelect.value, currentPage); 
+                    await refreshEquipmentList(currentPage); 
                 } catch (error) { 
                     handleApiError(error, 'Xóa thiết bị'); 
                 }
@@ -656,8 +681,7 @@ if (response.status === 403) {
     // Logic cho các nút của User
     else if (target.classList.contains('log-usage-btn')) {
         const equipmentId = target.dataset.id;
-        const equipmentName = target.dataset.name;
-        openUsageLogModal({ _id: equipmentId, name: equipmentName });
+        openUsageLogModal(equipmentCache.get(equipmentId) || { _id: equipmentId, name: target.dataset.name });
     }
     // SỬA LẠI LOGIC CHO NÚT BÁO HỎNG
     else if (target.classList.contains('report-issue-btn')) {
@@ -1356,7 +1380,7 @@ if (response.status === 403) {
                 });
                 closeMaintenanceModal();
                 renderMaintenanceView(); 
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
+                refreshEquipmentList(1);
             } catch (error) {
                 handleApiError(error, isEditing ? 'Cập nhật bảo trì' : 'Lên lịch bảo trì');
             }
@@ -1542,6 +1566,7 @@ if (response.status === 403) {
                             <div style="font-size: 30px; font-weight: bold; color: var(--primary-color);" id="eff-percent">0%</div>
                             <div style="font-size: 12px; color: #666;">Hiệu suất trung bình</div>
                             <div style="font-size: 13px; margin-top: 5px; font-weight: 500;" id="eff-hours">0h/ngày</div>
+                            <div class="eff-coverage" id="eff-coverage"></div>
                         </div>
                     </div>
                     <div id="profile-details">
@@ -1589,7 +1614,7 @@ if (response.status === 403) {
                     </div>
                     <div>
                         <h4 style="margin-top: 20px; margin-bottom: 10px; font-weight: 500;">Nhật ký Sử dụng hàng tuần</h4>
-                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;"><table class="generic-table"><thead><tr><th>Ngày Ghi</th><th>Người Ghi</th><th>Tình Trạng</th><th>Ghi Chú</th></tr></thead><tbody id="usage-log-tbody"></tbody></table></div>
+                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 20px;"><table class="generic-table"><thead><tr><th>Tuần</th><th>Ngày Ghi</th><th>Người Ghi</th><th>Tình Trạng</th><th>Ghi Chú</th></tr></thead><tbody id="usage-log-tbody"></tbody></table></div>
                     </div>
                     <div>
                         <h4 style="margin-bottom: 10px; font-weight: 500;">Lịch sử Sự cố</h4>
@@ -1604,10 +1629,9 @@ if (response.status === 403) {
 
         // --- CODE MỚI: XỬ LÝ NÚT TÍNH HIỆU SUẤT ---
         // Set mặc định ngày: Đầu tháng đến Hôm nay
-        const today = new Date();
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-        document.getElementById('eff-end-date').value = today.toISOString().split('T')[0];
-        document.getElementById('eff-start-date').value = firstDay.toISOString().split('T')[0];
+        const todayVN = vnTodayStr(); // theo giờ Việt Nam (không dùng toISOString trực tiếp vì bị lệch múi giờ)
+        document.getElementById('eff-end-date').value = todayVN;
+        document.getElementById('eff-start-date').value = `${todayVN.slice(0, 7)}-01`;
 
         document.getElementById('calc-efficiency-btn').addEventListener('click', async () => {
             const start = document.getElementById('eff-start-date').value;
@@ -1625,21 +1649,26 @@ if (response.status === 403) {
                     body: JSON.stringify({ equipmentId: data.details._id, startDate: start, endDate: end })
                 });
                 const report = await res.json();
+                if (!res.ok) throw new Error(report.message || 'Không thể tính toán');
                 
                 // Hiển thị kết quả
                 document.getElementById('eff-percent').textContent = `${report.efficiencyPercent}%`;
                 
-                // Tô màu theo mức độ
-                const p = parseFloat(report.efficiencyPercent);
-                const color = p > 80 ? '#dc3545' : (p > 50 ? '#ffc107' : '#28a745');
-                document.getElementById('eff-percent').style.color = color;
+                // Tô màu theo mức độ: bình thường (xanh) / cao (vàng) / quá tải (đỏ)
+                const levelColor = { normal: '#16a34a', high: '#d97706', overload: '#dc2626' }[report.level] || '#16a34a';
+                const levelText = { normal: 'Mức sử dụng bình thường', high: 'Mức sử dụng cao', overload: 'Quá tải' }[report.level] || '';
+                document.getElementById('eff-percent').style.color = levelColor;
 
-                document.getElementById('eff-hours').textContent = `TB: ${report.avgHoursPerDay} giờ / ngày`;
+                document.getElementById('eff-hours').textContent = `TB: ${report.avgHoursPerDay} giờ / ngày — ${levelText}`;
+                const cov = document.getElementById('eff-coverage');
+                cov.textContent = `Dựa trên ${report.loggedDays}/${report.totalDays} ngày có ghi nhận (${report.coveragePercent}%). Hiệu suất = giờ chạy TB ÷ ${report.ratedHoursPerDay}h.` +
+                    (report.coveragePercent < 70 ? ' ⚠ Dữ liệu chưa đầy đủ, kết quả chỉ mang tính tham khảo.' : '');
+                cov.className = 'eff-coverage' + (report.coveragePercent < 70 ? ' low' : '');
                 resultBox.style.display = 'block';
 
             } catch (err) {
                 console.error(err);
-                Swal.fire('Lỗi', 'Không thể tính toán', 'error');
+                Swal.fire('Lỗi', err.message || 'Không thể tính toán', 'error');
             } finally {
                 document.getElementById('calc-efficiency-btn').textContent = 'Tính toán';
             }
@@ -1966,7 +1995,7 @@ fileInput.addEventListener('change', (event) => {
             });
 
             // Tải lại danh sách thiết bị để thấy dữ liệu mới
-            fetchAndDisplayEquipment(selectedDeptKey, 1);
+            refreshEquipmentList(1);
 
         } catch (error) {
             handleApiError(error, "Nhập dữ liệu từ Excel");
@@ -2369,108 +2398,460 @@ function printMonthlyReport(reportData, startDate, endDate) {
         printWindow.close();
     }, 500);
 }
-// LOGIC CHO MODAL GHI NHẬT KÝ SỬ DỤNG
 // ========================================================
-function openUsageLogModal(equipment) {
+// GHI NHẬT KÝ TUẦN & GHI BÙ
+// Khoa có thể chọn một tuần đã qua để ghi bù (tối đa 8 tuần gần nhất).
+// ========================================================
+const BACKFILL_WEEKS = 8;
+const LOG_STATUS_TEXT = { operational: 'Hoạt động tốt', minor_issue: 'Có vấn đề nhỏ', not_in_use: 'Không sử dụng' };
+
+function defaultWeekFor(item) {
+    const cur = weekStartOfStr(vnTodayStr());
+    if (!item || item.needsLog) return cur;
+    return (item.missingWeeks && item.missingWeeks[0]) || cur; // tuần đã qua gần nhất còn thiếu
+}
+
+function renderWeekPicker() {
+    const picker = document.getElementById('logWeekPicker');
+    const selected = document.getElementById('log-week-start').value;
+    const cur = weekStartOfStr(vnTodayStr());
+    picker.innerHTML = '';
+    for (let i = 0; i <= BACKFILL_WEEKS; i++) {
+        const ws = addDaysStr(cur, -7 * i);
+        let logged = false, missing = false, extra = '';
+        if (logModalItem) {
+            logged = (logModalItem.loggedWeeks || []).includes(ws);
+            missing = i > 0 && (logModalItem.missingWeeks || []).includes(ws);
+        } else if (lastMissingSummary) { // chế độ ghi cho cả khoa: hiện số thiết bị còn thiếu ở mỗi tuần
+            const w = (lastMissingSummary.weeks || []).find(x => x.weekStart === ws);
+            if (w && w.missingCount > 0) { missing = i > 0; extra = `<br><small>${w.missingCount} thiết bị chưa ghi</small>`; }
+        }
+        const title = i === 0 ? 'Tuần này' : (i === 1 ? 'Tuần trước' : `${i} tuần trước`);
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.dataset.week = ws;
+        chip.className = 'week-chip' + (ws === selected ? ' selected' : '') + (logged ? ' done' : '') + (missing ? ' missing' : '');
+        chip.innerHTML = `<strong>${title}</strong>${fmtWeekLabel(ws)}${extra}` +
+            (logged ? '<i class="fas fa-circle-check wc-state" title="Đã ghi"></i>' : (missing ? '<i class="fas fa-circle-exclamation wc-state" title="Chưa ghi"></i>' : ''));
+        picker.appendChild(chip);
+    }
+    updateWeekHint();
+}
+
+function updateWeekHint() {
+    const ws = document.getElementById('log-week-start').value;
+    const isPast = ws < weekStartOfStr(vnTodayStr());
+    const alreadyLogged = logModalItem && (logModalItem.loggedWeeks || []).includes(ws);
+    const hint = document.getElementById('logWeekHint');
+    let text = `Đang ghi cho tuần ${fmtWeekLabel(ws)}`;
+    if (isPast) text += ' — GHI BÙ cho tuần đã qua';
+    if (alreadyLogged) text += '. Tuần này đã có nhật ký, lưu sẽ cập nhật lại.';
+    hint.textContent = text;
+    hint.className = 'week-hint' + (isPast ? ' backfill' : '');
+    document.getElementById('bulkLogSubmitBtn').innerHTML =
+        `<i class="fas fa-check-double"></i> Áp dụng cho tất cả thiết bị còn lại (${isPast ? 'bù ' : ''}tuần ${fmtWeekLabel(ws)})`;
+}
+
+document.getElementById('logWeekPicker').addEventListener('click', (e) => {
+    const chip = e.target.closest('.week-chip');
+    if (!chip) return;
+    document.getElementById('log-week-start').value = chip.dataset.week;
+    renderWeekPicker();
+});
+
+// equipment = null  -> chế độ GHI HÀNG LOẠT cho cả khoa (dùng từ thông báo "còn thiếu")
+let logModalItem = null;
+function openUsageLogModal(equipment, weekStart) {
+    logModalItem = equipment || null;
     dom.usageLogForm.reset();
-    document.getElementById('log-equipment-id').value = equipment._id;
-    document.getElementById('log-equipment-name').value = equipment.name;
+    document.getElementById('log-equipment-id').value = equipment ? equipment._id : '';
+    document.getElementById('log-equipment-name').value = equipment ? equipment.name : '';
+    document.getElementById('log-week-start').value = weekStart || defaultWeekFor(equipment);
+    document.getElementById('log-equipment-group').style.display = equipment ? '' : 'none';
+    document.getElementById('logSaveSingleBtn').style.display = equipment ? '' : 'none';
+    document.getElementById('usageLogModalTitle').textContent = equipment ? 'Ghi Nhật ký Sử dụng Tuần' : 'Ghi bù nhật ký cho cả khoa';
+    renderWeekPicker();
     dom.usageLogModal.style.display = 'flex';
 }
 
 function closeUsageLogModal() {
     dom.usageLogModal.style.display = 'none';
 }
+
+// Sau khi ghi/ghi bù: làm mới danh sách và thông báo "còn thiếu"
+let refreshTimer = null;
+function refreshAfterUsageChange() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => {
+        refreshEquipmentList(currentPage || 1, true);
+        refreshBackfillBanner();
+    }, 300);
+}
+
+// Ghi nhật ký cho MỘT thiết bị (có thể chọn tuần để ghi bù)
 dom.usageLogForm.addEventListener('submit', async (e) => {
     e.preventDefault(); // Ngăn trang tải lại
+    if (!logModalItem) return;
+    const weekStart = document.getElementById('log-week-start').value;
     const payload = {
         equipmentId: document.getElementById('log-equipment-id').value,
         status: document.getElementById('logStatus').value,
-        notes: document.getElementById('logNotes').value
+        notes: document.getElementById('logNotes').value,
+        weekStart
     };
-
+    const saveBtn = document.getElementById('logSaveSingleBtn');
+    saveBtn.disabled = true;
     try {
-        const response = await fetchWithAuth(`${API_BASE_URL}/api/logs`, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.message);
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/logs`, { method: 'POST', body: JSON.stringify(payload) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || 'Không thể ghi nhật ký.');
+
+        // Cập nhật ngay trạng thái của thiết bị để ô chọn tuần đổi sang "đã ghi"
+        const item = logModalItem;
+        const cur = weekStartOfStr(vnTodayStr());
+        item.loggedWeeks = [...new Set([...(item.loggedWeeks || []), weekStart])];
+        item.missingWeeks = (item.missingWeeks || []).filter(w => w !== weekStart);
+        if (weekStart === cur) item.needsLog = false;
+        showToast(data.message || 'Đã ghi nhật ký.');
+        refreshAfterUsageChange();
+
+        // Tự chuyển sang tuần còn thiếu tiếp theo của thiết bị này; hết thì đóng
+        const nextWeek = item.needsLog ? cur : (item.missingWeeks[0] || null);
+        if (nextWeek) {
+            document.getElementById('log-week-start').value = nextWeek;
+            document.getElementById('logNotes').value = '';
+            renderWeekPicker();
+        } else {
+            closeUsageLogModal();
         }
-        await Swal.fire('Thành công', 'Đã ghi lại nhật ký sử dụng cho thiết bị.', 'success');
-        closeUsageLogModal();
-        fetchAndDisplayEquipment(dom.departmentSelect.value, 1); // Tải lại để cập nhật dấu !
     } catch (error) {
         handleApiError(error, "Ghi nhật ký");
+    } finally {
+        saveBtn.disabled = false;
     }
 });
 
-document.getElementById('bulkLogSubmitBtn').addEventListener('click', () => {
+// Ghi hàng loạt cho cả khoa (có thể loại trừ một số thiết bị) cho tuần đang chọn
+async function confirmAndBulkLog(excludeIds) {
     const status = document.getElementById('logStatus').value;
     const notes = document.getElementById('logNotes').value;
+    const weekStart = document.getElementById('log-week-start').value;
+    const isPast = weekStart < weekStartOfStr(vnTodayStr());
+    const exceptText = excludeIds.length ? `, ngoại trừ <b>${excludeIds.length}</b> thiết bị đã chọn` : '';
 
-    Swal.fire({
-        title: 'Xác nhận Ghi hàng loạt?',
-        text: `Bạn có chắc muốn áp dụng tình trạng này cho tất cả thiết bị còn lại trong khoa?`,
+    const confirm = await Swal.fire({
+        title: 'Xác nhận ghi hàng loạt?',
+        html: `Áp dụng tình trạng <b>${LOG_STATUS_TEXT[status] || status}</b> cho các thiết bị của khoa chưa có nhật ký <b>tuần ${fmtWeekLabel(weekStart)}</b>${isPast ? ' (ghi bù)' : ''}${exceptText}.`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#3085d6',
         cancelButtonColor: '#d33',
         confirmButtonText: 'Vâng, xác nhận!',
         cancelButtonText: 'Hủy'
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            Swal.fire({
-                title: 'Đang xử lý...',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading() }
-            });
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
-                    method: 'POST',
-                    body: JSON.stringify({ status, notes })
-                });
-                const resultData = await response.json();
-                if (!response.ok) throw new Error(resultData.message);
-
-                await Swal.fire('Thành công!', resultData.message, 'success');
-                closeUsageLogModal();
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1); // Tải lại danh sách để xóa các dấu '!'
-            } catch (error) {
-                handleApiError(error, "Ghi nhật ký hàng loạt");
-            }
-        }
     });
-});
+    if (!confirm.isConfirmed) return;
+
+    Swal.fire({ title: 'Đang xử lý...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
+            method: 'POST',
+            body: JSON.stringify({ status, notes, excludeIds, weekStart })
+        });
+        const resultData = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(resultData.message || 'Không thể ghi hàng loạt.');
+
+        await Swal.fire('Thành công!', resultData.message, 'success');
+        closeUsageLogModal();
+        refreshAfterUsageChange();
+    } catch (error) {
+        handleApiError(error, "Ghi nhật ký hàng loạt");
+    }
+}
+
+document.getElementById('bulkLogSubmitBtn').addEventListener('click', () => confirmAndBulkLog([]));
 
 dom.closeUsageLogModalBtn.addEventListener('click', closeUsageLogModal);
 window.addEventListener('click', (e) => {
     if (e.target === dom.usageLogModal) closeUsageLogModal();
 });
 
-dom.usageLogForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const payload = {
-        equipmentId: document.getElementById('log-equipment-id').value,
-        status: document.getElementById('logStatus').value,
-        notes: document.getElementById('logNotes').value
-    };
+// ========================================================
+// GHI NHẬT KÝ HÀNG LOẠT (NGOẠI TRỪ MỘT SỐ THIẾT BỊ)
+// ========================================================
+function closeBulkLogExceptionModal() {
+    dom.bulkLogExceptionModal.style.display = 'none';
+}
+
+dom.closeBulkLogExceptionModalBtn.addEventListener('click', closeBulkLogExceptionModal);
+dom.cancelBulkLogExceptionBtn.addEventListener('click', closeBulkLogExceptionModal);
+window.addEventListener('click', (e) => {
+    if (e.target === dom.bulkLogExceptionModal) closeBulkLogExceptionModal();
+});
+
+dom.bulkLogExceptBtn.addEventListener('click', async () => {
+    const weekStart = document.getElementById('log-week-start').value;
+    Swal.fire({ title: 'Đang tải danh sách thiết bị...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
 
     try {
-        const response = await fetchWithAuth(`${API_BASE_URL}/api/logs`, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.message);
+        // Lấy danh sách TẤT CẢ thiết bị của khoa, không phân trang
+        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${encodeURIComponent(userProfile.departmentKey)}?limit=10000`);
+        if (!response.ok) throw new Error("Không thể tải danh sách thiết bị.");
+        const data = await response.json();
+        // Chỉ liệt kê thiết bị CHƯA có nhật ký của tuần đang chọn (những thiết bị sẽ bị ghi hàng loạt)
+        const equipments = (data.equipments || []).filter(eq => !(eq.loggedWeeks || []).includes(weekStart));
+
+        dom.exceptionListContainer.innerHTML = '';
+        if (equipments.length === 0) {
+            dom.exceptionListContainer.innerHTML = `<p>Không còn thiết bị nào chưa ghi nhật ký tuần ${fmtWeekLabel(weekStart)}.</p>`;
+        } else {
+            equipments.forEach(eq => {
+                dom.exceptionListContainer.insertAdjacentHTML('beforeend', `
+                    <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                        <input type="checkbox" id="exc-${escapeHtml(eq._id)}" value="${escapeHtml(eq._id)}" style="width: 20px; height: 20px; margin-right: 15px;">
+                        <label for="exc-${escapeHtml(eq._id)}" style="font-weight: 500; cursor: pointer;">${escapeHtml(eq.name)} <span style="color: #6c757d;">(Serial: ${escapeHtml(eq.serial)})</span></label>
+                    </div>`);
+            });
         }
-        Swal.fire('Thành công', 'Đã ghi lại nhật ký sử dụng cho thiết bị.', 'success');
-        closeUsageLogModal();
+        Swal.close();
+        dom.bulkLogExceptionModal.style.display = 'flex';
     } catch (error) {
-        handleApiError(error, "Ghi nhật ký");
+        handleApiError(error, "Tải danh sách thiết bị");
     }
+});
+
+dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
+    const excludeIds = [...document.querySelectorAll('#exception-list-container input[type="checkbox"]:checked')].map(cb => cb.value);
+    closeBulkLogExceptionModal();
+    confirmAndBulkLog(excludeIds);
+});
+
+// ========================================================
+// GIỜ SỬ DỤNG HẰNG NGÀY: LỊCH GHI / GHI BÙ THEO NGÀY
+// Bấm vào thanh giờ sử dụng -> mở lịch 30 ngày gần nhất.
+// Ngày màu đỏ = chưa ghi, bấm vào để ghi bù.
+// ========================================================
+const du = { id: null, name: '', days: [], selected: null, dirty: false, today: null, maxBack: 30 };
+
+function duMissingDays() { // các ngày đã qua chưa ghi (cũ -> mới)
+    return du.days.filter(d => d.hours === null && d.date < du.today && !d.beforeCreation).map(d => d.date);
+}
+
+async function openDailyUsageModal(id, name, preselectDate) {
+    du.id = id; du.name = name || ''; du.dirty = false;
+    Swal.fire({ title: 'Đang tải...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
+    try {
+        const res = await fetchWithAuth(`${API_BASE_URL}/api/equipment/usage/${id}/history`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || 'Không thể tải lịch sử giờ sử dụng.');
+        Swal.close();
+        du.days = data.days; du.today = data.today; du.maxBack = data.maxBackfillDays;
+        document.getElementById('dailyUsageTitle').textContent = `Giờ sử dụng: ${data.equipmentName || du.name}`;
+        const missing = duMissingDays();
+        selectDuDate(preselectDate || (missing.length ? missing[missing.length - 1] : du.today));
+        document.getElementById('dailyUsageModal').style.display = 'flex';
+    } catch (error) {
+        handleApiError(error, 'Tải giờ sử dụng');
+    }
+}
+
+function renderDuSummary() {
+    const missing = duMissingDays();
+    const recent = missing.filter(d => d >= addDaysStr(du.today, -7)).length;
+    const box = document.getElementById('dailyUsageSummary');
+    if (missing.length === 0) {
+        box.innerHTML = `<span class="good"><i class="fas fa-circle-check"></i> Đã ghi đầy đủ</span> giờ sử dụng ${du.maxBack} ngày gần nhất.`;
+    } else {
+        box.innerHTML = `Còn thiếu <span class="bad">${recent} ngày</span> trong 7 ngày gần nhất` +
+            (missing.length > recent ? ` (tổng cộng <b>${missing.length}</b> ngày trong ${du.maxBack} ngày qua)` : '') +
+            `. Bấm vào ngày <b>màu đỏ</b> để ghi bù.`;
+    }
+    document.getElementById('duSaveNextBtn').style.display = missing.filter(d => d !== du.selected).length ? '' : 'none';
+}
+
+function renderDuCalendar() {
+    const cal = document.getElementById('dailyUsageCalendar');
+    cal.innerHTML = '';
+    if (du.days.length === 0) return;
+    const [y, m, d] = du.days[0].date.split('-').map(Number);
+    const offset = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // T2 = cột đầu
+    for (let i = 0; i < offset; i++) cal.insertAdjacentHTML('beforeend', '<div class="du-cell empty"></div>');
+
+    du.days.forEach((day, idx) => {
+        const recorded = day.hours !== null;
+        const isToday = day.date === du.today;
+        const isMissing = !recorded && !isToday && !day.beforeCreation;
+        const parts = day.date.split('-');
+        const showMonth = idx === 0 || parts[2] === '01';
+        let val = '—';
+        if (recorded) val = `${day.hours}h`;
+        else if (isToday) val = 'Nhập';
+        else if (isMissing) val = 'Chưa ghi';
+
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.dataset.date = day.date;
+        cell.title = fmtFullDate(day.date) + (recorded ? (day.backfilled ? ' — đã ghi bù' : ' — đã ghi') : (isMissing ? ' — CHƯA GHI, bấm để ghi bù' : ''));
+        cell.className = 'du-cell' +
+            (recorded ? (day.backfilled ? ' backfilled' : ' logged') : '') +
+            (isMissing ? ' missing' : '') + (isToday ? ' today' : '') + (isToday && !recorded ? ' pending' : '') +
+            (day.date === du.selected ? ' selected' : '');
+        cell.innerHTML = `<span class="du-day">${parseInt(parts[2], 10)}</span>${showMonth ? `<span class="du-mon">Th${parseInt(parts[1], 10)}</span>` : ''}<span class="du-val">${val}</span>`;
+        cal.appendChild(cell);
+    });
+}
+
+function updateDuEditor() {
+    const day = du.days.find(x => x.date === du.selected);
+    if (!day) return;
+    const isToday = du.selected === du.today;
+    const recorded = day.hours !== null;
+    let tag = '';
+    if (isToday) tag = '<span class="tag now">Hôm nay</span>';
+    else if (recorded) tag = day.backfilled ? '<span class="tag back">Đã ghi bù</span>' : '<span class="tag back">Đã ghi</span>';
+    else tag = '<span class="tag miss">Chưa ghi</span>';
+    document.getElementById('duSelectedLabel').innerHTML = `${fmtFullDate(du.selected)} ${tag}`;
+
+    const note = document.getElementById('duNote');
+    if (!isToday) {
+        note.className = 'du-note backfill';
+        note.textContent = `Bạn đang GHI BÙ cho ngày đã qua (${fmtDM(du.selected)}).` + (day.loggedBy ? ` Lần ghi trước bởi: ${day.loggedBy}.` : '');
+    } else {
+        note.className = 'du-note';
+        note.textContent = 'Kéo thanh để chọn số giờ máy hoạt động hôm nay.';
+    }
+    updateDuReadout();
+    document.getElementById('duSaveBtn').disabled = !du.dirty;
+    document.getElementById('duSaveNextBtn').disabled = !du.dirty;
+}
+
+function updateDuReadout() {
+    const h = Number(document.getElementById('duRange').value);
+    const out = document.getElementById('duReadout');
+    out.textContent = `${h} giờ`;
+    out.style.color = usageColor(h);
+    document.getElementById('duPercent').textContent = `${Math.round(h / 24 * 100)}% công suất (24h)`;
+}
+
+function selectDuDate(date) {
+    du.selected = date;
+    du.dirty = false;
+    const day = du.days.find(x => x.date === date);
+    document.getElementById('duRange').value = day && day.hours !== null ? day.hours : 0;
+    renderDuCalendar();
+    renderDuSummary();
+    updateDuEditor();
+}
+
+async function saveDailyUsage(goNext) {
+    const date = du.selected;
+    const hours = Number(document.getElementById('duRange').value);
+    const saveBtn = document.getElementById('duSaveBtn'), nextBtn = document.getElementById('duSaveNextBtn');
+    saveBtn.disabled = true; nextBtn.disabled = true;
+    try {
+        const res = await fetchWithAuth(`${API_BASE_URL}/api/equipment/usage/${du.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ dailyUsage: hours, date })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || 'Cập nhật thất bại');
+
+        const day = du.days.find(x => x.date === date);
+        day.hours = data.hours; day.backfilled = data.backfilled; day.loggedBy = userProfile.username;
+        showToast(data.message || 'Đã cập nhật giờ sử dụng.');
+        refreshAfterUsageChange();
+
+        let nextDate = date;
+        if (goNext) {
+            const missing = duMissingDays();
+            if (missing.length) nextDate = missing[missing.length - 1]; // ngày thiếu gần nhất
+            else showToast('Đã ghi bù đủ các ngày còn thiếu!');
+        }
+        selectDuDate(nextDate);
+    } catch (error) {
+        handleApiError(error, 'Cập nhật giờ sử dụng');
+        updateDuEditor();
+    }
+}
+
+function closeDailyUsageModal() { document.getElementById('dailyUsageModal').style.display = 'none'; }
+
+document.getElementById('dailyUsageCalendar').addEventListener('click', (e) => {
+    const cell = e.target.closest('.du-cell');
+    if (!cell || !cell.dataset.date) return;
+    selectDuDate(cell.dataset.date);
+});
+document.getElementById('duRange').addEventListener('input', () => { du.dirty = true; updateDuEditor(); });
+document.querySelector('.du-quick').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-h]');
+    if (!btn) return;
+    document.getElementById('duRange').value = btn.dataset.h;
+    du.dirty = true;
+    updateDuEditor();
+});
+document.getElementById('duSaveBtn').addEventListener('click', () => saveDailyUsage(false));
+document.getElementById('duSaveNextBtn').addEventListener('click', () => saveDailyUsage(true));
+document.getElementById('closeDailyUsageBtn').addEventListener('click', closeDailyUsageModal);
+document.getElementById('duCloseBtn').addEventListener('click', closeDailyUsageModal);
+document.getElementById('dailyUsageModal').addEventListener('click', (e) => {
+    if (e.target.id === 'dailyUsageModal') closeDailyUsageModal();
+});
+
+// ========================================================
+// THÔNG BÁO NỔI BẬT "CÒN THIẾU DỮ LIỆU" (dành cho tài khoản Khoa)
+// ========================================================
+async function refreshBackfillBanner() {
+    const banner = document.getElementById('backfillBanner');
+    if (!banner) return;
+    if (userProfile.role !== 'user') { banner.style.display = 'none'; return; }
+    try {
+        const res = await fetchWithAuth(`${API_BASE_URL}/api/logs/missing-summary`);
+        if (!res.ok) { banner.style.display = 'none'; return; }
+        lastMissingSummary = await res.json();
+        renderBackfillBanner(lastMissingSummary);
+    } catch (e) {
+        banner.style.display = 'none';
+    }
+}
+
+function renderBackfillBanner(s) {
+    const banner = document.getElementById('backfillBanner');
+    const weeksMissing = (s.weeks || []).filter(w => w.missingCount > 0);
+    const daily = s.dailyMissing || { equipmentCount: 0, totalDays: 0, windowDays: 7 };
+    if (weeksMissing.length === 0 && daily.equipmentCount === 0) {
+        banner.style.display = 'none';
+        if (currentMissingOnly) { currentMissingOnly = false; refreshEquipmentList(1); } // hết thiếu -> hiện lại toàn bộ
+        return;
+    }
+
+    const items = weeksMissing.map(w => `
+        <li><span><i class="fas fa-file-pen"></i> Nhật ký <b>${w.isCurrent ? 'tuần này' : 'tuần'} (${w.label})</b>: <b>${w.missingCount}/${s.totalEquipment}</b> thiết bị chưa ghi</span>
+            <button type="button" data-bf="week" data-week="${w.weekStart}">${w.isCurrent ? 'Ghi cả khoa' : 'Ghi bù cả khoa'}</button></li>`);
+    if (daily.equipmentCount > 0) {
+        items.push(`<li><span><i class="fas fa-clock"></i> Giờ sử dụng: <b>${daily.equipmentCount}</b> thiết bị đang thiếu <b>${daily.totalDays}</b> ngày trong ${daily.windowDays} ngày gần nhất</span></li>`);
+    }
+    if (currentMissingOnly) {
+        items.push(`<li><span>Đang chỉ hiển thị thiết bị cần ghi bù.</span><button type="button" class="secondary" data-bf="all">Hiện tất cả thiết bị</button></li>`);
+    }
+
+    banner.className = 'backfill-banner' + (currentMissingOnly ? ' filtering' : '');
+    banner.innerHTML = `
+        <div class="bf-icon"><i class="fas fa-clock-rotate-left"></i></div>
+        <div class="bf-body">
+            <div class="bf-title">Khoa còn dữ liệu chưa ghi — bạn vẫn có thể ghi bù
+                ${currentMissingOnly ? '' : '<button type="button" class="secondary" data-bf="show" style="margin-left:8px;">Chỉ hiện thiết bị cần ghi bù</button>'}
+            </div>
+            <ul>${items.join('')}</ul>
+        </div>`;
+    banner.style.display = 'flex';
+}
+
+document.getElementById('backfillBanner').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-bf]');
+    if (!btn) return;
+    const act = btn.dataset.bf;
+    if (act === 'week') openUsageLogModal(null, btn.dataset.week);
+    else if (act === 'show') { currentMissingOnly = true; refreshEquipmentList(1); renderBackfillBanner(lastMissingSummary); }
+    else if (act === 'all') { currentMissingOnly = false; refreshEquipmentList(1); renderBackfillBanner(lastMissingSummary); }
 });
 
         // Dán hàm này vào cuối thẻ script
@@ -2479,8 +2860,8 @@ function renderUsageLogHistory(logs) {
     if (!logBody) return; 
     logBody.innerHTML = '';
 
-    if (logs.length === 0) {
-        logBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Chưa có nhật ký sử dụng.</td></tr>';
+    if (!Array.isArray(logs) || logs.length === 0) {
+        logBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Chưa có nhật ký sử dụng.</td></tr>';
         return;
     }
 
@@ -2492,11 +2873,13 @@ function renderUsageLogHistory(logs) {
 
     logs.forEach(log => {
         const row = document.createElement('tr');
+        const weekText = log.weekStart ? fmtWeekLabel(log.weekStart) : '';
         row.innerHTML = `
+            <td>${weekText}${log.isBackfill ? '<span class="backfill-tag" title="Khoa ghi bù sau khi tuần này đã kết thúc">Ghi bù</span>' : ''}</td>
             <td>${new Date(log.createdAt).toLocaleDateString('vi-VN')}</td>
-            <td>${log.loggedBy}</td>
-            <td>${statusMap[log.status] || log.status}</td>
-            <td>${log.notes || ''}</td>
+            <td>${escapeHtml(log.loggedBy)}</td>
+            <td>${escapeHtml(statusMap[log.status] || log.status)}</td>
+            <td>${escapeHtml(log.notes || '')}</td>
         `;
         logBody.appendChild(row);
     });
@@ -2579,140 +2962,6 @@ function renderUserUpcomingMaintenance(schedules) {
 dom.userReportIncidentBtn.addEventListener('click', () => {
     switchView('incidents');
 });     
-
-// ========================================================
-// LOGIC CHO GHI NHẬT KÝ HÀNG LOẠT
-// ========================================================
-document.getElementById('bulkLogSubmitBtn').addEventListener('click', () => {
-    const status = document.getElementById('logStatus').value;
-    const notes = document.getElementById('logNotes').value;
-
-    Swal.fire({
-        title: 'Xác nhận Ghi hàng loạt?',
-        text: `Bạn có chắc muốn áp dụng tình trạng "${status === 'operational' ? 'Hoạt động tốt' : (status === 'minor_issue' ? 'Có vấn đề nhỏ' : 'Không sử dụng')}" cho tất cả thiết bị còn lại trong khoa?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Vâng, xác nhận!',
-        cancelButtonText: 'Hủy'
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            Swal.fire({
-                title: 'Đang xử lý...',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading() }
-            });
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
-                    method: 'POST',
-                    body: JSON.stringify({ status, notes })
-                });
-                const resultData = await response.json();
-                if (!response.ok) throw new Error(resultData.message);
-
-                await Swal.fire('Thành công!', resultData.message, 'success');
-                closeUsageLogModal();
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1); // Tải lại danh sách để xóa các dấu '!'
-            } catch (error) {
-                handleApiError(error, "Ghi nhật ký hàng loạt");
-            }
-        }
-    });
-});
-
-// ========================================================
-// LOGIC CHO GHI NHẬT KÝ HÀNG LOẠT (NGOẠI TRỪ)
-// ========================================================
-
-function closeBulkLogExceptionModal() {
-    dom.bulkLogExceptionModal.style.display = 'none';
-}
-
-dom.closeBulkLogExceptionModalBtn.addEventListener('click', closeBulkLogExceptionModal);
-dom.cancelBulkLogExceptionBtn.addEventListener('click', closeBulkLogExceptionModal);
-window.addEventListener('click', (e) => {
-    if (e.target === dom.bulkLogExceptionModal) closeBulkLogExceptionModal();
-});
-
-dom.bulkLogExceptBtn.addEventListener('click', async () => {
-    console.log('Nút "Áp dụng, trừ một vài thiết bị..." đã được nhấn!'); // Dòng code kiểm tra
-
-    Swal.fire({
-        title: 'Đang tải danh sách thiết bị...',
-        allowOutsideClick: false,
-        didOpen: () => { Swal.showLoading() }
-    });
-
-    try {
-        // Lấy danh sách TẤT CẢ thiết bị của khoa, không phân trang
-        const response = await fetchWithAuth(`${API_BASE_URL}/api/equipment/${userProfile.departmentKey}?limit=10000`);
-        if (!response.ok) throw new Error("Không thể tải danh sách thiết bị.");
-        
-        const data = await response.json();
-        const equipments = data.equipments || []; // Đảm bảo equipments là một mảng
-        
-        dom.exceptionListContainer.innerHTML = ''; // Xóa danh sách cũ
-        
-        if (equipments.length === 0) {
-            dom.exceptionListContainer.innerHTML = '<p>Không có thiết bị nào trong khoa này.</p>';
-        } else {
-            equipments.forEach(eq => {
-                const itemHtml = `
-                    <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
-                        <input type="checkbox" id="exc-${eq._id}" value="${eq._id}" style="width: 20px; height: 20px; margin-right: 15px;">
-                        <label for="exc-${eq._id}" style="font-weight: 500; cursor: pointer;">${eq.name} <span style="color: #6c757d;">(Serial: ${eq.serial})</span></label>
-                    </div>
-                `;
-                dom.exceptionListContainer.innerHTML += itemHtml;
-            });
-        }
-
-        Swal.close();
-        dom.bulkLogExceptionModal.style.display = 'flex';
-
-    } catch (error) {
-        handleApiError(error, "Tải danh sách thiết bị");
-    }
-});
-
-dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
-    const status = document.getElementById('logStatus').value;
-    const notes = document.getElementById('logNotes').value;
-    const excludeIds = [];
-    document.querySelectorAll('#exception-list-container input[type="checkbox"]:checked').forEach(checkbox => {
-        excludeIds.push(checkbox.value);
-    });
-
-    closeBulkLogExceptionModal();
-
-    Swal.fire({
-        title: 'Xác nhận Ghi hàng loạt?',
-        text: `Áp dụng cho tất cả thiết bị còn lại, ngoại trừ ${excludeIds.length} thiết bị đã chọn?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Vâng, xác nhận!',
-        cancelButtonText: 'Hủy'
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            Swal.fire({ title: 'Đang xử lý...', allowOutsideClick: false, didOpen: () => { Swal.showLoading() } });
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/logs/bulk`, {
-                    method: 'POST',
-                    body: JSON.stringify({ status, notes, excludeIds }) // Gửi kèm danh sách loại trừ
-                });
-                const resultData = await response.json();
-                if (!response.ok) throw new Error(resultData.message);
-                
-                await Swal.fire('Thành công!', resultData.message, 'success');
-                closeUsageLogModal();
-                fetchAndDisplayEquipment(dom.departmentSelect.value, 1); // Tải lại danh sách để cập nhật dấu '!'
-            } catch (error) {
-                handleApiError(error, "Ghi nhật ký hàng loạt");
-            }
-        }
-    });
-});
 
 // ========================================================
 // LOGIC CHO QUẢN LÝ TÀI LIỆU
