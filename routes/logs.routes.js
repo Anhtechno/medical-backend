@@ -8,21 +8,22 @@ const {
     todayVN, addDays, weekStartOf, currentWeekStart, weekEndOf, isValidDateStr, weekLabel,
     startInstant, weekStartOfLog, createdDateOf
 } = require('../utils/dateVN');
-const { loadLoggedWeeks, computeUsageStatus } = require('../utils/usageStatus');
+const { loadLoggedWeeks, computeUsageStatus, firstWeek } = require('../utils/usageStatus');
+
+const fmtMonthYear = (s) => `tháng ${s.slice(5, 7)}/${s.slice(0, 4)}`;
 
 const VALID_STATUS = ['operational', 'minor_issue', 'not_in_use'];
 
 // Chuẩn hóa & kiểm tra tuần được chọn để ghi (mặc định là tuần hiện tại).
-// Người dùng khoa chỉ được ghi bù tối đa BACKFILL_WEEKS tuần gần nhất.
+// Người dùng khoa được ghi bù ngược về tuần chứa ngày bắt đầu áp dụng phần mềm (GO_LIVE_DATE).
 function resolveWeek(input, role) {
     const cur = currentWeekStart();
     if (input === undefined || input === null || input === '') return { weekStart: cur };
     if (!isValidDateStr(input)) return { error: 'Tuần được chọn không hợp lệ.' };
     const weekStart = weekStartOf(input);
     if (weekStart > cur) return { error: 'Không thể ghi nhật ký cho tuần chưa đến.' };
-    const earliest = addDays(cur, -7 * cfg.BACKFILL_WEEKS);
-    if (weekStart < earliest && role !== 'admin') {
-        return { error: `Chỉ được ghi bù tối đa ${cfg.BACKFILL_WEEKS} tuần gần nhất.` };
+    if (weekStart < firstWeek() && role !== 'admin') {
+        return { error: `Chỉ được ghi bù nhật ký từ ${fmtMonthYear(cfg.GO_LIVE_DATE)} (thời điểm bắt đầu áp dụng phần mềm).` };
     }
     return { weekStart };
 }
@@ -205,7 +206,8 @@ router.get('/api/logs/missing-summary', authenticateToken, async (req, res) => {
 
         const cur = currentWeekStart();
         const weeks = [];
-        for (let i = 0; i <= cfg.MISSING_WEEKS_WINDOW; i++) {
+        const fw = firstWeek();
+        for (let i = 0; addDays(cur, -7 * i) >= fw; i++) {
             const wk = addDays(cur, -7 * i);
             const missingCount = statuses.filter(s => (i === 0 ? s.needsLog : s.missingWeeks.includes(wk))).length;
             weeks.push({ weekStart: wk, label: weekLabel(wk), isCurrent: i === 0, missingCount });
@@ -216,7 +218,7 @@ router.get('/api/logs/missing-summary', authenticateToken, async (req, res) => {
             totalEquipment: equipments.length,
             weeks,
             dailyMissing: {
-                windowDays: cfg.MISSING_DAYS_WINDOW,
+                since: cfg.GO_LIVE_DATE,
                 equipmentCount: statuses.filter(s => s.missingDays.length > 0).length,
                 totalDays: statuses.reduce((sum, s) => sum + s.missingDays.length, 0)
             }

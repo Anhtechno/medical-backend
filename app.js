@@ -44,11 +44,9 @@
         function showToast(message, icon = 'success') {
             Swal.fire({ toast: true, position: 'top-end', icon, title: message, showConfirmButton: false, timer: 2600 });
         }
-        let currentMissingOnly = false;   // đang chỉ hiện thiết bị còn thiếu dữ liệu cần ghi bù
         let searchSeq = 0, listSeq = 0;   // đánh số yêu cầu để bỏ qua kết quả trả về chậm/cũ
         let searchTimer = null, deptSearchTimer = null;
         let lastLoadedDept = '';
-        let lastMissingSummary = null;
         const equipmentCache = new Map(); // _id -> thiết bị đang hiển thị
         let departments = {};
         let currentFullDeptList = []; 
@@ -284,7 +282,6 @@ if (response.status === 403) {
             if (!silent) dom.currentDepartment.textContent = `Đang tải...`;
             try {
                 let url = `${API_BASE_URL}/api/equipment/${encodeURIComponent(deptKey)}?page=${page}&limit=10&status=${currentStatusFilter}`;
-                if (currentMissingOnly) url += '&missing=1';
                 const response = await fetchWithAuth(url);
                 if (!response.ok) throw new Error(`Không thể tải dữ liệu`);
                 
@@ -302,7 +299,6 @@ if (response.status === 403) {
                 updateDepartmentTitle(deptKey);
                 updateStats(data.stats);
                 renderPaginationControls(data.totalPages, data.currentPage);
-                if (!silent) refreshBackfillBanner();
             } catch (error) {
                 if (mySeq !== listSeq) return;
                 handleApiError(error, `Tải dữ liệu cho khoa ${departments[deptKey] || deptKey}`);
@@ -338,7 +334,7 @@ if (response.status === 403) {
             `;
         } else { // Nếu là user thì hiển thị các nút tương ứng
             const missingWeekCount = (item.needsLog ? 1 : 0) + (item.missingWeeks || []).length;
-            const missingDayCount = (item.missingDays || []).length;
+            const missingDayCount = item.missingDayCount || 0;
             let warningIcon = '';
             if (missingWeekCount > 0) {
                 warningIcon = `<i class="fas fa-exclamation-circle log-warn-dot" title="Còn thiếu nhật ký — bấm để ghi hoặc ghi bù"></i>`;
@@ -449,7 +445,6 @@ if (response.status === 403) {
                 if (!response.ok) throw new Error((data && data.message) || 'Không thể tìm kiếm.');
 
                 let results = Array.isArray(data) ? data : [];
-                if (currentMissingOnly) results = results.filter(r => r.hasMissing);
                 updateEquipmentTable(results, isGlobalSearch);
                 updateStatsFromList(results);
                 dom.currentDepartment.textContent = `Kết quả cho "${term}" — ${results.length} thiết bị${isGlobalSearch ? ' (toàn bộ các khoa)' : ''}`;
@@ -470,7 +465,6 @@ if (response.status === 403) {
             dom.searchInput.value = '';
             searchSeq++;
             currentStatusFilter = 'all';
-            currentMissingOnly = false;
             setActiveSidebarFilter('all');
             fetchAndDisplayEquipment(dom.departmentSelect.value, 1);
         });
@@ -2400,9 +2394,10 @@ function printMonthlyReport(reportData, startDate, endDate) {
 }
 // ========================================================
 // GHI NHẬT KÝ TUẦN & GHI BÙ
-// Khoa có thể chọn một tuần đã qua để ghi bù (tối đa 8 tuần gần nhất).
+// Khoa có thể chọn bất kỳ tuần nào từ tháng 01/2026 đến nay để ghi bù.
 // ========================================================
-const BACKFILL_WEEKS = 8;
+// Ngày bắt đầu áp dụng phần mềm: được ghi bù từ mốc này (phải trùng GO_LIVE_DATE trong config/usage.js của server)
+const GO_LIVE_DATE = '2026-01-01';
 const LOG_STATUS_TEXT = { operational: 'Hoạt động tốt', minor_issue: 'Có vấn đề nhỏ', not_in_use: 'Không sử dụng' };
 
 function defaultWeekFor(item) {
@@ -2415,26 +2410,33 @@ function renderWeekPicker() {
     const picker = document.getElementById('logWeekPicker');
     const selected = document.getElementById('log-week-start').value;
     const cur = weekStartOfStr(vnTodayStr());
+    const first = weekStartOfStr(GO_LIVE_DATE);
+    const onlyMissing = document.getElementById('logOnlyMissing').checked;
     picker.innerHTML = '';
-    for (let i = 0; i <= BACKFILL_WEEKS; i++) {
-        const ws = addDaysStr(cur, -7 * i);
-        let logged = false, missing = false, extra = '';
-        if (logModalItem) {
-            logged = (logModalItem.loggedWeeks || []).includes(ws);
-            missing = i > 0 && (logModalItem.missingWeeks || []).includes(ws);
-        } else if (lastMissingSummary) { // chế độ ghi cho cả khoa: hiện số thiết bị còn thiếu ở mỗi tuần
-            const w = (lastMissingSummary.weeks || []).find(x => x.weekStart === ws);
-            if (w && w.missingCount > 0) { missing = i > 0; extra = `<br><small>${w.missingCount} thiết bị chưa ghi</small>`; }
-        }
+    let missingCount = 0;
+    for (let ws = cur, i = 0; ws >= first; ws = addDaysStr(ws, -7), i++) {
+        const logged = !!logModalItem && (logModalItem.loggedWeeks || []).includes(ws);
+        const missing = !!logModalItem && (i === 0 ? !!logModalItem.needsLog : (logModalItem.missingWeeks || []).includes(ws));
+        if (missing) missingCount++;
+        if (onlyMissing && !missing && ws !== selected) continue;
         const title = i === 0 ? 'Tuần này' : (i === 1 ? 'Tuần trước' : `${i} tuần trước`);
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.dataset.week = ws;
         chip.className = 'week-chip' + (ws === selected ? ' selected' : '') + (logged ? ' done' : '') + (missing ? ' missing' : '');
-        chip.innerHTML = `<strong>${title}</strong>${fmtWeekLabel(ws)}${extra}` +
+        chip.innerHTML = `<strong>${title}</strong>${fmtWeekLabel(ws)}` +
             (logged ? '<i class="fas fa-circle-check wc-state" title="Đã ghi"></i>' : (missing ? '<i class="fas fa-circle-exclamation wc-state" title="Chưa ghi"></i>' : ''));
         picker.appendChild(chip);
     }
+    const sum = document.getElementById('logWeekSummary');
+    if (logModalItem) {
+        sum.innerHTML = missingCount > 0
+            ? `Còn thiếu <b class="bad">${missingCount} tuần</b> kể từ tháng 01/2026 (cuộn xuống để xem hết, tuần cũ nằm phía dưới).`
+            : '<span class="good"><i class="fas fa-circle-check"></i> Đã ghi nhật ký đầy đủ các tuần đã qua.</span>';
+    } else sum.textContent = '';
+    // cuộn tới tuần đang chọn
+    const sel = picker.querySelector('.week-chip.selected');
+    if (sel) picker.scrollTop = Math.max(0, sel.offsetTop - picker.offsetTop - 8);
     updateWeekHint();
 }
 
@@ -2458,12 +2460,14 @@ document.getElementById('logWeekPicker').addEventListener('click', (e) => {
     document.getElementById('log-week-start').value = chip.dataset.week;
     renderWeekPicker();
 });
+document.getElementById('logOnlyMissing').addEventListener('change', renderWeekPicker);
 
 // equipment = null  -> chế độ GHI HÀNG LOẠT cho cả khoa (dùng từ thông báo "còn thiếu")
 let logModalItem = null;
 function openUsageLogModal(equipment, weekStart) {
     logModalItem = equipment || null;
     dom.usageLogForm.reset();
+    document.getElementById('logOnlyMissing').checked = false;
     document.getElementById('log-equipment-id').value = equipment ? equipment._id : '';
     document.getElementById('log-equipment-name').value = equipment ? equipment.name : '';
     document.getElementById('log-week-start').value = weekStart || defaultWeekFor(equipment);
@@ -2484,7 +2488,6 @@ function refreshAfterUsageChange() {
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(() => {
         refreshEquipmentList(currentPage || 1, true);
-        refreshBackfillBanner();
     }, 300);
 }
 
@@ -2516,7 +2519,8 @@ dom.usageLogForm.addEventListener('submit', async (e) => {
         refreshAfterUsageChange();
 
         // Tự chuyển sang tuần còn thiếu tiếp theo của thiết bị này; hết thì đóng
-        const nextWeek = item.needsLog ? cur : (item.missingWeeks[0] || null);
+        const todo = [...(item.missingWeeks || []), ...(item.needsLog ? [cur] : [])].sort();
+        const nextWeek = todo.find(w => w > weekStart) || todo.filter(w => w < weekStart).pop() || null;
         if (nextWeek) {
             document.getElementById('log-week-start').value = nextWeek;
             document.getElementById('logNotes').value = '';
@@ -2627,13 +2631,25 @@ dom.confirmBulkLogExceptionBtn.addEventListener('click', () => {
 
 // ========================================================
 // GIỜ SỬ DỤNG HẰNG NGÀY: LỊCH GHI / GHI BÙ THEO NGÀY
-// Bấm vào thanh giờ sử dụng -> mở lịch 30 ngày gần nhất.
+// Bấm vào thanh giờ sử dụng -> mở lịch theo tháng (từ tháng 01/2026 đến nay).
 // Ngày màu đỏ = chưa ghi, bấm vào để ghi bù.
 // ========================================================
-const du = { id: null, name: '', days: [], selected: null, dirty: false, today: null, maxBack: 30 };
+const du = { id: null, name: '', days: [], selected: null, dirty: false, today: null, month: null, goLive: GO_LIVE_DATE };
+const MONTH_NAMES = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+const fmtMonth = (ym) => `Tháng ${ym.slice(5, 7)}/${ym.slice(0, 4)}`;
 
 function duMissingDays() { // các ngày đã qua chưa ghi (cũ -> mới)
     return du.days.filter(d => d.hours === null && d.date < du.today && !d.beforeCreation).map(d => d.date);
+}
+function duMonths() { // danh sách tháng từ lúc bắt đầu áp dụng đến hôm nay
+    const out = [];
+    for (let ym = du.goLive.slice(0, 7); ym <= du.today.slice(0, 7); ) {
+        out.push(ym);
+        let y = Number(ym.slice(0, 4)), m = Number(ym.slice(5, 7)) + 1;
+        if (m > 12) { m = 1; y++; }
+        ym = `${y}-${String(m).padStart(2, '0')}`;
+    }
+    return out;
 }
 
 async function openDailyUsageModal(id, name, preselectDate) {
@@ -2644,7 +2660,7 @@ async function openDailyUsageModal(id, name, preselectDate) {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message || 'Không thể tải lịch sử giờ sử dụng.');
         Swal.close();
-        du.days = data.days; du.today = data.today; du.maxBack = data.maxBackfillDays;
+        du.days = data.days; du.today = data.today; du.goLive = data.goLive || GO_LIVE_DATE;
         document.getElementById('dailyUsageTitle').textContent = `Giờ sử dụng: ${data.equipmentName || du.name}`;
         const missing = duMissingDays();
         selectDuDate(preselectDate || (missing.length ? missing[missing.length - 1] : du.today));
@@ -2656,32 +2672,44 @@ async function openDailyUsageModal(id, name, preselectDate) {
 
 function renderDuSummary() {
     const missing = duMissingDays();
-    const recent = missing.filter(d => d >= addDaysStr(du.today, -7)).length;
+    const inMonth = missing.filter(d => d.slice(0, 7) === du.month).length;
     const box = document.getElementById('dailyUsageSummary');
     if (missing.length === 0) {
-        box.innerHTML = `<span class="good"><i class="fas fa-circle-check"></i> Đã ghi đầy đủ</span> giờ sử dụng ${du.maxBack} ngày gần nhất.`;
+        box.innerHTML = `<span class="good"><i class="fas fa-circle-check"></i> Đã ghi đầy đủ</span> giờ sử dụng từ ${fmtFullDate(du.goLive).split(', ').pop()} đến nay.`;
     } else {
-        box.innerHTML = `Còn thiếu <span class="bad">${recent} ngày</span> trong 7 ngày gần nhất` +
-            (missing.length > recent ? ` (tổng cộng <b>${missing.length}</b> ngày trong ${du.maxBack} ngày qua)` : '') +
-            `. Bấm vào ngày <b>màu đỏ</b> để ghi bù.`;
+        box.innerHTML = `Còn thiếu <span class="bad">${missing.length} ngày</span> kể từ ${fmtFullDate(du.goLive).split(', ').pop()}` +
+            ` (<b>${inMonth}</b> ngày trong ${fmtMonth(du.month).toLowerCase()}). Bấm vào ngày <b>màu đỏ</b> để ghi bù, hoặc chọn tháng khác ở trên.`;
     }
     document.getElementById('duSaveNextBtn').style.display = missing.filter(d => d !== du.selected).length ? '' : 'none';
+}
+
+function renderDuMonthNav() {
+    const months = duMonths();
+    const missing = duMissingDays();
+    const sel = document.getElementById('duMonthSelect');
+    sel.innerHTML = months.map(ym => {
+        const n = missing.filter(d => d.slice(0, 7) === ym).length;
+        return `<option value="${ym}"${ym === du.month ? ' selected' : ''}>${fmtMonth(ym)}${n ? ` — thiếu ${n} ngày` : ' — đủ'}</option>`;
+    }).join('');
+    const idx = months.indexOf(du.month);
+    document.getElementById('duPrevMonth').disabled = idx <= 0;
+    document.getElementById('duNextMonth').disabled = idx >= months.length - 1;
 }
 
 function renderDuCalendar() {
     const cal = document.getElementById('dailyUsageCalendar');
     cal.innerHTML = '';
-    if (du.days.length === 0) return;
-    const [y, m, d] = du.days[0].date.split('-').map(Number);
+    const monthDays = du.days.filter(d => d.date.slice(0, 7) === du.month);
+    if (monthDays.length === 0) return;
+    const [y, m, d] = monthDays[0].date.split('-').map(Number);
     const offset = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; // T2 = cột đầu
     for (let i = 0; i < offset; i++) cal.insertAdjacentHTML('beforeend', '<div class="du-cell empty"></div>');
 
-    du.days.forEach((day, idx) => {
+    monthDays.forEach((day) => {
         const recorded = day.hours !== null;
         const isToday = day.date === du.today;
         const isMissing = !recorded && !isToday && !day.beforeCreation;
         const parts = day.date.split('-');
-        const showMonth = idx === 0 || parts[2] === '01';
         let val = '—';
         if (recorded) val = `${day.hours}h`;
         else if (isToday) val = 'Nhập';
@@ -2695,9 +2723,17 @@ function renderDuCalendar() {
             (recorded ? (day.backfilled ? ' backfilled' : ' logged') : '') +
             (isMissing ? ' missing' : '') + (isToday ? ' today' : '') + (isToday && !recorded ? ' pending' : '') +
             (day.date === du.selected ? ' selected' : '');
-        cell.innerHTML = `<span class="du-day">${parseInt(parts[2], 10)}</span>${showMonth ? `<span class="du-mon">Th${parseInt(parts[1], 10)}</span>` : ''}<span class="du-val">${val}</span>`;
+        cell.innerHTML = `<span class="du-day">${parseInt(parts[2], 10)}</span><span class="du-val">${val}</span>`;
         cal.appendChild(cell);
     });
+}
+
+function setDuMonth(ym) {
+    du.month = ym;
+    // chuyển tháng -> chọn luôn ngày còn thiếu gần nhất của tháng đó (hoặc ngày cuối nếu đủ)
+    const days = du.days.filter(d => d.date.slice(0, 7) === ym);
+    const miss = duMissingDays().filter(d => d.slice(0, 7) === ym);
+    selectDuDate(miss.length ? miss[miss.length - 1] : days[days.length - 1].date);
 }
 
 function updateDuEditor() {
@@ -2734,9 +2770,11 @@ function updateDuReadout() {
 
 function selectDuDate(date) {
     du.selected = date;
+    du.month = date.slice(0, 7);
     du.dirty = false;
     const day = du.days.find(x => x.date === date);
     document.getElementById('duRange').value = day && day.hours !== null ? day.hours : 0;
+    renderDuMonthNav();
     renderDuCalendar();
     renderDuSummary();
     updateDuEditor();
@@ -2762,8 +2800,10 @@ async function saveDailyUsage(goNext) {
 
         let nextDate = date;
         if (goNext) {
-            const missing = duMissingDays();
-            if (missing.length) nextDate = missing[missing.length - 1]; // ngày thiếu gần nhất
+            const missing = duMissingDays(); // cũ -> mới
+            const after = missing.find(d => d > date);          // ngày thiếu kế tiếp (mới hơn)
+            const before = missing.filter(d => d < date).pop(); // không còn -> quay lại ngày thiếu gần nhất cũ hơn
+            if (after || before) nextDate = after || before;
             else showToast('Đã ghi bù đủ các ngày còn thiếu!');
         }
         selectDuDate(nextDate);
@@ -2780,6 +2820,9 @@ document.getElementById('dailyUsageCalendar').addEventListener('click', (e) => {
     if (!cell || !cell.dataset.date) return;
     selectDuDate(cell.dataset.date);
 });
+document.getElementById('duMonthSelect').addEventListener('change', (e) => setDuMonth(e.target.value));
+document.getElementById('duPrevMonth').addEventListener('click', () => { const m = duMonths(); setDuMonth(m[Math.max(0, m.indexOf(du.month) - 1)]); });
+document.getElementById('duNextMonth').addEventListener('click', () => { const m = duMonths(); setDuMonth(m[Math.min(m.length - 1, m.indexOf(du.month) + 1)]); });
 document.getElementById('duRange').addEventListener('input', () => { du.dirty = true; updateDuEditor(); });
 document.querySelector('.du-quick').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-h]');
@@ -2794,64 +2837,6 @@ document.getElementById('closeDailyUsageBtn').addEventListener('click', closeDai
 document.getElementById('duCloseBtn').addEventListener('click', closeDailyUsageModal);
 document.getElementById('dailyUsageModal').addEventListener('click', (e) => {
     if (e.target.id === 'dailyUsageModal') closeDailyUsageModal();
-});
-
-// ========================================================
-// THÔNG BÁO NỔI BẬT "CÒN THIẾU DỮ LIỆU" (dành cho tài khoản Khoa)
-// ========================================================
-async function refreshBackfillBanner() {
-    const banner = document.getElementById('backfillBanner');
-    if (!banner) return;
-    if (userProfile.role !== 'user') { banner.style.display = 'none'; return; }
-    try {
-        const res = await fetchWithAuth(`${API_BASE_URL}/api/logs/missing-summary`);
-        if (!res.ok) { banner.style.display = 'none'; return; }
-        lastMissingSummary = await res.json();
-        renderBackfillBanner(lastMissingSummary);
-    } catch (e) {
-        banner.style.display = 'none';
-    }
-}
-
-function renderBackfillBanner(s) {
-    const banner = document.getElementById('backfillBanner');
-    const weeksMissing = (s.weeks || []).filter(w => w.missingCount > 0);
-    const daily = s.dailyMissing || { equipmentCount: 0, totalDays: 0, windowDays: 7 };
-    if (weeksMissing.length === 0 && daily.equipmentCount === 0) {
-        banner.style.display = 'none';
-        if (currentMissingOnly) { currentMissingOnly = false; refreshEquipmentList(1); } // hết thiếu -> hiện lại toàn bộ
-        return;
-    }
-
-    const items = weeksMissing.map(w => `
-        <li><span><i class="fas fa-file-pen"></i> Nhật ký <b>${w.isCurrent ? 'tuần này' : 'tuần'} (${w.label})</b>: <b>${w.missingCount}/${s.totalEquipment}</b> thiết bị chưa ghi</span>
-            <button type="button" data-bf="week" data-week="${w.weekStart}">${w.isCurrent ? 'Ghi cả khoa' : 'Ghi bù cả khoa'}</button></li>`);
-    if (daily.equipmentCount > 0) {
-        items.push(`<li><span><i class="fas fa-clock"></i> Giờ sử dụng: <b>${daily.equipmentCount}</b> thiết bị đang thiếu <b>${daily.totalDays}</b> ngày trong ${daily.windowDays} ngày gần nhất</span></li>`);
-    }
-    if (currentMissingOnly) {
-        items.push(`<li><span>Đang chỉ hiển thị thiết bị cần ghi bù.</span><button type="button" class="secondary" data-bf="all">Hiện tất cả thiết bị</button></li>`);
-    }
-
-    banner.className = 'backfill-banner' + (currentMissingOnly ? ' filtering' : '');
-    banner.innerHTML = `
-        <div class="bf-icon"><i class="fas fa-clock-rotate-left"></i></div>
-        <div class="bf-body">
-            <div class="bf-title">Khoa còn dữ liệu chưa ghi — bạn vẫn có thể ghi bù
-                ${currentMissingOnly ? '' : '<button type="button" class="secondary" data-bf="show" style="margin-left:8px;">Chỉ hiện thiết bị cần ghi bù</button>'}
-            </div>
-            <ul>${items.join('')}</ul>
-        </div>`;
-    banner.style.display = 'flex';
-}
-
-document.getElementById('backfillBanner').addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-bf]');
-    if (!btn) return;
-    const act = btn.dataset.bf;
-    if (act === 'week') openUsageLogModal(null, btn.dataset.week);
-    else if (act === 'show') { currentMissingOnly = true; refreshEquipmentList(1); renderBackfillBanner(lastMissingSummary); }
-    else if (act === 'all') { currentMissingOnly = false; refreshEquipmentList(1); renderBackfillBanner(lastMissingSummary); }
 });
 
         // Dán hàm này vào cuối thẻ script

@@ -842,3 +842,21 @@ footer { text-align: center; margin-top: 50px; padding: 24px 0; color: var(--tex
     .missing-pill { font-size: 11px; padding: 3px 8px; }
     .form-actions .action-button { width: 100%; }
 }
+
+/* --- Chọn tuần ghi bù: danh sách dài (từ tháng 01/2026) -> cuộn được --- */
+.week-picker { max-height: 250px; overflow-y: auto; padding-right: 4px; }
+.week-summary { margin-bottom: 8px; }
+.week-only-missing { display: flex; align-items: center; gap: 6px; font-weight: 500; font-size: 13px; margin-bottom: 8px; cursor: pointer; }
+.week-only-missing input { width: auto; margin: 0; }
+.du-summary .bad { color: var(--danger-color); font-weight: 700; }
+.du-summary .good { color: #16794a; font-weight: 700; }
+
+/* --- Chọn tháng trong lịch giờ sử dụng --- */
+.du-month-nav { display: flex; gap: 8px; align-items: stretch; margin: 10px 0; }
+.du-month-nav select { flex: 1; min-width: 0; padding: 8px 10px; border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); font-weight: 600; background: #fff; }
+.du-month-nav button { width: 40px; border: 1.5px solid var(--border-color); background: #fff; border-radius: var(--radius-sm); cursor: pointer; color: var(--primary-color); }
+.du-month-nav button:disabled { opacity: .4; cursor: not-allowed; }
+.du-month-nav button:hover:not(:disabled) { background: #eef4ff; }
+@media (max-width: 576px) {
+    .du-month-nav select { font-size: 12.5px; padding: 8px 4px; }
+}

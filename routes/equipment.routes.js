@@ -134,7 +134,7 @@ router.get('/api/equipment/item/:serial', authenticateToken, async (req, res) =>
     } catch (error) { res.status(500).json({ message: 'Lỗi server khi lấy chi tiết thiết bị' }); }
 });
 // API Cập nhật giờ sử dụng (Hiệu suất)
-// Có thể truyền thêm 'date' (YYYY-MM-DD) để GHI BÙ cho một ngày đã qua (tối đa BACKFILL_DAYS ngày).
+// Có thể truyền thêm 'date' (YYYY-MM-DD) để GHI BÙ cho một ngày đã qua (từ ngày bắt đầu áp dụng GO_LIVE_DATE).
 router.put('/api/equipment/usage/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
@@ -149,8 +149,8 @@ router.put('/api/equipment/usage/:id', authenticateToken, async (req, res) => {
         if (targetDate > today) {
             return res.status(400).json({ message: "Không thể ghi giờ sử dụng cho ngày chưa đến." });
         }
-        if (targetDate < addDays(today, -cfg.BACKFILL_DAYS) && req.user.role !== 'admin') {
-            return res.status(400).json({ message: `Chỉ được ghi bù tối đa ${cfg.BACKFILL_DAYS} ngày gần nhất.` });
+        if (targetDate < cfg.GO_LIVE_DATE && req.user.role !== 'admin') {
+            return res.status(400).json({ message: `Chỉ được ghi bù giờ sử dụng từ ngày ${cfg.GO_LIVE_DATE.split('-').reverse().join('/')} (thời điểm bắt đầu áp dụng phần mềm).` });
         }
 
         // --- Kiểm tra số giờ ---
@@ -217,12 +217,11 @@ router.get('/api/equipment/usage/:id/history', authenticateToken, async (req, re
 
         const today = todayVN();
         const created = createdDateOf(equipment);
-        const total = Math.min(Math.max(parseInt(req.query.days) || (cfg.BACKFILL_DAYS + 1), 1), 120);
+        // Trả về toàn bộ các ngày từ ngày bắt đầu áp dụng đến hôm nay (giao diện tự chia theo tháng)
         const byDate = new Map((equipment.usageHistory || []).map(h => [h.date, h]));
 
         const days = [];
-        for (let i = total - 1; i >= 0; i--) {
-            const d = addDays(today, -i);
+        for (let d = cfg.GO_LIVE_DATE; d <= today; d = addDays(d, 1)) {
             const h = byDate.get(d);
             days.push({
                 date: d,
@@ -232,7 +231,7 @@ router.get('/api/equipment/usage/:id/history', authenticateToken, async (req, re
                 beforeCreation: d < created // trước khi thiết bị có trong hệ thống: không tính là "thiếu"
             });
         }
-        res.json({ today, equipmentName: equipment.name, maxBackfillDays: cfg.BACKFILL_DAYS, days });
+        res.json({ today, equipmentName: equipment.name, goLive: cfg.GO_LIVE_DATE, days });
     } catch (error) {
         console.error("Lỗi khi lấy lịch sử giờ sử dụng:", error);
         res.status(500).json({ message: 'Lỗi server.' });

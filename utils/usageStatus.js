@@ -6,12 +6,15 @@
 const UsageLog = require('../models/UsageLog');
 const cfg = require('../config/usage');
 const {
-    todayVN, addDays, currentWeekStart, weekEndOf, createdDateOf, weekStartOfLog, startInstant
+    todayVN, addDays, currentWeekStart, weekEndOf, weekStartOf, createdDateOf, weekStartOfLog, startInstant
 } = require('./dateVN');
+
+// Tuần đầu tiên được phép ghi (tuần chứa ngày bắt đầu áp dụng phần mềm)
+const firstWeek = () => weekStartOf(cfg.GO_LIVE_DATE);
 
 // Lấy các tuần đã ghi nhật ký của mọi thiết bị trong phạm vi: Map<equipmentId, Set<weekStart>>
 async function loadLoggedWeeks(extraFilter = {}) {
-    const earliestWeek = addDays(currentWeekStart(), -7 * cfg.BACKFILL_WEEKS);
+    const earliestWeek = firstWeek();
     const logs = await UsageLog.find({
         ...extraFilter,
         $or: [
@@ -35,18 +38,20 @@ function computeUsageStatus(eq, loggedWeeksSet = new Set()) {
     const created = createdDateOf(eq);
     const recordedDays = new Set((eq.usageHistory || []).map(h => h.date));
 
+    // Các ngày đã qua (từ ngày bắt đầu áp dụng hoặc ngày thiết bị được thêm, tùy ngày nào muộn hơn)
+    // mà chưa có giờ sử dụng
     const missingDays = [];
-    for (let i = 1; i <= cfg.MISSING_DAYS_WINDOW; i++) {
-        const d = addDays(today, -i);
-        if (d >= created && !recordedDays.has(d)) missingDays.push(d);
+    const startDay = created > cfg.GO_LIVE_DATE ? created : cfg.GO_LIVE_DATE;
+    for (let d = addDays(today, -1); d >= startDay; d = addDays(d, -1)) {
+        if (!recordedDays.has(d)) missingDays.push(d);
     }
 
     const curWeek = currentWeekStart();
     const needsLog = !loggedWeeksSet.has(curWeek);
 
     const missingWeeks = [];
-    for (let i = 1; i <= cfg.MISSING_WEEKS_WINDOW; i++) {
-        const wk = addDays(curWeek, -7 * i);
+    const fw = firstWeek();
+    for (let wk = addDays(curWeek, -7); wk >= fw; wk = addDays(wk, -7)) {
         if (weekEndOf(wk) >= created && !loggedWeeksSet.has(wk)) missingWeeks.push(wk);
     }
 
@@ -68,11 +73,11 @@ function decorateEquipment(eq, loggedWeeksSet) {
         ...rest,
         dailyUsage,
         needsLog: st.needsLog,
-        missingDays: st.missingDays,
+        missingDayCount: st.missingDays.length,
         missingWeeks: st.missingWeeks,
         loggedWeeks: st.loggedWeeks,
         hasMissing: st.needsLog || st.missingDays.length > 0 || st.missingWeeks.length > 0
     };
 }
 
-module.exports = { loadLoggedWeeks, computeUsageStatus, decorateEquipment };
+module.exports = { loadLoggedWeeks, computeUsageStatus, decorateEquipment, firstWeek };
